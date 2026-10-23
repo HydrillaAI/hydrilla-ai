@@ -1,10 +1,22 @@
 import React from "react";
 import Link from "next/link";
+import { PageHeader } from "@/components/PageHeader";
+import { Steps, Step } from "@/components/Steps";
 import { CodeBlock } from "@/components/CodeBlock";
-import { Key, Terminal, Download, ArrowRight, Sparkles } from "lucide-react";
+import { CardGrid, NextStepCard } from "@/components/Card";
+import { Callout } from "@/components/Callout";
+import { H2 } from "@/components/Heading";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
+import { Boxes, KeyRound, ShieldCheck } from "lucide-react";
 
-export default function QuickstartPage() {
-  const curlStep2 = `curl -X POST https://api.hydrilla.co/v1/3d/text-to-3d \\
+export const metadata = {
+  title: "Quickstart",
+  description:
+    "Get up and running with the Hydrilla AI API in 3 simple steps: authenticate, submit a 3D reconstruction task, and poll for the downloadable GLB mesh.",
+  alternates: { canonical: "https://docs.hydrilla.ai/quickstart" },
+};
+
+const curlStep2 = `curl -X POST https://api.hydrilla.co/v1/3d/text-to-3d \\
   -H "Authorization: Bearer hyd_live_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -16,10 +28,10 @@ export default function QuickstartPage() {
     "resolution": 1536
   }'`;
 
-  const curlStep3 = `curl -X GET https://api.hydrilla.co/v1/3d/tasks/job_c18ab44d03e192a40 \\
+const curlStep3 = `curl -X GET https://api.hydrilla.co/v1/3d/tasks/job_c18ab44d03e192a40 \\
   -H "Authorization: Bearer hyd_live_your_api_key_here"`;
 
-  const pythonQuickstart = `import requests
+const pythonQuickstart = `import requests
 import time
 
 API_KEY = "hyd_live_your_api_key_here"
@@ -52,85 +64,56 @@ while True:
         
     time.sleep(3)`;
 
+export default async function QuickstartPage() {
   return (
-    <div className="space-y-10 max-w-4xl">
-      <div className="space-y-3 pb-6 border-b border-neutral-200 dark:border-neutral-800">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>5-Minute Guide</span>
-        </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-50 sm:text-4xl">
-          Quickstart Guide
-        </h1>
-        <p className="text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
-          Get up and running with the Hydrilla AI API in 3 simple steps: authenticate, submit a 3D reconstruction task, and poll for the downloadable GLB mesh.
-        </p>
-      </div>
+    <div className="prose">
+      <PageHeader
+        pathname="/quickstart"
+        heading="Quickstart Guide"
+        summary="Get up and running with the Hydrilla AI API in 3 simple steps: authenticate, submit a 3D reconstruction task, and poll for the downloadable GLB mesh."
+      />
 
-      {/* Step 1 */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-            1
-          </div>
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-            Create your API Key
-          </h2>
-        </div>
-        <div className="pl-11 space-y-3 text-sm text-neutral-600 dark:text-neutral-300">
+      <Callout variant="tip" title="Before you start">
+        <p>
+          You need an API key that starts with <code>hyd_live_</code>. Create one in the{" "}
+          <Link href="/authentication">Authentication</Link> guide if you don&apos;t have one yet.
+        </p>
+      </Callout>
+
+      <Steps>
+        <Step number={1} id="step-1" title="Create your API key">
           <p>
-            API requests require a secret key starting with <code className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono text-indigo-500 font-medium">hyd_live_...</code>.
+            API requests require a key that starts with <code>hyd_live_</code>.
           </p>
-          <ol className="list-decimal pl-5 space-y-2">
+          <ol>
             <li>
               Log in to the{" "}
-              <a
-                href="https://hydrilla.co/app/studio"
-                target="_blank"
-                rel="noreferrer"
-                className="text-indigo-600 dark:text-indigo-400 underline font-medium"
-              >
+              <a href="https://hydrilla.co/app/studio" target="_blank" rel="noreferrer">
                 Hydrilla Studio
               </a>
               .
             </li>
             <li>
-              Navigate to{" "}
-              <a
-                href="https://hydrilla.co/app/api-keys"
-                target="_blank"
-                rel="noreferrer"
-                className="text-indigo-600 dark:text-indigo-400 underline font-medium"
-              >
+              Open{" "}
+              <a href="https://hydrilla.co/app/api-keys" target="_blank" rel="noreferrer">
                 API Keys
               </a>{" "}
               in your dashboard sidebar.
             </li>
             <li>
-              Click <strong>Create Secret Key</strong>, give it a name (e.g., <em>Production-Backend</em>), and copy the revealed token.
+              Click <strong>Create Secret Key</strong>, give it a name (for example,{" "}
+              <em>Production-Backend</em>), and copy the revealed API key.
             </li>
           </ol>
-        </div>
-      </section>
+        </Step>
 
-      {/* Step 2 */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-            2
-          </div>
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-            Trigger 3D Reconstruction
-          </h2>
-        </div>
-        <div className="pl-11 space-y-3 text-sm text-neutral-600 dark:text-neutral-300">
+        <Step number={2} id="step-2" title="Trigger 3D reconstruction">
           <p>
-            Submit a prompt to the <code className="font-mono text-indigo-500 font-medium">POST /v1/3d/text-to-3d</code> endpoint. Hydrilla will compile the prompt, render reference views, and dispatch the job to our BlueFox GPU cluster.
+            Submit a prompt to the <code>POST /v1/3d/text-to-3d</code> endpoint. Hydrilla compiles
+            the prompt, renders concept views, and dispatches the job to the BlueFox GPU cluster.
           </p>
-          <CodeBlock code={curlStep2} language="bash" filename="cURL Request" />
-          <p className="text-xs text-neutral-500">
-            The endpoint returns an asynchronous task ID:
-          </p>
+          <CodeBlock code={curlStep2} lang="bash" filename="request.sh" />
+          <p className="text-small text-ink-3">The endpoint returns an asynchronous task ID:</p>
           <CodeBlock
             code={`{
   "id": "job_c18ab44d03e192a40",
@@ -140,27 +123,18 @@ while True:
     "poll": "https://api.hydrilla.co/v1/3d/tasks/job_c18ab44d03e192a40"
   }
 }`}
-            language="json"
-            filename="Response 200 OK"
+            lang="json"
+            filename="200_SUCCESS.json"
           />
-        </div>
-      </section>
+        </Step>
 
-      {/* Step 3 */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-            3
-          </div>
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-            Poll for Completion & Download Mesh
-          </h2>
-        </div>
-        <div className="pl-11 space-y-3 text-sm text-neutral-600 dark:text-neutral-300">
+        <Step number={3} id="step-3" title="Poll for completion and download the mesh" last>
           <p>
-            Poll <code className="font-mono text-indigo-500 font-medium">GET /v1/3d/tasks/:taskId</code> every 2–3 seconds until the status reaches <code className="font-mono text-emerald-500">completed</code>.
+            Poll <code>GET /v1/3d/tasks/:taskId</code> every 2–3 seconds until the status reaches{" "}
+            <code>completed</code>.
           </p>
-          <CodeBlock code={curlStep3} language="bash" filename="Poll Task" />
+          {/* CONTENT-FLAG: third-party storage hostnames (storage.googleapis.com) in example URLs. */}
+          <CodeBlock code={curlStep3} lang="bash" filename="request.sh" />
           <CodeBlock
             code={`{
   "id": "job_c18ab44d03e192a40",
@@ -173,39 +147,39 @@ while True:
     "triangles": 128450
   }
 }`}
-            language="json"
-            filename="Completed Response"
+            lang="json"
+            filename="200_SUCCESS.json"
           />
-        </div>
-      </section>
+        </Step>
+      </Steps>
 
-      {/* Full Script */}
-      <section className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-          Complete Python Example
-        </h2>
-        <p className="text-sm text-neutral-600 dark:text-neutral-300">
-          Copy and run this self-contained script to test end-to-end 3D generation:
-        </p>
-        <CodeBlock code={pythonQuickstart} language="python" filename="quickstart.py" />
-      </section>
+      <H2 id="complete-python-example">Complete Python example</H2>
+      <p>Run this self-contained script to test end-to-end 3D generation:</p>
+      <CodeBlock code={pythonQuickstart} lang="python" filename="quickstart.py" showLines />
 
-      {/* Next Steps CTA */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-neutral-900 border border-indigo-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h3 className="text-base font-bold text-white">Next: Explore Authentication</h3>
-          <p className="text-xs text-neutral-300">
-            Learn about API key lifecycle, headers, rate limits, and error handling.
-          </p>
-        </div>
-        <Link
+      <H2 id="next-steps">Next steps</H2>
+      <CardGrid>
+        <NextStepCard
           href="/authentication"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shadow-sm shrink-0"
-        >
-          <span>Authentication Guide</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
+          icon={KeyRound}
+          title="Authentication"
+          description="Key lifecycle, the Bearer header, and error codes."
+        />
+        <NextStepCard
+          href="/api/text-to-3d"
+          icon={Boxes}
+          title="Text to 3D"
+          description="Full parameter reference for prompt-to-mesh generation."
+        />
+        <NextStepCard
+          href="/models"
+          icon={ShieldCheck}
+          title="Models & Engines"
+          description="Compare models, speeds, and credit costs."
+        />
+      </CardGrid>
+
+      <FeedbackWidget />
     </div>
   );
 }

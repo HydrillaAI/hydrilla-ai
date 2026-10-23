@@ -1,10 +1,19 @@
 import React from "react";
-import Link from "next/link";
+import { PageHeader } from "@/components/PageHeader";
+import { H2 } from "@/components/Heading";
 import { CodeBlock } from "@/components/CodeBlock";
-import { Terminal, BookOpen, ArrowRight } from "lucide-react";
+import { CardGrid, NextStepCard } from "@/components/Card";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
+import { FileCode2, Rocket } from "lucide-react";
 
-export default function TypeScriptSdkPage() {
-  const clientCode = `export interface HydrillaConfig {
+export const metadata = {
+  title: "TypeScript SDK Guide",
+  description:
+    "Full TypeScript definitions and helper client for Next.js, Node.js, Bun, or Cloudflare Workers.",
+  alternates: { canonical: "https://docs.hydrilla.ai/sdks/typescript" },
+};
+
+const clientCode = `export interface HydrillaConfig {
   apiKey: string;
   baseUrl?: string;
 }
@@ -91,7 +100,7 @@ export class Hydrilla {
   }
 }`;
 
-  const usageCode = `import { Hydrilla } from "./hydrilla";
+const usageCode = `import { Hydrilla } from "./hydrilla";
 
 const client = new Hydrilla({
   apiKey: process.env.HYDRILLA_API_KEY!
@@ -112,47 +121,30 @@ async function main() {
 
 main().catch(console.error);`;
 
+export default async function TypeScriptSdkPage() {
   return (
-    <div className="space-y-10 max-w-4xl">
-      <div className="space-y-3 pb-6 border-b border-neutral-200 dark:border-neutral-800">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>TypeScript & Node.js</span>
-        </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-50 sm:text-4xl">
-          TypeScript Integration Guide
-        </h1>
-        <p className="text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
-          Full TypeScript definitions and helper client for Next.js, Node.js, Bun, or Cloudflare Workers.
-        </p>
-      </div>
+    <div className="prose">
+      <PageHeader
+        pathname="/sdks/typescript"
+        heading="TypeScript Integration Guide"
+        summary="Full TypeScript definitions and helper client for Next.js, Node.js, Bun, or Cloudflare Workers."
+      />
 
-      <section className="space-y-4">
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-          TypeScript Client Implementation
-        </h2>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Save this as <code className="font-mono text-indigo-500">hydrilla.ts</code>:
-        </p>
-        <CodeBlock code={clientCode} language="typescript" filename="hydrilla.ts" />
-      </section>
+      <H2 id="typescript-client-implementation">TypeScript client implementation</H2>
+      <p>
+        Save this as <code>hydrilla.ts</code>:
+      </p>
+      <CodeBlock code={clientCode} lang="typescript" filename="hydrilla.ts" showLines />
 
-      <section className="space-y-4">
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-          Example Usage
-        </h2>
-        <CodeBlock code={usageCode} language="typescript" filename="generate.ts" />
-      </section>
+      <H2 id="example-usage">Example usage</H2>
+      <CodeBlock code={usageCode} lang="typescript" filename="generate.ts" showLines />
 
-      <div className="flex items-center justify-between pt-6 border-t border-neutral-200 dark:border-neutral-800">
-        <Link
-          href="/quickstart"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shadow-sm ml-auto"
-        >
-          <span>Return to Quickstart</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
+      <CardGrid>
+        <NextStepCard href="/sdks/python" icon={FileCode2} title="Python SDK Guide" description="The same client, written for Python services and scripts." />
+        <NextStepCard href="/quickstart" icon={Rocket} title="Quickstart" description="Run your first generation in three steps." />
+      </CardGrid>
+
+      <FeedbackWidget />
     </div>
   );
 }

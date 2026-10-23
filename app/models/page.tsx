@@ -1,151 +1,125 @@
 import React from "react";
-import Link from "next/link";
+import { PageHeader } from "@/components/PageHeader";
+import { H2 } from "@/components/Heading";
+import { CardGrid, NextStepCard } from "@/components/Card";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
+import { Callout } from "@/components/Callout";
 import { Box, Sparkles, ArrowRight } from "lucide-react";
+
+export const metadata = {
+  title: "Models & Engines",
+  description:
+    "Hydrilla AI orchestrates specialized neural architectures across 3D reconstruction and 2D concept rendering.",
+  alternates: { canonical: "https://docs.hydrilla.ai/models" },
+};
+
+const MODELS_3D = [
+  { id: "bluefox-1 (1024)", resolution: "1024 voxels", speed: "~25–35s", cost: "2 credits", useCase: "Rapid prototyping, low-poly game props, mobile games" },
+  { id: "bluefox-1 (1536)", resolution: "1536 voxels", speed: "~45–60s", cost: "4 credits", useCase: "High-fidelity hero assets, film, Unreal Engine 5 production" },
+];
+
+// CONTENT-FLAG: third-party vendor and model names (OpenAI, Google, GPT Image, Gemini) in the 2D models table.
+const MODELS_2D = [
+  { id: "gpt-image-2.5-flare", provider: "OpenAI", cost: "1 credit", highlights: "Ultra-fast, stylized concept art, vivid lighting, ideal for rapid iterations" },
+  { id: "gpt-image-2.5-sunburst", provider: "OpenAI", cost: "1 credit", highlights: "Studio lighting, orthographic views, crisp texture details" },
+  { id: "gemini-3.1-flash-image", provider: "Google", cost: "1 credit", highlights: "Fastest turnaround time (<3s), exceptional multi-angle consistency" },
+  { id: "gemini-3-pro-image", provider: "Google", cost: "1 credit", highlights: "Complex scene comprehension, multi-part engineering equipment renders" },
+];
 
 export default function ModelsPage() {
   return (
-    <div className="space-y-10 max-w-4xl">
-      <div className="space-y-3 pb-6 border-b border-neutral-200 dark:border-neutral-800">
-        <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-50 sm:text-4xl">
-          Models & Capabilities
-        </h1>
-        <p className="text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
-          Hydrilla AI orchestrates specialized neural architectures across 3D reconstruction and 2D concept rendering.
+    <div className="prose">
+      <PageHeader
+        pathname="/models"
+        heading="Models & Engines"
+        summary="Hydrilla AI orchestrates specialized neural architectures across 3D reconstruction and 2D concept rendering."
+      />
+
+      <H2 id="3d-reconstruction-models">3D reconstruction models</H2>
+      {/* CONTENT-FLAG: credit costs disagree — Text to 3D lists 3/5 credits while this table lists 2/4; "BlueFox 3D" vs "BlueFox 1" naming. */}
+      <div className="mt-3 overflow-hidden rounded border border-line">
+        <table className="params-table">
+          <thead>
+            <tr>
+              <th>Model ID</th>
+              <th>Cascade Resolution</th>
+              <th>Speed</th>
+              <th>Cost</th>
+              <th>Use Case</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MODELS_3D.map((model) => (
+              <tr key={model.id}>
+                <td className="param-name">{model.id}</td>
+                <td className="mono text-code">{model.resolution}</td>
+                <td className="mono text-code">{model.speed}</td>
+                <td className="font-semibold text-success">{model.cost}</td>
+                <td>{model.useCase}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-4 pb-2 md:hidden">
+          {MODELS_3D.map((model) => (
+            <div key={model.id} className="param-card">
+              <div className="param-name">{model.id}</div>
+              <div className="mt-1 text-small text-ink-2">Resolution: {model.resolution}</div>
+              <div className="text-small text-ink-2">Speed: {model.speed}</div>
+              <div className="text-small text-ink-2">Cost: {model.cost}</div>
+              <div className="mt-1 text-small text-ink-3">{model.useCase}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <H2 id="2d-image-models">2D concept and image editing models</H2>
+      <div className="mt-3 overflow-hidden rounded border border-line">
+        <table className="params-table">
+          <thead>
+            <tr>
+              <th>Model ID</th>
+              <th>Provider</th>
+              <th>Cost</th>
+              <th>Highlights</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MODELS_2D.map((model) => (
+              <tr key={model.id}>
+                <td className="param-name">{model.id}</td>
+                <td>{model.provider}</td>
+                <td className="font-semibold text-success">{model.cost}</td>
+                <td>{model.highlights}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-4 pb-2 md:hidden">
+          {MODELS_2D.map((model) => (
+            <div key={model.id} className="param-card">
+              <div className="param-name">{model.id}</div>
+              <div className="mt-1 text-small text-ink-2">Provider: {model.provider}</div>
+              <div className="text-small text-ink-2">Cost: {model.cost}</div>
+              <div className="mt-1 text-small text-ink-3">{model.highlights}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Callout variant="note" title="Live model list">
+        <p>
+          Fetch the current list programmatically from <a href="/api/models-list">List Models</a>.
         </p>
-      </div>
+      </Callout>
 
-      {/* 3D Models Section */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Box className="w-5 h-5 text-indigo-500" />
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-            3D Reconstruction Models
-          </h2>
-        </div>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 font-semibold text-neutral-600 dark:text-neutral-400">
-                <th className="py-2.5 px-4">Model ID</th>
-                <th className="py-2.5 px-4">Cascade Resolution</th>
-                <th className="py-2.5 px-4">Speed</th>
-                <th className="py-2.5 px-4">Cost</th>
-                <th className="py-2.5 px-4">Use Case</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-              <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  bluefox-1 (1024)
-                </td>
-                <td className="py-3 px-4 font-mono">1024 voxels</td>
-                <td className="py-3 px-4">~25-35s</td>
-                <td className="py-3 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                  2 Credits
-                </td>
-                <td className="py-3 px-4 text-neutral-600 dark:text-neutral-300">
-                  Rapid prototyping, low-poly game props, mobile games
-                </td>
-              </tr>
-              <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  bluefox-1 (1536)
-                </td>
-                <td className="py-3 px-4 font-mono">1536 voxels</td>
-                <td className="py-3 px-4">~45-60s</td>
-                <td className="py-3 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                  4 Credits
-                </td>
-                <td className="py-3 px-4 text-neutral-600 dark:text-neutral-300">
-                  High-fidelity hero assets, film, Unreal Engine 5 production
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <CardGrid>
+        <NextStepCard href="/api/image-to-3d" icon={Box} title="Image to 3D" description="Reconstruct a mesh from a single concept image." />
+        <NextStepCard href="/api/images-generate" icon={Sparkles} title="Generate Concept Image" description="Render 2D concept art and orthographic references." />
+        <NextStepCard href="/quickstart" icon={ArrowRight} title="Quickstart" description="Run your first generation in three steps." />
+      </CardGrid>
 
-      {/* 2D Models Section */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-500" />
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-            2D Concept & Image Editing Models
-          </h2>
-        </div>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 font-semibold text-neutral-600 dark:text-neutral-400">
-                <th className="py-2.5 px-4">Model ID</th>
-                <th className="py-2.5 px-4">Provider</th>
-                <th className="py-2.5 px-4">Cost</th>
-                <th className="py-2.5 px-4">Highlights</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-              <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  gpt-image-2.5-flare
-                </td>
-                <td className="py-3 px-4 font-medium">OpenAI</td>
-                <td className="py-3 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                  1 Credit
-                </td>
-                <td className="py-3 px-4 text-neutral-600 dark:text-neutral-300">
-                  Ultra-fast, stylized concept art, vivid lighting, ideal for rapid iterations
-                </td>
-              </tr>
-              <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  gpt-image-2.5-sunburst
-                </td>
-                <td className="py-3 px-4 font-medium">OpenAI</td>
-                <td className="py-3 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                  1 Credit
-                </td>
-                <td className="py-3 px-4 text-neutral-600 dark:text-neutral-300">
-                  Studio lighting, orthographic views, crisp texture details
-                </td>
-              </tr>
-              <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  gemini-3.1-flash-image
-                </td>
-                <td className="py-3 px-4 font-medium">Google</td>
-                <td className="py-3 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                  1 Credit
-                </td>
-                <td className="py-3 px-4 text-neutral-600 dark:text-neutral-300">
-                  Fastest turnaround time (&lt;3s), exceptional multi-angle consistency
-                </td>
-              </tr>
-              <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  gemini-3-pro-image
-                </td>
-                <td className="py-3 px-4 font-medium">Google</td>
-                <td className="py-3 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                  1 Credit
-                </td>
-                <td className="py-3 px-4 text-neutral-600 dark:text-neutral-300">
-                  Complex scene comprehension, multi-part engineering equipment renders
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div className="flex items-center justify-between pt-6 border-t border-neutral-200 dark:border-neutral-800">
-        <Link
-          href="/api/image-to-3d"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shadow-sm ml-auto"
-        >
-          <span>View 3D API Reference</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
+      <FeedbackWidget />
     </div>
   );
 }
