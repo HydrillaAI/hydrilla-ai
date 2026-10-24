@@ -57,7 +57,7 @@ const DATA = {
 export const metadata = createPageMetadata({
   title: "AI 3D Assets for Architecture & Interiors",
   description: DESCRIPTION,
-  path: "/usecase/architecture",
+  path: "/solutions/architecture",
   keywords: [
     "AI architectural visualization",
     "3D furniture generation",
@@ -74,7 +74,7 @@ export default function ArchitecturePage() {
       <JsonLd data={getUseCaseJsonLd({
         name: "Architecture & Interiors",
         description: DESCRIPTION,
-        path: "/usecase/architecture",
+        path: "/solutions/architecture",
       })} />
       <UseCasePage data={DATA} />
       <Footer />

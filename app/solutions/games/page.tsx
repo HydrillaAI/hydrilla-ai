@@ -57,7 +57,7 @@ const DATA = {
 export const metadata = createPageMetadata({
   title: "AI 3D Assets for Game Development",
   description: DESCRIPTION,
-  path: "/usecase/gamedev",
+  path: "/solutions/games",
   keywords: [
     "AI 3D game assets",
     "Unreal Engine 3D generation",
@@ -74,7 +74,7 @@ export default function GameDevPage() {
       <JsonLd data={getUseCaseJsonLd({
         name: "Game Development",
         description: DESCRIPTION,
-        path: "/usecase/gamedev",
+        path: "/solutions/games",
       })} />
       <UseCasePage data={DATA} />
       <Footer />

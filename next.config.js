@@ -1,5 +1,43 @@
 /** @type {import('next').NextConfig} */
+
+const REDIRECT_PAIRS = [
+  ["/bluefox3d", "/bluefox"],
+  ["/bluefox-3d", "/bluefox"],
+  ["/3d-ai", "/bluefox"],
+  ["/science-technology", "/bluefox"],
+  ["/models", "/bluefox"],
+  ["/usecase", "/solutions"],
+  ["/usecase/gamedev", "/solutions/games"],
+  ["/usecase/filmproduction", "/solutions/film"],
+  ["/usecase/architecture", "/solutions/architecture"],
+  ["/usecase/arvr", "/solutions/xr"],
+  ["/usecase/productdesign", "/solutions/product"],
+  ["/case-study", "/solutions"],
+  ["/blog/text-to-3d", "/text-to-3d"],
+  ["/blog/image-to-3d", "/image-to-3d"],
+  ["/blog/export-formats", "/features"],
+  ["/blog/hydrilla-for-unity", "/integrations/unity"],
+  ["/blog/hydrilla-for-unreal", "/integrations/unreal"],
+  ["/blog/hydrilla-for-blender", "/integrations/blender"],
+  ["/blog/hydrilla-pricing-explained", "/pricing"],
+  ["/blog/how-bluefox-works", "/bluefox"],
+  ["/compare/hydrilla-vs-meshy", "/compare/meshy"],
+  ["/compare/hydrilla-vs-tripo", "/compare/tripo"],
+  ["/compare/hydrilla-vs-luma", "/compare"],
+  ["/compare/best-ai-3d-generators", "/compare/how-to-choose"],
+  ["/integrations/api", "/api"],
+  ["/privacy-policy", "/privacy"],
+  ["/terms-and-conditions", "/terms"],
+  ["/cookie-policy", "/cookies"],
+  ["/hawan", "/research"],
+  ["/roadmap", "/changelog"],
+  ["/earlyaccess", "/pricing"],
+];
+
 const nextConfig = {
+  // Disable Next's automatic 308 trailing-slash redirect so explicit 301 rules
+  // in `redirects()` fire in a single hop for both `/path` and `/path/`.
+  skipTrailingSlashRedirect: true,
   transpilePackages: ["dialkit"],
   // Use this directory as workspace root so Turbopack doesn't warn about multiple lockfiles
   turbopack: {
@@ -22,7 +60,7 @@ const nextConfig = {
     ],
     // Cap sizes to avoid "Array buffer allocation failed" (sharp allocates less memory)
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    imageSizes: [16, 32, 48, 64, 96, 96, 128, 256, 384],
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60,
   },
@@ -30,42 +68,23 @@ const nextConfig = {
   compress: true,
   // Redirect /generate → /workspace so we never compile the heavy generate page on direct hit
   async redirects() {
+    const seoRedirects = REDIRECT_PAIRS.flatMap(([source, destination]) => [
+      { source, destination, statusCode: 301 },
+      { source: `${source}/`, destination, statusCode: 301 },
+      { source: `${source}.md`, destination: `${destination}.md`, statusCode: 301 },
+    ]);
+
     return [
       { source: "/generate", destination: "/workspace", permanent: false },
       { source: "/generate/", destination: "/workspace", permanent: false },
-      { source: "/3d-ai", destination: "/bluefox3d", permanent: true },
-      { source: "/3d-ai/", destination: "/bluefox3d", permanent: true },
-      { source: "/science-technology", destination: "/bluefox3d", permanent: true },
-      { source: "/science-technology/", destination: "/bluefox3d", permanent: true },
-      { source: "/roadmap", destination: "/about", permanent: true },
-      { source: "/roadmap/", destination: "/about", permanent: true },
-      { source: "/case-study", destination: "/usecase", permanent: true },
-      { source: "/case-study/", destination: "/usecase", permanent: true },
-      { source: "/hawan", destination: "/research", permanent: true },
-      { source: "/hawan/", destination: "/research", permanent: true },
-      { source: "/bluefox", destination: "/bluefox3d", permanent: true },
-      { source: "/bluefox/", destination: "/bluefox3d", permanent: true },
-      { source: "/bluefox-3d", destination: "/bluefox3d", permanent: true },
-      { source: "/bluefox-3d/", destination: "/bluefox3d", permanent: true },
-      { source: "/models", destination: "/bluefox3d", permanent: true },
-      { source: "/models/", destination: "/bluefox3d", permanent: true },
-      { source: "/privacy", destination: "/privacy-policy", permanent: true },
-      { source: "/privacy/", destination: "/privacy-policy", permanent: true },
-      { source: "/terms", destination: "/terms-and-conditions", permanent: true },
-      { source: "/terms/", destination: "/terms-and-conditions", permanent: true },
-      // Legacy blog query URLs → path-based routes (SEO + static caching)
-      {
-        source: "/blog",
-        has: [{ type: "query", key: "category", value: "(?<category>.*)" }],
-        destination: "/blog/category/:category",
-        permanent: true,
-      },
-      {
-        source: "/blog",
-        has: [{ type: "query", key: "page", value: "(?<page>[0-9]+)" }],
-        destination: "/blog/page/:page",
-        permanent: true,
-      },
+      ...seoRedirects,
+      // Blog categories and pagination cut → /blog (and .md variants → /blog.md)
+      { source: "/blog/category/:any*.md", destination: "/blog.md", statusCode: 301 },
+      { source: "/blog/category/:any*", destination: "/blog", statusCode: 301 },
+      { source: "/blog/category/:any*/", destination: "/blog", statusCode: 301 },
+      { source: "/blog/page/:n.md", destination: "/blog.md", statusCode: 301 },
+      { source: "/blog/page/:n", destination: "/blog", statusCode: 301 },
+      { source: "/blog/page/:n/", destination: "/blog", statusCode: 301 },
     ];
   },
   async rewrites() {

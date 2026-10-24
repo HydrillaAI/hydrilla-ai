@@ -7,7 +7,7 @@ export const metadata = createPageMetadata({
   title: "BlueFox 3D | BlueFox 1 generative 3D model",
   description:
     "BlueFox 3D is Hawan Research Labs’ generative 3D model family. BlueFox 1 turns text or images into segmented meshes with PBR, exported from Hydrilla.",
-  path: "/bluefox3d",
+  path: "/bluefox",
   absoluteTitle: true,
   keywords: [
     "BlueFox 1",

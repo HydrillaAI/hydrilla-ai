@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Cookie Policy",
-  description: "Hydrilla AI cookie policy — how we use cookies and similar technologies on hydrilla.ai.",
-  path: "/cookie-policy",
+  title: "Cookie Policy | Hydrilla AI",
+  description:
+    "How Hydrilla uses essential session cookies, preferences, and analytics on hydrilla.ai, and how you can manage them.",
+  path: "/cookies",
+  absoluteTitle: true,
 });
 
 export default function CookiePolicyLayout({ children }: { children: ReactNode }) {

@@ -57,7 +57,7 @@ const DATA = {
 export const metadata = createPageMetadata({
   title: "AI 3D Assets for AR, VR & XR",
   description: DESCRIPTION,
-  path: "/usecase/arvr",
+  path: "/solutions/xr",
   keywords: [
     "AI 3D for VR",
     "AR asset generation",
@@ -74,7 +74,7 @@ export default function ARVRPage() {
       <JsonLd data={getUseCaseJsonLd({
         name: "AR / VR & XR",
         description: DESCRIPTION,
-        path: "/usecase/arvr",
+        path: "/solutions/xr",
       })} />
       <UseCasePage data={DATA} />
       <Footer />

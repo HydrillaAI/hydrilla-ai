@@ -1,14 +1,31 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { MetadataRoute } from "next";
-import { fetchBlogSlugs } from "@/lib/blog";
-import { getAllArticles } from "@/lib/content";
-import { INTEGRATIONS } from "@/lib/integrations";
 import { PUBLIC_ROUTES, absoluteUrl } from "@/lib/seo";
 
 const APP_ROOT = path.join(process.cwd(), "app");
 const CONTENT_ROOT = path.join(process.cwd(), "content");
 const COMPONENTS_ROOT = path.join(process.cwd(), "components");
+
+/** Content release date per routing.md ("Use the content date for lastmod, not the build time"). */
+const CONTENT_DATE = new Date("2026-10-24T00:00:00Z");
+
+const INTEGRATION_SITEMAP_ENTRIES: Array<{ slug: string; priority: number }> = [
+  { slug: "blender", priority: 0.6 },
+  { slug: "unity", priority: 0.6 },
+  { slug: "unreal", priority: 0.6 },
+  { slug: "godot", priority: 0.5 },
+  { slug: "mcp", priority: 0.5 },
+];
+
+const BLOG_SITEMAP_SLUGS = ["reference-images", "import-ai-meshes"] as const;
+
+const COMPARE_SITEMAP_SLUGS = [
+  "meshy",
+  "tripo",
+  "hyper3d",
+  "how-to-choose",
+] as const;
 
 function mtimeIfExists(abs: string): Date | null {
   try {
@@ -23,7 +40,7 @@ function routeLastModified(routePath: string): Date {
     return (
       mtimeIfExists(path.join(APP_ROOT, "page.tsx")) ||
       mtimeIfExists(path.join(COMPONENTS_ROOT, "sections", "Hero.tsx")) ||
-      new Date()
+      CONTENT_DATE
     );
   }
 
@@ -31,49 +48,51 @@ function routeLastModified(routePath: string): Date {
   return (
     mtimeIfExists(path.join(APP_ROOT, trimmed, "page.tsx")) ||
     mtimeIfExists(path.join(APP_ROOT, trimmed, "layout.tsx")) ||
-    new Date()
+    CONTENT_DATE
   );
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const pages = PUBLIC_ROUTES.map(({ path: routePath, changeFrequency, priority }) => ({
-    url: absoluteUrl(routePath),
-    lastModified: routeLastModified(routePath),
-    changeFrequency,
-    priority,
-  }));
+  const pages: MetadataRoute.Sitemap = PUBLIC_ROUTES.map(
+    ({ path: routePath, changeFrequency, priority }) => ({
+      url: absoluteUrl(routePath),
+      lastModified: routeLastModified(routePath),
+      changeFrequency,
+      priority,
+    })
+  );
 
-  let blogEntries: MetadataRoute.Sitemap = [];
-  try {
-    const slugs = await fetchBlogSlugs();
-    blogEntries = slugs.map(({ slug, updatedAt }) => ({
-      url: absoluteUrl(`/blog/${slug}`),
-      lastModified: new Date(updatedAt),
+  const integrationEntries: MetadataRoute.Sitemap =
+    INTEGRATION_SITEMAP_ENTRIES.map(({ slug, priority }) => ({
+      url: absoluteUrl(`/integrations/${slug}`),
+      lastModified: routeLastModified("/integrations"),
       changeFrequency: "monthly" as const,
-      priority: 0.65,
+      priority,
     }));
-  } catch {
-    blogEntries = [];
-  }
 
-  const integrationEntries: MetadataRoute.Sitemap = INTEGRATIONS.map((item) => ({
-    url: absoluteUrl(`/integrations/${item.slug}`),
-    lastModified: routeLastModified("/integrations"),
+  const blogEntries: MetadataRoute.Sitemap = BLOG_SITEMAP_SLUGS.map((slug) => ({
+    url: absoluteUrl(`/blog/${slug}`),
+    lastModified: CONTENT_DATE,
     changeFrequency: "monthly" as const,
-    priority: 0.7,
+    priority: 0.5,
   }));
 
-  const compareArticles = getAllArticles().map((article) => {
-    const contentFile = path.join(CONTENT_ROOT, article.collection, `${article.slug}.md`);
-    return {
-      url: absoluteUrl(article.path),
-      lastModified: article.dateModified
-        ? new Date(article.dateModified)
-        : mtimeIfExists(contentFile) ?? new Date(article.datePublished),
-      changeFrequency: "monthly" as const,
-      priority: 0.75,
-    };
-  });
+  const compareEntries: MetadataRoute.Sitemap = COMPARE_SITEMAP_SLUGS.map(
+    (slug) => {
+      const contentFile = path.join(CONTENT_ROOT, "compare", `${slug}.md`);
+      return {
+        url: absoluteUrl(`/compare/${slug}`),
+        lastModified: mtimeIfExists(contentFile) ?? CONTENT_DATE,
+        changeFrequency: "monthly" as const,
+        priority: 0.6,
+      };
+    }
+  );
 
-  return [...pages, ...integrationEntries, ...blogEntries, ...compareArticles];
+  return [
+    ...pages,
+    ...integrationEntries,
+    ...blogEntries,
+    ...compareEntries,
+  ];
 }

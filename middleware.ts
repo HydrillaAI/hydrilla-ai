@@ -47,6 +47,16 @@ export default clerkMiddleware(async (auth, req) => {
     return new NextResponse(null, { status: 404 });
   }
 
+  // Strip legacy ?category= and ?page= query params on /blog in a single 301 hop
+  // (next.config.js redirects append source query params by default).
+  if (
+    (req.nextUrl.pathname === "/blog" || req.nextUrl.pathname === "/blog/") &&
+    (req.nextUrl.searchParams.has("category") || req.nextUrl.searchParams.has("page"))
+  ) {
+    const cleanUrl = new URL("/blog", req.url);
+    return NextResponse.redirect(cleanUrl, 301);
+  }
+
   if (isProtectedRoute(req)) {
     // Always send expired/missing sessions to /sign-in (not marketing home),
     // and preserve the intended destination so post-login lands in the app.
@@ -87,6 +97,7 @@ export const config = {
     "/sign-in/(.*)",
     "/sign-up",
     "/sign-up/(.*)",
+    "/blog",
     "/api/(.*)",
     "/trpc/(.*)",
   ],

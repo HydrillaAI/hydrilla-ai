@@ -58,7 +58,7 @@ const DATA = {
 export const metadata = createPageMetadata({
   title: "AI 3D Assets for Film & Animation",
   description: DESCRIPTION,
-  path: "/usecase/filmproduction",
+  path: "/solutions/film",
   keywords: [
     "AI 3D for film",
     "VFX asset generation",
@@ -75,7 +75,7 @@ export default function FilmProductionPage() {
       <JsonLd data={getUseCaseJsonLd({
         name: "Film & Animation",
         description: DESCRIPTION,
-        path: "/usecase/filmproduction",
+        path: "/solutions/film",
       })} />
       <UseCasePage data={DATA} />
       <Footer />
