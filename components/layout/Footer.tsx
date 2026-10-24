@@ -1,23 +1,14 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { CONTACT_EMAIL } from "@/lib/brand";
-import { FOOTER_NAV } from "@/lib/nav";
+import { FOOTER_LEGAL_LINKS, FOOTER_NAV } from "@/lib/nav";
 
 const SOCIAL_LINKS = [
   {
-    label: "LinkedIn",
-    href: "https://www.linkedin.com/company/hydrilla-ai",
-    icon: (
-      <svg className="footer-social-svg" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
-      </svg>
-    ),
-  },
-  {
-    label: "X (Twitter)",
+    label: "Hydrilla on X",
     href: "https://x.com/hydrillaai",
     icon: (
       <svg className="footer-social-svg" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -26,7 +17,16 @@ const SOCIAL_LINKS = [
     ),
   },
   {
-    label: "Reddit",
+    label: "Hydrilla on LinkedIn",
+    href: "https://www.linkedin.com/company/hydrilla-ai",
+    icon: (
+      <svg className="footer-social-svg" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Hydrilla on Reddit",
     href: "https://www.reddit.com/r/hydrilla",
     icon: (
       <svg className="footer-social-svg" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -35,20 +35,11 @@ const SOCIAL_LINKS = [
     ),
   },
   {
-    label: "Instagram",
+    label: "Hydrilla on Instagram",
     href: "https://www.instagram.com/hydrilla.ai",
     icon: (
       <svg className="footer-social-svg" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
         <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Discord",
-    href: "https://discord.gg/XEcDxTbTcU",
-    icon: (
-      <svg className="footer-social-svg" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path d="M20.317 4.3698a19.7913 19.7913 0 0 0-4.8851-1.5152.0741.0741 0 0 0-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 0 0-.0785-.037 19.7363 19.7363 0 0 0-4.8852 1.515.0699.0699 0 0 0-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 0 0 .0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 0 0 .0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 0 0-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 0 1-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 0 1 .0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 0 1 .0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 0 1-.0066.1276 12.2986 12.2986 0 0 1-1.873.8914.0766.0766 0 0 0-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 0 0 .0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 0 0 .0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 0 0-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z" />
       </svg>
     ),
   },
@@ -457,20 +448,6 @@ function HydrillaWordmark3D() {
 }
 
 export default function Footer() {
-  const [copiedEmail, setCopiedEmail] = useState(false);
-
-  const handleCopyEmail = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    try {
-      await navigator.clipboard.writeText(CONTACT_EMAIL);
-      setCopiedEmail(true);
-      window.setTimeout(() => setCopiedEmail(false), 2000);
-    } catch {
-      // Fallback: open mailto if clipboard fails
-      window.location.href = `mailto:${CONTACT_EMAIL}`;
-    }
-  };
-
   return (
     <footer className="footer-stage" id="site-footer" role="contentinfo">
       {/* Scenic backdrop (/ruinshydrilla.jpg) framing the top, left, and right */}
@@ -510,77 +487,23 @@ export default function Footer() {
               </ul>
             </div>
           ))}
-
-          {/* Get in touch — spans empty Row 2 center columns on desktop, full width on mobile */}
-          <div className="footer-col footer-contact-col" data-row={2} data-col={2}>
-            <h2 className="footer-col-heading">Get in touch</h2>
-            <div className="footer-email-group">
-              <a
-                href={`mailto:${CONTACT_EMAIL}`}
-                className="footer-email-link"
-                aria-label={`Email ${CONTACT_EMAIL}`}
-              >
-                {CONTACT_EMAIL}
-              </a>
-              <button
-                type="button"
-                onClick={handleCopyEmail}
-                className="footer-email-copy-btn"
-                aria-label={copiedEmail ? "Email address copied" : "Copy email address"}
-              >
-                {copiedEmail ? (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                ) : (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                  </svg>
-                )}
-                <span>{copiedEmail ? "Copied" : "Copy"}</span>
-              </button>
-            </div>
-          </div>
         </nav>
 
         {/* Bottom bar */}
         <div className="footer-bottom">
-          <Link href="/" className="footer-brand" aria-label="Hydrilla Home">
-            <span className="footer-brand-mark">
-              <Image
-                src="/hyd01.png"
-                alt=""
-                fill
-                sizes="40px"
-                className="object-contain"
-              />
+          <div className="footer-bottom-meta">
+            <span className="footer-copy">© Hydrilla</span>
+            {FOOTER_LEGAL_LINKS.map((item) => (
+              <Link key={item.href} href={item.href} className="footer-link">
+                {item.label}
+              </Link>
+            ))}
+            <span className="footer-touch">
+              <span>Get in touch</span>{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`} className="footer-link">
+                {CONTACT_EMAIL}
+              </a>
             </span>
-            <img
-              src="/logo-hydrilla/hydsvgblack.svg"
-              alt="Hydrilla"
-              className="footer-brand-wordmark"
-            />
-          </Link>
-
-          <div className="footer-credits">
-            <p className="footer-copy">©2026 Hydrilla AI Pvt Ltd.</p>
           </div>
 
           <div className="footer-socials" aria-label="Social links">
@@ -674,22 +597,18 @@ export default function Footer() {
         .footer-grid {
           box-sizing: border-box;
           display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           grid-column-gap: 3rem;
           grid-row-gap: 4rem;
           align-items: start;
         }
 
-        /* Explicit placement on desktop so Row 2 mirrors the reference (left, center span, right) */
+        /* Explicit placement on desktop for the 4 columns */
         @media (min-width: 1024px) {
           .footer-col[data-row="1"][data-col="1"] { grid-row: 1; grid-column: 1; }
           .footer-col[data-row="1"][data-col="2"] { grid-row: 1; grid-column: 2; }
           .footer-col[data-row="1"][data-col="3"] { grid-row: 1; grid-column: 3; }
           .footer-col[data-row="1"][data-col="4"] { grid-row: 1; grid-column: 4; }
-          .footer-col[data-row="1"][data-col="5"] { grid-row: 1; grid-column: 5; }
-          .footer-col[data-row="2"][data-col="1"] { grid-row: 2; grid-column: 1; }
-          .footer-col[data-row="2"][data-col="2"] { grid-row: 2; grid-column: 2 / span 3; }
-          .footer-col[data-row="2"][data-col="5"] { grid-row: 2; grid-column: 5; }
         }
 
         .footer-col {
@@ -852,11 +771,27 @@ export default function Footer() {
           box-sizing: border-box;
           border-top: 1px solid var(--_theme--appearance---border);
           padding-top: 2.25rem;
-          display: grid;
-          grid-template-columns: 1fr auto 1fr;
+          display: flex;
+          flex-wrap: wrap;
           align-items: center;
+          justify-content: space-between;
           column-gap: 1.5rem;
-          row-gap: 1.5rem;
+          row-gap: 1.25rem;
+        }
+
+        .footer-bottom-meta {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.75rem 1.35rem;
+          font-size: 0.875rem;
+          color: var(--_theme--appearance---paragraph);
+        }
+
+        .footer-touch {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
         }
 
         .footer-brand {

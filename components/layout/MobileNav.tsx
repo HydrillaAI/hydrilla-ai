@@ -280,51 +280,34 @@ export function MobileNav({
         </SignedIn>
         <SignedOut>
           <div className={`flex flex-col ${v2 ? "gap-2" : "gap-1.5"}`}>
-            <SignInButton mode="modal">
-              <button
-                type="button"
-                onClick={onClose}
-                className={`rounded-full px-4 text-[14px] font-medium tracking-[-0.02em] transition-colors ${
-                  v2
-                    ? "min-h-11 cursor-pointer text-[#3e4c5e] hover:bg-black/[0.04] hover:text-[#141414]"
-                    : onDark
-                      ? "py-2.5 text-white/80 hover:bg-white/8 hover:text-white"
-                      : "py-2.5 text-neutral-600 hover:bg-black/[0.04] hover:text-neutral-950"
-                }`}
-              >
-                Log in
-              </button>
-            </SignInButton>
-            <a
-              href="https://cal.com/hydrilla"
+            <Link
+              href="/sign-in"
               onClick={onClose}
-              className={`cursor-pointer rounded-full px-4 py-3 text-center text-[14px] font-semibold tracking-[-0.02em] transition-transform duration-300 active:scale-[0.98] ${
+              className={`rounded-full px-4 text-center text-[14px] font-medium tracking-[-0.02em] transition-colors ${
                 v2
-                  ? "min-h-11 border border-black/10 bg-white text-[#141414] hover:bg-[#f6f7f8]"
-                  : sheetDark
-                    ? "bg-white text-black"
-                    : "bg-neutral-950 text-white"
+                  ? "flex min-h-11 cursor-pointer items-center justify-center text-[#3e4c5e] hover:bg-black/[0.04] hover:text-[#141414]"
+                  : onDark
+                    ? "py-2.5 text-white/80 hover:bg-white/8 hover:text-white"
+                    : "py-2.5 text-neutral-600 hover:bg-black/[0.04] hover:text-neutral-950"
               }`}
             >
-              Book demo
-            </a>
-            <SignUpButton mode="modal">
-              <button
-                type="button"
-                onClick={onClose}
-                className={`cursor-pointer rounded-full px-4 py-3 text-[14px] font-semibold tracking-[-0.02em] transition-transform duration-300 active:scale-[0.98] ${
-                  v2 ? "min-h-11 bg-[#141414] text-white hover:bg-[#2a2a2a]" : ""
-                } ${
-                  !v2 && sheetDark
-                    ? "bg-white text-black"
-                    : !v2
-                      ? "bg-neutral-950 text-white"
-                      : ""
-                }`}
-              >
-                Get started
-              </button>
-            </SignUpButton>
+              Sign in
+            </Link>
+            <Link
+              href="/app/studio"
+              onClick={onClose}
+              className={`cursor-pointer rounded-full px-4 py-3 text-center text-[14px] font-semibold tracking-[-0.02em] transition-transform duration-300 active:scale-[0.98] ${
+                v2 ? "flex min-h-11 items-center justify-center bg-[#141414] text-white hover:bg-[#2a2a2a]" : ""
+              } ${
+                !v2 && sheetDark
+                  ? "bg-white text-black"
+                  : !v2
+                    ? "bg-neutral-950 text-white"
+                    : ""
+              }`}
+            >
+              Start generating
+            </Link>
           </div>
         </SignedOut>
       </div>

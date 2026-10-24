@@ -142,17 +142,6 @@ function MegaMenuV2({
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#4b5568]">
           {group.label}
         </p>
-        <Link
-          href={group.href}
-          onClick={onNavigate}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[13px] font-medium tracking-[-0.01em] text-[#141414] transition-colors hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/25"
-          style={{ fontFamily: DISPLAY }}
-        >
-          Overview
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden>
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
       </div>
 
       <div className="flex items-stretch gap-3 p-3">
@@ -233,14 +222,6 @@ function MegaMenuAligned({
         <p className="text-[20px] font-medium leading-none tracking-[-0.03em]" style={{ fontFamily: DISPLAY }}>
           {group.label}
         </p>
-        <Link
-          href={group.href}
-          onClick={onNavigate}
-          className="inline-flex cursor-pointer items-center gap-1.5 text-[14px] font-medium tracking-[-0.01em] text-[#000c1f] underline decoration-[#000c1f]/25 underline-offset-4 transition-colors hover:decoration-[#000c1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#000c1f]/25"
-          style={{ fontFamily: DISPLAY }}
-        >
-          Overview
-        </Link>
       </div>
 
       <div className="flex items-stretch gap-2 px-3 pt-3 pb-3">

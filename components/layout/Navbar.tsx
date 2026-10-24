@@ -458,30 +458,10 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
                   : "justify-between gap-3 md:gap-6"
             } ${dynamicPadding} transition-[padding,height] ${BAR_EASE}`}
           >
-          <Link href="/" className={`relative z-10 flex shrink-0 items-center group ${compact ? "gap-2.5 lg:justify-self-start" : mode === "v2" ? "gap-2 lg:justify-self-start" : sectioned ? "gap-2" : "gap-2 sm:gap-3"}`}>
-            <div className={`logo-spin-hover shrink-0 transition-[height,width] ${BAR_EASE} ${
-              compact
-                ? shouldShrink ? "h-9 w-9" : "h-11 w-11"
-                : mode === "v2"
-                  ? shouldShrink ? "h-9 w-9" : "h-8 w-8"
-                : sectioned
-                  ? "h-7 w-7"
-                  : "w-8 h-8 sm:w-10 sm:h-10"
-            }`}>
-              <div className={`relative h-full w-full ${compact || (mode === "v2" && shouldShrink) ? "-translate-y-0.5" : mode === "small" ? "-translate-y-px" : ""}`}>
-                <Image
-                  src="/hyd01.png"
-                  alt="Hydrilla Logo"
-                  fill
-                  className="object-contain"
-                  sizes={compact ? "44px" : mode === "v2" ? "32px" : sectioned ? "28px" : "(max-width: 640px) 32px, 40px"}
-                  priority
-                />
-              </div>
-            </div>
+          <Link href="/" className={`relative z-10 flex shrink-0 items-center group ${compact ? "lg:justify-self-start" : mode === "v2" ? "lg:justify-self-start" : ""}`} aria-label="Hydrilla">
             <img
               src={wordmarkSrc}
-              alt=""
+              alt="Hydrilla"
               className={`block w-auto transition-[height] ${BAR_EASE} ${
                 compact
                   ? shouldShrink ? "h-7 translate-y-px" : "h-9 translate-y-[2px]"
@@ -609,43 +589,29 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
                       : "max-w-[8rem] opacity-100"
                   }`}
                 >
-                  <SignInButton mode="modal">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      tabIndex={shouldShrink ? -1 : 0}
-                      className={`${signInButtonClasses} font-dm-sans`}
-                    >
-                      Log in
-                    </Button>
-                  </SignInButton>
-                </div>
-                <div
-                  className={`overflow-hidden transition-[max-width,opacity] ${BAR_EASE} ${
-                    shouldShrink
-                      ? "pointer-events-none max-w-0 opacity-0"
-                      : "max-w-[10rem] opacity-100"
-                  }`}
-                >
-                  <Button asChild size="sm" variant={sectioned ? "outline" : "default"} className={`${bookDemoButtonClasses} font-dm-sans`}>
-                    <a
-                      href="https://cal.com/hydrilla"
-                      tabIndex={shouldShrink ? -1 : 0}
-                    >
-                      Book demo
-                    </a>
-                  </Button>
-                </div>
-                <SignUpButton mode="modal">
                   <Button
-                    type="button"
+                    asChild
+                    variant="ghost"
                     size="sm"
-                    className={`${signUpButtonClasses} font-dm-sans`}
+                    className={`${signInButtonClasses} font-dm-sans`}
                   >
-                    Get started
+                    <Link
+                      href="/sign-in"
+                      tabIndex={shouldShrink ? -1 : 0}
+                    >
+                      Sign in
+                    </Link>
                   </Button>
-                </SignUpButton>
+                </div>
+                <Button
+                  asChild
+                  size="sm"
+                  className={`${signUpButtonClasses} font-dm-sans`}
+                >
+                  <Link href="/app/studio">
+                    Start generating
+                  </Link>
+                </Button>
               </div>
             </SignedOut>
 
