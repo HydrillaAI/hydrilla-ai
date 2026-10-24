@@ -102,6 +102,7 @@ type PageMetadataOptions = {
   noIndex?: boolean;
   keywords?: string[];
   ogImage?: string;
+  ogTitle?: string;
 };
 
 export function absoluteUrl(path: string): string {
@@ -122,9 +123,11 @@ export function createPageMetadata({
   noIndex = false,
   keywords,
   ogImage,
+  ogTitle,
 }: PageMetadataOptions): Metadata {
   const url = absoluteUrl(path);
   const fullTitle = absoluteTitle ? title : `${title} | ${SITE_NAME}`;
+  const socialTitle = ogTitle || fullTitle;
   const image = ogImage || DEFAULT_OG_IMAGE;
 
   return {
@@ -142,14 +145,14 @@ export function createPageMetadata({
       locale: "en_US",
       url,
       siteName: SITE_NAME,
-      title: fullTitle,
+      title: socialTitle,
       description,
       images: [
         {
           url: image,
           width: 1200,
           height: 630,
-          alt: fullTitle,
+          alt: socialTitle,
         },
       ],
     },
@@ -157,7 +160,7 @@ export function createPageMetadata({
       card: "summary_large_image",
       site: TWITTER_HANDLE,
       creator: TWITTER_HANDLE,
-      title: fullTitle,
+      title: socialTitle,
       description,
       images: [image],
     },
@@ -513,7 +516,7 @@ export function getResearchJsonLd() {
         "@type": "WebPage",
         "@id": `${url}#webpage`,
         url,
-        name: `${RESEARCH_LAB} | BlueFox 3D research`,
+        name: `${RESEARCH_LAB} | BlueFox research`,
         description: RESEARCH_LEDE,
         isPartOf: { "@id": ENTITY_IDS.website },
         about: { "@id": ENTITY_IDS.hawan },
@@ -551,39 +554,27 @@ export function getDocsJsonLd() {
 }
 
 export function getBlueFoxJsonLd() {
-  const url = absoluteUrl("/bluefox3d");
+  const url = absoluteUrl("/bluefox");
   return {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "SoftwareApplication",
-        "@id": ENTITY_IDS.bluefox,
-        name: MODEL_NAME,
-        alternateName: [MODEL_PAGE_TITLE, MODEL_FAMILY],
+        "@id": "https://hydrilla.ai/bluefox#model",
+        name: "BlueFox",
+        alternateName: "BlueFox 1",
+        softwareVersion: "1",
+        description: "BlueFox, Hydrilla's 3D model, is built by Hydrilla AI. Its current version is BlueFox 1.",
+        disambiguatingDescription: "Hydrilla's 3D model, generally available in Hydrilla",
         applicationCategory: "DesignApplication",
-        operatingSystem: "Web",
         url,
-        description: BLUEFOX_LEDE,
-        provider: { "@id": ENTITY_IDS.hawan },
-        isRelatedTo: { "@id": ENTITY_IDS.product },
-        offers: {
-          "@type": "Offer",
-          price: "0",
-          priceCurrency: "USD",
-          url: absoluteUrl("/pricing"),
-        },
-      },
-      {
-        "@type": "WebPage",
-        "@id": `${url}#webpage`,
-        url,
-        name: `BlueFox 3D | BlueFox 1 generative 3D model`,
-        isPartOf: { "@id": ENTITY_IDS.website },
-        about: { "@id": ENTITY_IDS.bluefox },
+        creator: { "@id": ENTITY_IDS.hydrilla },
+        isPartOf: { "@id": "https://hydrilla.ai/features#software" },
+        sameAs: ["https://huggingface.co/Hydrilla/BlueFox3D"],
       },
       breadcrumbJsonLd([
-        { name: "Home", path: "/" },
-        { name: MODEL_PAGE_TITLE, path: "/bluefox3d" },
+        { name: "Product", path: "/features" },
+        { name: "BlueFox", path: "/bluefox" },
       ]),
     ],
   };
