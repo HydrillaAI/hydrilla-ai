@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { PersonEmails } from "@/components/emails/person-emails";
 import {
   fetchAdminUser,
   adjustUserCredits,
+  syncAdminUserSubscription,
   type AdminPayment,
   type AdminSubscription,
   type AdminUserRow,
@@ -21,7 +25,7 @@ import {
   type UserJobUsage,
 } from "@/lib/users-api";
 
-function formatWhen(value: string | null): string {
+function formatWhen(value: string | null | undefined): string {
   if (!value) {
     return "—";
   }
@@ -34,7 +38,8 @@ function formatWhen(value: string | null): string {
   });
 }
 
-function formatCharge(amount: number, currency: string): string {
+function formatCharge(amount: number | null | undefined, currency: string | null | undefined): string {
+  if (amount == null) return "—";
   const code = (currency || "USD").toUpperCase();
   try {
     return new Intl.NumberFormat("en", { style: "currency", currency: code }).format(amount / 100);
@@ -50,11 +55,11 @@ function planLabel(plan: string | null): string {
   if (plan === "pro") {
     return "Pro";
   }
-  if (plan === "slot") {
-    return "Slot";
+  if (plan === "slot" || plan === "hourly") {
+    return "Hourly";
   }
-  if (plan === "slot_pro") {
-    return "Slot Pro";
+  if (plan === "slot_pro" || plan === "hourly_pro") {
+    return "Hourly Pro";
   }
   if (plan === "creator") {
     return "Creator";
@@ -87,6 +92,7 @@ export default function UserDetailPage() {
   const [jobs, setJobs] = useState<UserJobUsage[]>([]);
   const [creditLedger, setCreditLedger] = useState<CreditLedgerEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // Credit adjustment form state
   const [creditAction, setCreditAction] = useState<"add" | "remove">("add");
@@ -118,6 +124,19 @@ export default function UserDetailPage() {
     }, 0);
     return () => clearTimeout(timer);
   }, [load]);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncAdminUserSubscription(userId, token);
+      toast.success(res.message || "Subscription synced with Dodo Payments");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sync subscription");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleCreditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,12 +177,24 @@ export default function UserDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <Link href="/users" className="text-xs text-muted-foreground hover:text-foreground">
-          ← Back to Users
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{user?.name || user?.email || "User"}</h1>
-        <p className="text-sm text-muted-foreground">{user?.email}</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <Link href="/users" className="text-xs text-muted-foreground hover:text-foreground">
+            ← Back to Users
+          </Link>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{user?.name || user?.email || "User"}</h1>
+          <p className="text-sm text-muted-foreground">{user?.email}</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSync}
+          disabled={isSyncing}
+          className="inline-flex items-center gap-1.5"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
+          {isSyncing ? "Syncing with Dodo…" : "Sync from Dodo"}
+        </Button>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -172,14 +203,49 @@ export default function UserDetailPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Plan</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Plan & Billing</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-semibold">{planLabel(user.plan)}</p>
-              <p className="text-xs text-muted-foreground">
-                {user.subscriptionStatus || "No subscription"}
-                {user.cancelAtPeriodEnd ? " · cancels at period end" : ""}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-semibold">{planLabel(user.plan)}</p>
+                {user.isTrial ? (
+                  <Badge variant="outline" className="border-amber-500/40 text-amber-700 bg-amber-50 text-xs">
+                    {user.cancelAtPeriodEnd ? "Trial Ending" : "14d Trial"}
+                  </Badge>
+                ) : user.paying ? (
+                  <Badge className={user.cancelAtPeriodEnd ? "bg-amber-600 hover:bg-amber-700 text-xs" : "text-xs"}>
+                    {user.cancelAtPeriodEnd ? "Cancelling" : "Paying"}
+                  </Badge>
+                ) : user.subscriptionStatus === "cancelled" || user.subscriptionStatus === "expired" ? (
+                  <Badge variant="secondary" className="text-xs">Cancelled</Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">Free</Badge>
+                )}
+              </div>
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {user.isTrial ? (
+                  <p className="text-amber-700 dark:text-amber-400 font-medium">
+                    14-day trial ends {formatWhen(user.trialEndsAt || user.periodEnd)}
+                    {user.cancelAtPeriodEnd ? " (will not charge)" : " (first charge starts)"}
+                  </p>
+                ) : user.paying && !user.cancelAtPeriodEnd ? (
+                  <p>
+                    Renews on {formatWhen(user.renewsAt || user.periodEnd)}
+                    {user.recurringAmount ? ` · ${formatCharge(user.recurringAmount, user.currency)}/mo` : ""}
+                  </p>
+                ) : user.cancelAtPeriodEnd ? (
+                  <p className="text-amber-700 font-medium">
+                    Access until {formatWhen(user.accessUntil || user.periodEnd)} · Will not renew
+                  </p>
+                ) : user.subscriptionStatus === "cancelled" || user.subscriptionStatus === "expired" ? (
+                  <p>Subscription ended on {formatWhen(user.periodEnd)}</p>
+                ) : (
+                  <p>Free plan · 100 monthly credits</p>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Trial status: {user.hasUsedTrial ? "Trial already consumed" : "Eligible for free trial"}
+                </p>
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -190,24 +256,55 @@ export default function UserDetailPage() {
               <p className="text-2xl font-semibold tabular-nums">
                 {Math.max(0, user.creditsTotal - user.creditsUsed)}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {user.creditsUsed} used / {user.creditsTotal} total
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {user.creditsUsed} used / {user.creditsTotal} period total
               </p>
+              {user.creditsBonus && user.creditsBonus > 0 ? (
+                <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                  +{user.creditsBonus} bonus credits available
+                </p>
+              ) : null}
+              {user.creditsResetAt ? (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Monthly allotment resets {formatWhen(user.creditsResetAt)}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Account</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Account Status</CardTitle>
             </CardHeader>
             <CardContent>
-              {user.paying ? <Badge>Paying</Badge> : <Badge variant="secondary">Free</Badge>}
+              <div>
+                {user.isTrial ? (
+                  <Badge variant="outline" className="border-amber-500/40 text-amber-700 bg-amber-50">
+                    Active Trial
+                  </Badge>
+                ) : user.paying ? (
+                  <Badge>Active Paying Subscriber</Badge>
+                ) : user.hasPaidBefore ? (
+                  <Badge variant="secondary">Past Customer (Inactive)</Badge>
+                ) : (
+                  <Badge variant="secondary">Free Account</Badge>
+                )}
+              </div>
               <p className="mt-2 text-xs text-muted-foreground">Joined {formatWhen(user.createdAt)}</p>
+              <p className="text-xs text-muted-foreground">
+                {user.paymentCount} charge{user.paymentCount === 1 ? "" : "s"}
+                {payments.length > 0
+                  ? ` · ${formatCharge(
+                      payments.filter((p) => p.status === "succeeded").reduce((acc, p) => acc + (p.amount || 0), 0),
+                      user.currency || payments[0]?.currency || "USD"
+                    )} spent`
+                  : ""}
+              </p>
             </CardContent>
           </Card>
           {user.slot ? (
             <Card className="sm:col-span-3">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Hour</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Hourly Window</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold tabular-nums">{user.slot.label || "No hour yet"}</p>
@@ -416,31 +513,64 @@ export default function UserDetailPage() {
 
       {/* Subscriptions */}
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Subscriptions</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Subscriptions</h2>
+          <span className="text-xs text-muted-foreground">Synced via Dodo Payments</span>
+        </div>
         <div className="rounded-xl border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Plan</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Period end</TableHead>
+                <TableHead>Recurring</TableHead>
+                <TableHead>Next Renewal / End</TableHead>
+                <TableHead>Subscription ID</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {subscriptions.map((sub) => (
                 <TableRow key={sub.subscriptionId || sub.createdAt}>
-                  <TableCell>{planLabel(sub.plan)}</TableCell>
                   <TableCell>
-                    {sub.status}
-                    {sub.cancelAtPeriodEnd ? " · cancels at period end" : ""}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{planLabel(sub.plan)}</span>
+                      {sub.isTrial ? (
+                        <Badge variant="outline" className="text-[10px] py-0 border-amber-500/40 text-amber-700 bg-amber-50">
+                          14d Trial
+                        </Badge>
+                      ) : null}
+                    </div>
                   </TableCell>
-                  <TableCell>{formatWhen(sub.periodEnd)}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="capitalize font-medium text-xs">{sub.status}</span>
+                      {sub.isTrial && sub.trialEndsAt ? (
+                        <span className="text-[11px] text-amber-700">Trial ends {formatWhen(sub.trialEndsAt)}</span>
+                      ) : null}
+                      {sub.cancelAtPeriodEnd ? (
+                        <span className="text-[11px] text-amber-600">Cancels at period end</span>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="tabular-nums text-xs">
+                    {sub.recurringAmount ? formatCharge(sub.recurringAmount, sub.currency || "USD") : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {sub.cancelAtPeriodEnd
+                      ? `Access until ${formatWhen(sub.accessUntil || sub.periodEnd)}`
+                      : sub.status === "active"
+                      ? `Renews ${formatWhen(sub.renewsAt || sub.periodEnd)}`
+                      : formatWhen(sub.periodEnd)}
+                  </TableCell>
+                  <TableCell className="text-xs font-mono text-muted-foreground">
+                    {sub.subscriptionId || "—"}
+                  </TableCell>
                 </TableRow>
               ))}
               {subscriptions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-sm text-muted-foreground text-center py-4">
-                    No subscription on this login.
+                  <TableCell colSpan={5} className="text-sm text-muted-foreground text-center py-4">
+                    No subscriptions found for this account.
                   </TableCell>
                 </TableRow>
               ) : null}
@@ -487,6 +617,8 @@ export default function UserDetailPage() {
           </Table>
         </div>
       </div>
+
+      <PersonEmails userId={userId} />
     </div>
   );
 }

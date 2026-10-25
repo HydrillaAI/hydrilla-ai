@@ -66,6 +66,24 @@ export async function createCreditClaimLink(
   return body as { success: boolean; link: CreditClaimLink; claimUrl: string };
 }
 
+/** Rishi emails the claim link to one person. A restricted link only goes to its allowed email. */
+export async function sendCreditClaimLink(
+  id: string,
+  params: { to?: string; name?: string },
+  getToken: () => Promise<string | null>
+): Promise<{ success: boolean; sentTo: string }> {
+  const res = await fetch(`${backendBase()}/api/admin/credit-claims/${encodeURIComponent(id)}/send`, {
+    method: "POST",
+    headers: await authHeaders(getToken),
+    body: JSON.stringify(params),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as { error?: string }).error || "Failed to send claim link");
+  }
+  return body as { success: boolean; sentTo: string };
+}
+
 export async function updateCreditClaimLink(
   id: string,
   params: {

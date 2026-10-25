@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AutoStopTimer, isStoppedStatus, useAutoStopTimers } from "@/components/gpu/AutoStopTimer";
 import {
   clearGpuQueue,
   fetchGpuStatus,
@@ -154,6 +155,15 @@ export default function GpuPage() {
       clearInterval(timer);
     };
   }, [load]);
+
+  const autoStop = useAutoStopTimers({
+    instances: status?.instances,
+    onExpire: async (name) => {
+      await runInstanceAction("stop", token, name);
+      toast.success(`Auto-stop timer finished. Stopping ${name}.`);
+      await load();
+    },
+  });
 
   const restart = async (mode: RestartMode) => {
     setBusy(true);
@@ -309,6 +319,10 @@ export default function GpuPage() {
                         </span>
                       </div>
                     </div>
+
+                    {!isStoppedStatus(inst.status) ? (
+                      <AutoStopTimer instanceName={inst.name} controller={autoStop} />
+                    ) : null}
 
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       {!isTarget ? (

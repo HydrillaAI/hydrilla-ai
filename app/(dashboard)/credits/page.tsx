@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink, Gift, Plus } from "lucide-react";
+import { Check, Copy, ExternalLink, Gift, Mail, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   fetchCreditClaimLinks,
   createCreditClaimLink,
+  sendCreditClaimLink,
   updateCreditClaimLink,
   type CreditClaimLink,
 } from "@/lib/credit-claims-api";
@@ -45,6 +54,13 @@ export default function CreditClaimsPage() {
   const [allowedEmail, setAllowedEmail] = useState<string>("");
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [lastCreatedUrl, setLastCreatedUrl] = useState<string | null>(null);
+  const [emailAfterCreate, setEmailAfterCreate] = useState<boolean>(true);
+
+  // "Send by email" dialog: Rishi emails the link through Customer.io.
+  const [sendLink, setSendLink] = useState<CreditClaimLink | null>(null);
+  const [sendTo, setSendTo] = useState<string>("");
+  const [sendName, setSendName] = useState<string>("");
+  const [isSending, setIsSending] = useState<boolean>(false);
 
   const token = useCallback(async () => (await getToken()) ?? null, [getToken]);
 
@@ -110,6 +126,14 @@ export default function CreditClaimsPage() {
 
       toast.success(`Claim link created for ${parsedAmount} credits!`);
       setLastCreatedUrl(res.claimUrl);
+      if (emailAfterCreate && allowedEmail.trim()) {
+        try {
+          const sent = await sendCreditClaimLink(res.link.id, {}, token);
+          toast.success(`Rishi emailed the link to ${sent.sentTo}`);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Link created, but the email was not sent");
+        }
+      }
       setReason("");
       setAllowedEmail("");
       setExpiresAt("");
@@ -119,6 +143,26 @@ export default function CreditClaimsPage() {
       toast.error(err instanceof Error ? err.message : "Failed to create claim link");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const openSend = (link: CreditClaimLink) => {
+    setSendLink(link);
+    setSendTo(link.allowed_email || "");
+    setSendName("");
+  };
+
+  const handleSend = async () => {
+    if (!sendLink) return;
+    setIsSending(true);
+    try {
+      const res = await sendCreditClaimLink(sendLink.id, { to: sendTo.trim(), name: sendName.trim() || undefined }, token);
+      toast.success(`Rishi emailed the link to ${res.sentTo}`);
+      setSendLink(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send claim link");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -217,11 +261,21 @@ export default function CreditClaimsPage() {
               </div>
             </div>
 
-            <div className="pt-2 flex items-center gap-3">
+            <div className="pt-2 flex flex-wrap items-center gap-4">
               <Button type="submit" disabled={isCreating} size="sm">
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                 {isCreating ? "Generating Link..." : "Generate Claim Link"}
               </Button>
+              {allowedEmail.trim() ? (
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={emailAfterCreate}
+                    onChange={(e) => setEmailAfterCreate(e.target.checked)}
+                  />
+                  Email it to {allowedEmail.trim()} from Rishi
+                </label>
+              ) : null}
             </div>
           </form>
 
@@ -376,14 +430,28 @@ export default function CreditClaimsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant={link.status === "active" ? "ghost" : "outline"}
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => handleToggleStatus(link)}
-                      >
-                        {link.status === "active" ? "Disable" : "Enable"}
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        {link.status === "active" && !isExpired && !isExhausted ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1 text-xs"
+                            onClick={() => openSend(link)}
+                            title="Rishi emails this link"
+                          >
+                            <Mail className="h-3 w-3" />
+                            Send
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant={link.status === "active" ? "ghost" : "outline"}
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => handleToggleStatus(link)}
+                        >
+                          {link.status === "active" ? "Disable" : "Enable"}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -408,6 +476,47 @@ export default function CreditClaimsPage() {
           </Table>
         </div>
       </div>
+
+      <Dialog open={!!sendLink} onOpenChange={(open) => (!open ? setSendLink(null) : undefined)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email this claim link</DialogTitle>
+            <DialogDescription>
+              Rishi sends {sendLink ? `${sendLink.amount} credits` : "the link"} from rishi@mail.hydrilla.ai. Replies go to
+              rishi@hydrilla.ai.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="send-to">Recipient email</Label>
+              <Input
+                id="send-to"
+                type="email"
+                value={sendTo}
+                disabled={!!sendLink?.allowed_email}
+                onChange={(e) => setSendTo(e.target.value)}
+                placeholder="person@example.com"
+              />
+              {sendLink?.allowed_email ? (
+                <p className="text-xs text-muted-foreground">This link only works for this address.</p>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="send-name">First name (optional)</Label>
+              <Input id="send-name" value={sendName} onChange={(e) => setSendName(e.target.value)} placeholder="Used in “Hi …”" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setSendLink(null)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => void handleSend()} disabled={isSending || !sendTo.trim()}>
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              {isSending ? "Sending..." : "Send email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

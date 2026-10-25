@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { CircleDollarSign, Cpu, Droplets, FileText, Gift, HelpCircle, LayoutDashboard, Sparkles, Users } from "lucide-react";
+import { CircleDollarSign, Cpu, Droplets, FileText, Gift, HelpCircle, LayoutDashboard, Mail, Sparkles, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -28,6 +28,7 @@ const items = [
   { href: "/water", label: "Water model keys", icon: Droplets },
   { href: "/blog", label: "Blog", icon: FileText },
   { href: "/support", label: "Support & feedback", icon: HelpCircle },
+  { href: "/emails", label: "Emails", icon: Mail },
 ];
 
 export function AppSidebar() {

@@ -17,18 +17,29 @@ export type AdminUserRow = {
   name: string | null;
   createdAt: string;
   paying: boolean;
+  hasPaidBefore?: boolean;
+  isTrial?: boolean;
+  trialEndsAt?: string | null;
+  trialPeriodDays?: number;
+  hasUsedTrial?: boolean;
   plan: string | null;
   subscriptionStatus: string | null;
   cancelAtPeriodEnd: boolean;
   periodEnd: string | null;
+  renewsAt?: string | null;
+  accessUntil?: string | null;
+  recurringAmount?: number | null;
+  currency?: string | null;
   creditsUsed: number;
   creditsTotal: number;
+  creditsBonus?: number;
+  creditsResetAt?: string | null;
   lastPaymentAt: string | null;
   lastPaymentAmount: number | null;
   lastPaymentCurrency: string | null;
   lastPaymentStatus: string | null;
   paymentCount: number;
-  /** Present only for Slot and Slot Pro. Null hour means they have not chosen one yet. */
+  /** Present only for Hourly and Hourly Pro. Null hour means they have not chosen one yet. */
   slot: AdminSlot | null;
 };
 
@@ -57,11 +68,20 @@ export type AdminSubscription = {
   subscriptionId: string | null;
   plan: string | null;
   status: string;
+  isTrial?: boolean;
+  trialEndsAt?: string | null;
+  trialPeriodDays?: number;
   productId: string | null;
+  recurringAmount?: number | null;
+  currency?: string | null;
+  periodStart?: string | null;
   periodEnd: string | null;
+  renewsAt?: string | null;
+  accessUntil?: string | null;
   cancelledAt: string | null;
   cancelAtPeriodEnd: boolean;
   createdAt: string;
+  updatedAt?: string | null;
 };
 
 export type CreditLedgerEntry = {
@@ -89,10 +109,19 @@ export type UserJobUsage = {
   engine: string | null;
 };
 
+export type AdminUsersFilter = "all" | "paying" | "trial" | "cancelled" | "free";
+
 export async function fetchAdminUsers(
-  filter: "all" | "paying",
+  filter: AdminUsersFilter,
   getToken: () => Promise<string | null>
-): Promise<{ payingCount: number; users: AdminUserRow[] }> {
+): Promise<{
+  totalCount?: number;
+  payingCount: number;
+  trialCount?: number;
+  cancelledCount?: number;
+  freeCount?: number;
+  users: AdminUserRow[];
+}> {
   const res = await fetch(`${backendBase()}/api/admin/users?filter=${filter}`, {
     headers: await authHeaders(getToken),
     cache: "no-store",
@@ -101,7 +130,35 @@ export async function fetchAdminUsers(
   if (!res.ok) {
     throw new Error((body as { error?: string }).error || "Failed to load users");
   }
-  return body as { payingCount: number; users: AdminUserRow[] };
+  return body as {
+    totalCount?: number;
+    payingCount: number;
+    trialCount?: number;
+    cancelledCount?: number;
+    freeCount?: number;
+    users: AdminUserRow[];
+  };
+}
+
+export async function syncAdminUserSubscription(
+  userId: string,
+  getToken: () => Promise<string | null>
+): Promise<{
+  ok: boolean;
+  message: string;
+  status?: string;
+  renewsAt?: string;
+  isTrial?: boolean;
+}> {
+  const res = await fetch(`${backendBase()}/api/admin/users/${encodeURIComponent(userId)}/sync`, {
+    method: "POST",
+    headers: await authHeaders(getToken),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as { error?: string }).error || "Failed to sync subscription");
+  }
+  return body;
 }
 
 export async function fetchAdminUser(
