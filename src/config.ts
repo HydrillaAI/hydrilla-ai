@@ -71,13 +71,19 @@ export const config = {
     presignedUrlExpiry: parseInt(process.env.S3_PRESIGNED_URL_EXPIRY || "3600", 10),
   },
   pollIntervalMs: parseInt(process.env.POLL_INTERVAL_MS || "2000", 10),
-  email: {
-    url: process.env.ZEPTOMAIL_API_URL || "https://api.zeptomail.in/v1.1/email",
-    token: process.env.ZEPTOMAIL_TOKEN || "",
-    fromAddress: process.env.ZEPTOMAIL_FROM_ADDRESS || "noreply@hydrilla.co",
-    fromName: process.env.ZEPTOMAIL_FROM_NAME || "Hydrilla",
-    frontendUrl: process.env.FRONTEND_URL || "https://hydrilla.co",
+  /** Customer.io: Track API (people, events) and App API (transactional sends, reporting). */
+  customerio: {
+    siteId: process.env.CUSTOMERIO_SITE_ID?.trim() || "",
+    trackApiKey: process.env.CUSTOMERIO_TRACK_API_KEY?.trim() || "",
+    appApiKey: process.env.CUSTOMERIO_APP_API_KEY?.trim() || "",
+    region: process.env.CUSTOMERIO_REGION?.trim() === "eu" ? "eu" : "us",
+    /** Team inbox for internal alerts (new form messages, GPU offline). */
+    teamInbox: process.env.EMAIL_TEAM_INBOX?.trim() || "hi@hydrilla.ai",
   },
+  /** Svix signing secret for the Clerk user webhook (whsec_...). */
+  clerkWebhookSecret: process.env.CLERK_WEBHOOK_SECRET?.trim() || "",
+  /** Vercel sends this as a Bearer token on cron requests. */
+  cronSecret: process.env.CRON_SECRET?.trim() || "",
   adminEmails: (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((e) => e.trim())
@@ -141,8 +147,8 @@ if (!config.clerk.secretKey) {
   console.warn("[config] CLERK_SECRET_KEY is missing. Authentication will fail until set.");
 }
 
-if (!config.email.token) {
-  console.warn("[config] ZEPTOMAIL_TOKEN is missing. Email functionality will be disabled.");
+if (!config.customerio.appApiKey || !config.customerio.trackApiKey) {
+  console.warn("[config] CUSTOMERIO_APP_API_KEY / CUSTOMERIO_TRACK_API_KEY missing. Emails will not be sent.");
 }
 
 if (!config.dodoPayment.apiKey) {

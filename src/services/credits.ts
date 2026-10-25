@@ -1,5 +1,9 @@
 import { supabase } from "../db.js";
 import { logger } from "../logger.js";
+import { onCreditsExhausted, onCreditsLow } from "./notifications.js";
+
+/** "Low credits" fires when the balance crosses this share of the period allowance. */
+const LOW_CREDITS_SHARE = 0.2;
 
 export const FREE_TIER_CREDITS = 100;
 
@@ -278,6 +282,7 @@ export async function deductCredit(
 
   const remainingBefore = availableCredits(row);
   if (remainingBefore < amount) {
+    onCreditsExhausted(userId, row.reset_at, row.plan);
     return {
       ok: false,
       error: `Insufficient credits. You have ${remainingBefore} left; ${amount} required.`,
@@ -307,6 +312,7 @@ export async function deductCredit(
 
   const first = rpcData[0] as DeductRpcRow;
   if (!first.success) {
+    onCreditsExhausted(userId, row.reset_at, row.plan);
     return {
       ok: false,
       error: `Insufficient credits. You have ${first.remaining} left; ${amount} required.`,
@@ -324,6 +330,11 @@ export async function deductCredit(
   });
 
   logger.info({ userId, remaining: first.remaining }, "Credit deducted (atomic)");
+
+  const lowMark = Math.floor(row.credits_total * LOW_CREDITS_SHARE);
+  if (lowMark > 0 && remainingBefore > lowMark && first.remaining <= lowMark) {
+    onCreditsLow(userId, first.remaining, row.reset_at);
+  }
   return { ok: true, remaining: first.remaining };
 }
 

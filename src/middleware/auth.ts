@@ -215,26 +215,22 @@ export async function syncUserToDatabase(userId: string) {
       logger.info({ userId, email: userData.email }, "New user created in database");
     }
 
-    if (!existingUser) {
-      // Send welcome email to new user (non-blocking)
-      if (userData.email) {
-        // Import email service here to avoid circular dependency
-        import("../services/email.js")
-          .then(({ sendWelcomeEmail }) => {
-            sendWelcomeEmail(
-              userData.email!,
-              userData.first_name || userData.last_name
-                ? `${userData.first_name || ""} ${userData.last_name || ""}`.trim()
-                : null
-            ).catch((err) => {
-              // Log error but don't fail user creation
-              logger.error({ err: err.message, userId }, "Failed to send welcome email (non-critical)");
-            });
+    // The Clerk user.created webhook sends the welcome at sign-up. Until that webhook is
+    // configured, fall back to sending it here, the first time the user row is created.
+    if (!existingUser && !config.clerkWebhookSecret) {
+      import("../services/notifications.js")
+        .then(({ onAccountCreated }) =>
+          onAccountCreated({
+            id: user.id,
+            email: userData.email,
+            firstName: userData.first_name,
+            lastName: userData.last_name,
+            createdAt: user.createdAt,
           })
-          .catch((err) => {
-            logger.error({ err: err.message, userId }, "Failed to import email service");
-          });
-      }
+        )
+        .catch((err) => {
+          logger.error({ err: err.message, userId }, "Failed to load notifications");
+        });
     }
 
     return userData;

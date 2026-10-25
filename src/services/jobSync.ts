@@ -4,6 +4,18 @@ import { getJob, getJobsToSync, updateJobStatus, updateJobResult } from "../repo
 import { JobStatus } from "../types.js";
 import { normalizeGlbUrl, normalizePreviewUrl } from "../utils/s3Urls.js";
 import { refundCredit } from "./credits.js";
+import { onGenerationCompleted, onGenerationFailed } from "./notifications.js";
+
+/** Starts the "generation failed" email in Customer.io. Credits were refunded just before this. */
+function reportFailed(dbJob: { userId: string | null; generateType?: unknown; createdAt?: unknown }, jobId: string, refunded: number) {
+  onGenerationFailed({
+    userId: dbJob.userId,
+    jobId,
+    kind: dbJob.generateType ? String(dbJob.generateType) : null,
+    createdAt: dbJob.createdAt as string | undefined,
+    creditsRefunded: refunded,
+  });
+}
 
 // Circuit breaker state to prevent continuous API calls when API is offline
 let circuitBreakerState = {
@@ -141,6 +153,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
           "Refunded credits for job exceeding hard abort limit"
         );
       }
+      reportFailed(dbJob, jobId, refundAmount);
       return true;
     }
     
@@ -195,6 +208,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
                 "Refunded credits for lost job after GPU restart"
               );
             }
+            reportFailed(dbJob, jobId, shouldRefund ? dbJob.creditsUsed : 0);
             logger.info({ jobId }, "Job not on API, marked failed to stop repeated sync");
           }
           return true; // Handled; don't count as sync failure
@@ -216,6 +230,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
             if (refundAmount > 0 && dbJob.userId) {
               await refundCredit(dbJob.userId, refundAmount);
             }
+            reportFailed(dbJob, jobId, refundAmount);
           }
           return false;
         }
@@ -244,6 +259,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
           if (refundAmount > 0 && dbJob.userId) {
             await refundCredit(dbJob.userId, refundAmount);
           }
+          reportFailed(dbJob, jobId, refundAmount);
         }
         return false;
       }
@@ -262,6 +278,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
           if (refundAmount > 0 && dbJob.userId) {
             await refundCredit(dbJob.userId, refundAmount);
           }
+          reportFailed(dbJob, jobId, refundAmount);
         }
       }
       throw fetchErr;
@@ -298,6 +315,9 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
           "Refunded credits for failed GPU job during background sync"
         );
       }
+      if (dbStatus === "FAIL") {
+        reportFailed(dbJob, jobId, shouldRefund ? dbJob.creditsUsed : 0);
+      }
       logger.info({ jobId, oldStatus: dbJob.status, newStatus: dbStatus }, "Job status updated");
     }
 
@@ -327,23 +347,15 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
         // Send completion email if this is the first time we're getting the GLB URL
         // and the job has a user (not anonymous)
         if (!hadGlbUrlBefore && glbUrl && dbJob.userId) {
-          // Import email service here to avoid circular dependency
-          import("./email.js")
-            .then(({ sendCompletionEmailForJob }) => {
-              sendCompletionEmailForJob(
-                jobId,
-                dbJob.userId,
-                dbJob.prompt || null,
-                glbUrl,
-                previewUrl
-              ).catch((err) => {
-                // Log error but don't fail job completion
-                logger.error({ err: err.message, jobId }, "Failed to send completion email (non-critical)");
-              });
-            })
-            .catch((err) => {
-              logger.error({ err: err.message, jobId }, "Failed to import email service");
-            });
+          onGenerationCompleted({
+            userId: dbJob.userId,
+            jobId,
+            kind: dbJob.generateType ? String(dbJob.generateType) : null,
+            prompt: dbJob.prompt || null,
+            createdAt: dbJob.createdAt,
+            glbUrl,
+            previewUrl,
+          });
         }
       }
     }

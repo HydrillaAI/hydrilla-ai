@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth, syncUserToDatabase } from "../middleware/auth.js";
+import { onApiKeyCreated, onTimeZone } from "../services/notifications.js";
 import {
   deleteUserApiKey,
   getDecryptedUserApiKey,
@@ -310,12 +311,25 @@ userRouter.get("/developer-keys/:id", requireAuth, async (req, res) => {
   }
 });
 
+/** POST /api/user/email-profile { timezone } — lets Customer.io send scheduled emails at local time. */
+userRouter.post("/email-profile", requireAuth, (req, res) => {
+  const timezone = typeof req.body?.timezone === "string" ? req.body.timezone.trim() : "";
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: timezone });
+  } catch {
+    return res.status(400).json({ error: "Invalid time zone" });
+  }
+  onTimeZone(req.userId!, timezone);
+  res.json({ ok: true });
+});
+
 userRouter.post("/developer-keys", requireAuth, async (req, res) => {
   try {
     const userId = req.userId!;
     await syncUserToDatabase(userId);
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "Default API Key";
     const result = await generateDeveloperApiKey(userId, name);
+    onApiKeyCreated(userId, name);
     res.status(201).json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to generate developer key";

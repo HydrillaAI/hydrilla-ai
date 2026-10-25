@@ -8,6 +8,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand, type PutObjectCommandInpu
 import { logger } from "../logger.js";
 import { config, timingSafeEqualString } from "../config.js";
 import { supabase } from "../db.js";
+import { isJobPubliclyPosted } from "../repository/community.js";
 import { createJob, getJob, listJobsForUser, updateJobResult, updateJobStatus, deleteJob, getJobForUser, getJobLineage, upsertJobParents, getJobParentIds } from "../repository/jobs.js";
 import { createChat, getChatForUser, listChatsForUser, updateChatName, updateChatUpdatedAt, deleteChat, getOrCreateActiveChat } from "../repository/chats.js";
 import { createWorkspace, getWorkspace, getWorkspaceForUser, listWorkspacesForUser, listJobsForWorkspace, updateWorkspaceName, updateWorkspaceUpdatedAt, deleteWorkspace } from "../repository/workspaces.js";
@@ -1922,8 +1923,9 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    // Check ownership if user is authenticated and job has an owner
-    if (job.userId && userId && job.userId !== userId) {
+    // Check ownership if user is authenticated and job has an owner.
+    // Models shared in a published community post are viewable by everyone.
+    if (job.userId && userId && job.userId !== userId && !(await isJobPubliclyPosted(jobId))) {
       return res.status(403).json({ error: "You don't have permission to access this job" });
     }
 
@@ -2816,22 +2818,20 @@ threeDRouter.post("/webhook/job-update", async (req, res) => {
       // Send completion email if this is the first time we're getting the GLB URL
       // and the job has a user (not anonymous)
       if (!hadGlbUrlBefore && glbUrl && job.userId) {
-        // Import email service here to avoid circular dependency
-        import("../services/email.js")
-          .then(({ sendCompletionEmailForJob }) => {
-            sendCompletionEmailForJob(
-              job_id,
-              job.userId,
-              job.prompt || null,
+        import("../services/notifications.js")
+          .then(({ onGenerationCompleted }) =>
+            onGenerationCompleted({
+              userId: job.userId,
+              jobId: job_id,
+              kind: job.generateType,
+              prompt: job.prompt || null,
+              createdAt: job.createdAt,
               glbUrl,
-              previewUrl
-            ).catch((err) => {
-              // Log error but don't fail webhook processing
-              logger.error({ err: err.message, job_id }, "Failed to send completion email (non-critical)");
-            });
-          })
+              previewUrl,
+            })
+          )
           .catch((err) => {
-            logger.error({ err: err.message, job_id }, "Failed to import email service");
+            logger.error({ err: err.message, job_id }, "Failed to load notifications");
           });
       }
     }
@@ -3049,36 +3049,18 @@ threeDRouter.post("/notify-gpu-offline", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "errorMessage is required" });
     }
 
-    // Import email service here to avoid circular dependency
-    import("../services/email.js")
-      .then(async ({ sendGpuOfflineNotification, getUserEmail }) => {
-        // Fetch user email from database if userId is available
+    import("../services/notifications.js")
+      .then(async ({ onGpuOffline }) => {
         let userEmail: string | null = null;
         if (userId) {
-          try {
-            const userInfo = await getUserEmail(userId);
-            userEmail = userInfo?.email || null;
-            logger.info({ userId, userEmail }, "Fetched user email for notification");
-          } catch (err: any) {
-            logger.warn({ err: err.message, userId }, "Failed to fetch user email for notification");
-          }
+          const { data } = await supabase.from("users").select("email").eq("id", userId).maybeSingle();
+          userEmail = data?.email || null;
         }
-
-        logger.info({ userId, userEmail, errorMessage }, "Sending GPU offline notification email");
-        sendGpuOfflineNotification(userId, userEmail, errorMessage)
-          .then((success) => {
-            if (success) {
-              logger.info({ userId, userEmail }, "GPU offline notification email sent successfully");
-            } else {
-              logger.error({ userId, userEmail }, "GPU offline notification email failed after retries");
-            }
-          })
-          .catch((err: any) => {
-            logger.error({ err: err.message, stack: err.stack, userId, userEmail }, "Failed to send GPU offline notification (non-critical)");
-          });
+        logger.info({ userId, userEmail, errorMessage }, "Sending GPU offline alert to the team");
+        onGpuOffline(userId, userEmail, errorMessage);
       })
       .catch((err: any) => {
-        logger.error({ err: err.message, stack: err.stack, userId }, "Failed to import email service");
+        logger.error({ err: err.message, userId }, "Failed to send GPU offline alert (non-critical)");
       });
 
     // Return success immediately (email is sent asynchronously)

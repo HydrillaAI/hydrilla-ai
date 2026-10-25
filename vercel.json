@@ -12,5 +12,11 @@
       "src": "/(.*)",
       "dest": "/api/index.ts"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/weekly-recap",
+      "schedule": "30 0 * * 1"
+    }
   ]
 }

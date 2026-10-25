@@ -6,6 +6,7 @@ import { optionalAuth, clerk } from "../middleware/auth.js";
 import { createSupportFeedback, SupportType } from "../repository/supportFeedback.js";
 import { uploadSupportAttachment } from "../lib/supportUpload.js";
 import { logger } from "../logger.js";
+import { onFormMessage } from "../services/notifications.js";
 
 const isVercel = Boolean(
   process.env.VERCEL === "1" ||
@@ -144,6 +145,16 @@ supportRouter.post("/", optionalAuth, async (req: Request, res: Response) => {
       user_name: userName,
       page_url: page_url?.trim() || null,
       metadata: metadata || {},
+    });
+
+    onFormMessage({
+      kind: type === "issue" ? "support" : "feedback",
+      name: userName,
+      email: userEmail,
+      message: message.trim(),
+      requestType: request_type?.trim() || (type === "issue" ? "issue report" : "feedback"),
+      userId: req.userId || null,
+      details: { page: page_url?.trim(), attachment: attachment_url?.trim() },
     });
 
     return res.status(201).json({

@@ -7,10 +7,13 @@ import { adminRouter } from "../src/routes/admin.js";
 import { contactRouter } from "../src/routes/contact.js";
 import { supportRouter } from "../src/routes/support.js";
 import { blogRouter } from "../src/routes/blog.js";
+import { communityRouter } from "../src/routes/community.js";
 import { codeSculptRouter } from "../src/routes/codeSculpt.js";
 import { createToolsRouter } from "../src/routes/createTools.js";
 import { developerV1Router } from "../src/routes/v1/developerApi.js";
 import { publicCreditClaimsRouter } from "../src/routes/creditClaims.js";
+import { webhooksRouter } from "../src/routes/webhooks.js";
+import { cronRouter } from "../src/routes/cron.js";
 import { logger } from "../src/logger.js";
 import { initDb } from "../src/db.js";
 import { syncAppSettingsFromDb } from "../src/services/appSettings.js";
@@ -53,6 +56,7 @@ app.use(cors({
 
 // Raw body parser for webhook signature verification (must be before json parser)
 app.use("/api/payments/webhook/dodo", express.raw({ type: "application/json" }));
+app.use("/api/webhooks", express.raw({ type: "application/json" }));
 
 // JSON parser for all other routes
 app.use(express.json({ limit: "10mb" }));
@@ -97,8 +101,11 @@ app.use("/api/support", initDbMiddleware, supportRouter);
 // BYOK keys + Water engine (legacy alias: /api/code-sculpt)
 app.use("/api/user", initDbMiddleware, userRouter);
 app.use("/api/credits/claim", initDbMiddleware, publicCreditClaimsRouter);
+app.use("/api/webhooks", initDbMiddleware, webhooksRouter);
+app.use("/api/cron", initDbMiddleware, cronRouter);
 app.use("/api/admin", initDbMiddleware, adminRouter);
 app.use("/api/blog", initDbMiddleware, blogRouter);
+app.use("/api/community", initDbMiddleware, communityRouter);
 app.use("/api/water", initDbMiddleware, codeSculptRouter);
 app.use("/api/code-sculpt", initDbMiddleware, codeSculptRouter);
 app.use("/api/create/tools", initDbMiddleware, createToolsRouter);

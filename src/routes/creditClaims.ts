@@ -4,7 +4,7 @@ import { supabase } from "../db.js";
 import { logger } from "../logger.js";
 import { config } from "../config.js";
 import { clerk, optionalAuth, requireAuth } from "../middleware/auth.js";
-import { sendCreditGrantEmail } from "../services/email.js";
+import { sendClaimLink } from "../services/notifications.js";
 
 export const adminCreditClaimsRouter = Router();
 export const publicCreditClaimsRouter = Router();
@@ -162,6 +162,67 @@ adminCreditClaimsRouter.patch("/:id", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to update claim link" });
   }
 });
+
+/**
+ * POST /api/admin/credit-claims/:id/send — Rishi emails the claim link to one person.
+ * Body: { to?: string, name?: string }. A link restricted to one address can only go to that address.
+ */
+adminCreditClaimsRouter.post("/:id/send", async (req: Request, res: Response) => {
+  try {
+    const { data: link, error } = await supabase
+      .from("credit_claim_links")
+      .select("*")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    if (error || !link) {
+      return res.status(404).json({ error: "Claim link not found" });
+    }
+    if (link.status !== "active") {
+      return res.status(400).json({ error: "This link is disabled" });
+    }
+    if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
+      return res.status(400).json({ error: "This link has expired" });
+    }
+    if (link.claims_used >= link.max_claims) {
+      return res.status(400).json({ error: "This link has no claims left" });
+    }
+
+    const requested = typeof req.body?.to === "string" ? req.body.to.trim().toLowerCase() : "";
+    const restricted = link.allowed_email ? String(link.allowed_email).trim().toLowerCase() : null;
+    const to = requested || restricted || "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      return res.status(400).json({ error: "Enter a valid email address" });
+    }
+    if (restricted && to !== restricted) {
+      return res.status(400).json({ error: `This link only works for ${restricted}` });
+    }
+
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() || null : null;
+    const result = await sendClaimLink({
+      to,
+      name,
+      amount: Number(link.amount) || 0,
+      reason: link.reason,
+      claimUrl: `${claimLinkBase()}/claim/${link.token}`,
+      expiresAt: link.expires_at,
+      restrictedTo: restricted,
+    });
+    if (!result.ok) {
+      return res.status(502).json({ error: `Email not sent: ${result.error}` });
+    }
+    logger.info({ linkId: link.id, to, by: req.userEmail }, "Claim link emailed");
+    return res.json({ success: true, sentTo: to, deliveryId: result.deliveryId });
+  } catch (err: any) {
+    logger.error({ err, id: req.params.id }, "POST /api/admin/credit-claims/:id/send failed");
+    return res.status(500).json({ error: "Failed to send claim link" });
+  }
+});
+
+/** Emailed links must open the live site even when the admin runs against a local backend. */
+function claimLinkBase(): string {
+  const base = config.frontendUrl.replace(/\/+$/, "");
+  return /localhost|127\.0\.0\.1/.test(base) ? "https://hydrilla.ai" : base;
+}
 
 // ============================================================
 // Public / User Routes (mounted under /api/credits/claim)
@@ -333,16 +394,7 @@ publicCreditClaimsRouter.post("/:token", requireAuth, async (req: Request, res: 
     const amount = Number(row.amount) || 0;
     const remaining = Number(row.remaining) || 0;
 
-    if (userDetails.email) {
-      await sendCreditGrantEmail(
-        userDetails.email,
-        userDetails.name,
-        amount,
-        null,
-        remaining
-      );
-    }
-
+    // No email on claim: the person sees the result on screen.
     return res.json({
       success: true,
       amount,

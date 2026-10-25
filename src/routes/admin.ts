@@ -19,6 +19,8 @@ import { adminImageKeysRouter } from "./adminImageKeys.js";
 import { adminUsersRouter } from "./adminUsers.js";
 import { adminSupportRouter } from "./adminSupport.js";
 import { adminCreditClaimsRouter } from "./creditClaims.js";
+import { adminCommunityRouter } from "./adminCommunity.js";
+import { adminEmailsRouter } from "./adminEmails.js";
 import { listImagePlatformApiKeyMeta } from "../repository/imagePlatformApiKeys.js";
 
 export const adminRouter = Router();
@@ -31,6 +33,8 @@ adminRouter.use("/image-keys", adminImageKeysRouter);
 adminRouter.use("/users", adminUsersRouter);
 adminRouter.use("/support", adminSupportRouter);
 adminRouter.use("/credit-claims", adminCreditClaimsRouter);
+adminRouter.use("/community", adminCommunityRouter);
+adminRouter.use("/emails", adminEmailsRouter);
 
 function publicKeyMeta(k: Awaited<ReturnType<typeof listPlatformApiKeyMeta>>[number]) {
   return { ...k, label: providerLabel(k.provider) };

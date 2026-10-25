@@ -10,10 +10,13 @@ import { supportRouter } from "./routes/support.js";
 import { userRouter } from "./routes/user.js";
 import { adminRouter } from "./routes/admin.js";
 import { blogRouter } from "./routes/blog.js";
+import { communityRouter } from "./routes/community.js";
 import { codeSculptRouter } from "./routes/codeSculpt.js";
 import { createToolsRouter } from "./routes/createTools.js";
 import { developerV1Router } from "./routes/v1/developerApi.js";
 import { publicCreditClaimsRouter } from "./routes/creditClaims.js";
+import { webhooksRouter } from "./routes/webhooks.js";
+import { cronRouter } from "./routes/cron.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";
 import { initDb } from "./db.js";
@@ -51,6 +54,7 @@ async function main() {
   // Raw body parser for webhook signature verification (must be before json parser)
   app.use("/api/payments/webhook/dodo", express.raw({ type: "application/json" }));
   app.use("/api/dodo/webhook", express.raw({ type: "application/json" }));
+  app.use("/api/webhooks", express.raw({ type: "application/json" }));
   
   // JSON parser for all other routes
   app.use(express.json({ limit: "10mb" }));
@@ -76,8 +80,11 @@ async function main() {
   app.use("/api/support", supportRouter);
   app.use("/api/user", userRouter);
   app.use("/api/credits/claim", publicCreditClaimsRouter);
+  app.use("/api/webhooks", webhooksRouter);
+  app.use("/api/cron", cronRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/blog", blogRouter);
+  app.use("/api/community", communityRouter);
   app.use("/api/water", codeSculptRouter);
   app.use("/api/code-sculpt", codeSculptRouter); // legacy alias
   app.use("/api/create/tools", createToolsRouter);

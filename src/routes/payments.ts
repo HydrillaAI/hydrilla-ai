@@ -6,6 +6,13 @@ import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { getDodoPaymentsClient } from "../lib/dodopayments.js";
 import { captureServerEvent, flushPostHog } from "../lib/posthog.js";
 import {
+  onCheckoutStarted,
+  onPaymentFailed,
+  onPaymentSucceeded,
+  onPlanActive,
+  onPlanCancelled,
+} from "../services/notifications.js";
+import {
   applyFreePeriodResetIfDue,
   availableCredits,
   FREE_TIER_CREDITS,
@@ -236,14 +243,17 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
     }
 
     if (userId) {
-      const existing = entitledPlan(await getActiveSubscription(userId));
+      const existingSub = await getActiveSubscription(userId);
+      const existing = entitledPlan(existingSub);
       const slotInvolved = isSlotPlan(existing) || isSlotPlan(paidPlan);
       if (existing && slotInvolved && existing !== paidPlan) {
         return res.status(409).json({
           error: "Cancel your current plan before you start another one. Only one paid plan can be active.",
         });
       }
-      if (existing && existing === paidPlan && isSlotPlan(paidPlan)) {
+      const renewalCancelled =
+        (existingSub?.metadata as Record<string, unknown> | null)?.cancel_at_next_billing_date === true;
+      if (existing && existing === paidPlan && (isSlotPlan(paidPlan) || !renewalCancelled)) {
         return res.status(409).json({ error: "This plan is already active on your account." });
       }
     }
@@ -255,8 +265,11 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
       return res.status(500).json({ error: `Payment product for ${paidPlan} plan not configured` });
     }
 
+    const hasUsedTrial = await checkUserTrialUsed(userId, email);
+    const applyTrial = !hasUsedTrial;
+
     const returnUrl = config.dodoPayment.returnUrl ||
-      `${config.email.frontendUrl}/checkout/success`;
+      `${config.frontendUrl}/checkout/success`;
     const cancelUrl = `${config.frontendUrl.replace(/\/+$/, "")}/pricing`;
 
     const dodo = getDodoPaymentsClient();
@@ -266,24 +279,31 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
       customer: { email },
       return_url: returnUrl,
       cancel_url: cancelUrl,
+      subscription_data: {
+        trial_period_days: applyTrial ? 14 : 0,
+      },
       metadata: {
         plan: paidPlan,
         user_id: userId || "",
         email,
+        is_trial: applyTrial ? "true" : "false",
       },
     });
 
-    logger.info({ plan: paidPlan, email, sessionId: session.session_id }, "Checkout session created");
+    logger.info({ plan: paidPlan, email, sessionId: session.session_id, applyTrial }, "Checkout session created");
 
     captureServerEvent(userId, "checkout_session_created", {
       plan: paidPlan,
       session_id: session.session_id,
+      trial: applyTrial,
     });
     void flushPostHog();
+    onCheckoutStarted(userId, paidPlan);
 
     res.json({
       checkoutUrl: session.checkout_url,
       sessionId: session.session_id,
+      applyTrial,
     });
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error creating checkout session");
@@ -328,16 +348,64 @@ paymentsRouter.get("/billing", requireAuth, async (req: Request, res: Response) 
     const cancelAtPeriodEnd = Boolean(plan && meta.cancel_at_next_billing_date === true);
     const periodEnd = subscription?.current_period_end || (typeof meta.next_billing_date === "string" ? meta.next_billing_date : null);
 
+    const isTrial = Boolean(
+      plan &&
+      (meta.is_trial === true ||
+        (subscription?.status === "active" &&
+          typeof meta.trial_ends_at === "string" &&
+          new Date(meta.trial_ends_at).getTime() > Date.now()))
+    );
+    const trialEndsAt = isTrial ? (meta.trial_ends_at as string) || periodEnd : null;
+
+    let pastPlan: string | null = null;
+    let pastStatus: string | null = null;
+    let pastEndedAt: string | null = null;
+    if (!plan) {
+      const { data: pastSubs } = await supabase
+        .from("user_subscriptions")
+        .select("plan, status, updated_at, cancelled_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (pastSubs && pastSubs[0]) {
+        pastPlan = pastSubs[0].plan;
+        pastStatus = pastSubs[0].status;
+        pastEndedAt = pastSubs[0].cancelled_at || pastSubs[0].updated_at;
+      }
+    }
+
     res.json({
       plan,
-      renewsAt: plan ? periodEnd : null,
+      isTrial,
+      trialEndsAt,
+      trialPeriodDays: isTrial ? Number(meta.trial_period_days || 14) : 0,
+      renewsAt: plan && !cancelAtPeriodEnd ? periodEnd : null,
       cancelAtPeriodEnd,
       accessUntil: cancelAtPeriodEnd ? periodEnd : null,
+      pastPlan,
+      pastStatus,
+      pastEndedAt,
       payments,
     });
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error fetching billing");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+paymentsRouter.get("/trial-eligibility", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { data: userRow } = await supabase.from("users").select("email").eq("id", userId).maybeSingle();
+    const email = userRow?.email || null;
+    const used = await checkUserTrialUsed(userId, email);
+    res.json({
+      eligible: !used,
+      trialPeriodDays: !used ? 14 : 0,
+    });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error checking trial eligibility");
+    res.json({ eligible: false, trialPeriodDays: 0 });
   }
 });
 
@@ -467,7 +535,12 @@ paymentsRouter.post("/sync", requireAuth, async (req: Request, res: Response) =>
 
     const dodoStatus = typeof sub.status === "string" ? sub.status : "pending";
     const customerEmail: string = sub.customer?.email || sub.customer_email || sub.email || payment?.customer?.email || "";
-    const paid = payment?.status === "succeeded";
+    const isSubTrial = Boolean(
+      (sub.trial_period_days && Number(sub.trial_period_days) > 0) ||
+      sub.metadata?.is_trial === "true" ||
+      sub.metadata?.is_trial === true
+    );
+    const paid = payment?.status === "succeeded" || isSubTrial;
     const data = {
       subscription_id: sub.id || sub.subscription_id || subscriptionId,
       product_id: sub.product_id,
@@ -480,6 +553,8 @@ paymentsRouter.post("/sync", requireAuth, async (req: Request, res: Response) =>
       next_billing_date: sub.next_billing_date,
       cancel_at_next_billing_date: sub.cancel_at_next_billing_date === true,
       recurring_pre_tax_amount: sub.recurring_pre_tax_amount ?? 0,
+      trial_period_days: sub.trial_period_days ?? (isSubTrial ? 14 : 0),
+      trial_amount: sub.trial_amount ?? 0,
       metadata: sub.metadata || {},
       status: dodoStatus,
       _callerUserId: callerUserId,
@@ -965,10 +1040,13 @@ paymentsRouter.post("/webhook/dodo", async (req: Request, res: Response) => {
       }
     } catch (handlerErr: any) {
       // Return 500 so Dodo retries failed grant/renew handlers. Handlers are upsert-idempotent.
+      // The dedup row is released first, otherwise the retry would be acknowledged as already processed.
       logger.error(
         { eventType, webhookId, error: handlerErr?.message, stack: handlerErr?.stack },
         "Webhook handler error – returning 500 for retry"
       );
+      const { error: releaseErr } = await supabase.from("webhook_events").delete().eq("webhook_id", webhookId);
+      if (releaseErr) logger.error({ error: releaseErr, webhookId }, "Could not release webhook dedup row; retry will be skipped");
       return res.status(500).json({ received: false, eventType, error: "Handler failed" });
     }
 
@@ -1027,8 +1105,15 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
     const previousMeta = existingSub?.metadata && typeof existingSub.metadata === "object" ? existingSub.metadata : {};
     const cancelScheduled = data.cancel_at_next_billing_date === true || previousMeta.cancel_at_next_billing_date === true;
 
+    const trialDays = Number(data.trial_period_days ?? 0);
+    const trialAmount = data.trial_amount != null ? Number(data.trial_amount) : 0;
+    const isTrial = Boolean(trialDays > 0 && trialAmount === 0);
+    const trialEndsAt = isTrial ? (data.next_billing_date || currentPeriodEnd || null) : null;
+    // Both subscription.active and the payment.succeeded fallback land here; announce each plan once.
+    const alreadyAnnounced = previousMeta.announced_plan === (plan || "unknown") && previousMeta.announced_trial === isTrial;
+
     // --- Upsert user_subscriptions (no email column on live table) ---
-    logger.info({ subscriptionId, email, plan, userId }, "Upserting user_subscriptions...");
+    logger.info({ subscriptionId, email, plan, userId, isTrial, trialDays }, "Upserting user_subscriptions...");
     const { error: subErr } = await writeUserSubscription("upsert", {
       user_id: userId,
       plan: plan || "unknown",
@@ -1049,6 +1134,11 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
         email,
         cancel_at_next_billing_date: cancelScheduled,
         next_billing_date: data.next_billing_date || previousMeta.next_billing_date || currentPeriodEnd || null,
+        is_trial: isTrial,
+        trial_period_days: trialDays,
+        trial_ends_at: trialEndsAt,
+        announced_plan: plan || "unknown",
+        announced_trial: isTrial,
       },
       updated_at: new Date().toISOString(),
     });
@@ -1057,6 +1147,10 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
       logger.error({ error: subErr, code: subErr.code, details: subErr.details, hint: subErr.hint, subscriptionId, email, plan, userId }, "❌ Failed to upsert user_subscriptions");
     } else {
       logger.info({ subscriptionId, email, plan, userId }, "✅ user_subscriptions upserted");
+    }
+
+    if (userId && isTrial) {
+      await markUserTrialUsed(userId, email);
     }
 
     if (plan && credits > 0) {
@@ -1070,17 +1164,76 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
       });
     }
 
-    logger.info({ subscriptionId, email, plan, credits }, "✅ Subscription active + credits granted");
+    if (userId && subscriptionId && isCreditPlan(plan)) {
+      await stopReplacedSubscriptions(userId, subscriptionId);
+    }
+
+    logger.info({ subscriptionId, email, plan, credits, isTrial }, "✅ Subscription active + credits granted");
 
     captureServerEvent(userId, "subscription_activated", {
       plan: plan || "unknown",
       credits,
       source: "dodo_webhook",
+      is_trial: isTrial,
     });
     void flushPostHog();
+    if (plan && !subErr && !alreadyAnnounced) {
+      onPlanActive({
+        userId,
+        email,
+        plan,
+        creditsTotal: credits,
+        isTrial,
+        trialEndsAt,
+        renewsAt: data.next_billing_date || currentPeriodEnd || null,
+      });
+    }
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionActive");
     throw error;
+  }
+}
+
+/**
+ * A newer Starter or Pro subscription replaces older ones. Older ones stop renewing at their next
+ * billing date so the customer is not billed twice. Only subscriptions created before this one are touched,
+ * so a replayed event for an old subscription cannot cancel the newer one.
+ */
+async function stopReplacedSubscriptions(userId: string, subscriptionId: string) {
+  try {
+    const { data: current } = await supabase
+      .from("user_subscriptions")
+      .select("created_at")
+      .eq("dodo_subscription_id", subscriptionId)
+      .maybeSingle();
+    if (!current?.created_at) return;
+
+    const { data: older } = await supabase
+      .from("user_subscriptions")
+      .select("dodo_subscription_id, status, product_id, metadata")
+      .eq("user_id", userId)
+      .neq("dodo_subscription_id", subscriptionId)
+      .lt("created_at", current.created_at)
+      .in("status", ["active", "past_due"]);
+
+    for (const row of older || []) {
+      const oldId = row.dodo_subscription_id as string | null;
+      const oldPlan = entitledPlan(row);
+      const alreadyScheduled = (row.metadata as Record<string, unknown> | null)?.cancel_at_next_billing_date === true;
+      if (!oldId || !isCreditPlan(oldPlan) || alreadyScheduled) continue;
+      try {
+        const updated: any = await getDodoPaymentsClient().subscriptions.update(oldId, {
+          cancel_at_next_billing_date: true,
+          cancel_reason: "cancelled_by_merchant",
+        });
+        await markCancelScheduled(oldId, updated || {});
+        logger.info({ userId, replaced: oldId, by: subscriptionId }, "Replaced subscription set to stop at next billing date");
+      } catch (err: any) {
+        logger.error({ userId, replaced: oldId, by: subscriptionId, error: err?.message }, "Could not stop replaced subscription; customer may be billed twice");
+      }
+    }
+  } catch (err: any) {
+    logger.error({ userId, subscriptionId, error: err?.message }, "stopReplacedSubscriptions failed");
   }
 }
 
@@ -1098,12 +1251,24 @@ async function handleSubscriptionRenewed(data: any, webhookId: string) {
 
     logger.info({ subscriptionId, plan, email }, "Subscription renewed");
 
+    const { data: existingSub } = subscriptionId
+      ? await supabase.from("user_subscriptions").select("metadata").eq("dodo_subscription_id", subscriptionId).maybeSingle()
+      : { data: null };
+    const previousMeta = existingSub?.metadata && typeof existingSub.metadata === "object" ? existingSub.metadata : {};
+
     const renewUpdate: Record<string, unknown> = {
       status: "active",
       current_period_start: currentPeriodStart,
       current_period_end: currentPeriodEnd,
       updated_at: new Date().toISOString(),
-      metadata: { last_renewed: new Date().toISOString(), webhook_id: webhookId, plan: plan || null },
+      metadata: {
+        ...previousMeta,
+        last_renewed: new Date().toISOString(),
+        webhook_id: webhookId,
+        plan: plan || null,
+        is_trial: false, // Transition from trial to first paid month
+        trial_ends_at: null,
+      },
     };
     if (plan) renewUpdate.plan = plan;
 
@@ -1201,8 +1366,13 @@ async function handleSubscriptionCancelled(data: any, eventType: string) {
       plan: subRow?.plan || null,
     });
     void flushPostHog();
+    // A scheduled cancellation was already announced when it was scheduled (markCancelScheduled).
+    if (previousMeta.cancel_at_next_billing_date !== true) {
+      onPlanCancelled(subRow?.user_id, subRow?.plan || null, null);
+    }
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionCancelled");
+    throw error;
   }
 }
 
@@ -1234,6 +1404,7 @@ async function handleSubscriptionOnHold(data: any) {
     }
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionOnHold");
+    throw error;
   }
 }
 
@@ -1265,6 +1436,7 @@ async function handleSubscriptionFailed(data: any) {
     }
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionFailed");
+    throw error;
   }
 }
 
@@ -1311,17 +1483,19 @@ async function handleSubscriptionUpdated(data: any) {
     if (error) logger.error({ error, subscriptionId }, "Failed to apply subscription.updated");
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionUpdated");
+    throw error;
   }
 }
 
 async function markCancelScheduled(subscriptionId: string, data: any) {
   const { data: existing } = await supabase
     .from("user_subscriptions")
-    .select("metadata")
+    .select("metadata, user_id, plan")
     .eq("dodo_subscription_id", subscriptionId)
     .maybeSingle();
   const previousMeta = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
   const periodEnd = data.current_period_end || data.next_billing_date || previousMeta.next_billing_date || null;
+  const newlyScheduled = previousMeta.cancel_at_next_billing_date !== true;
   const patch: Record<string, unknown> = {
     status: "active",
     metadata: {
@@ -1334,7 +1508,10 @@ async function markCancelScheduled(subscriptionId: string, data: any) {
   if (periodEnd) patch.current_period_end = periodEnd;
   const { error } = await writeUserSubscription("update", patch, subscriptionId);
   if (error) logger.error({ error, subscriptionId }, "Failed to store scheduled cancellation");
-  else logger.info({ subscriptionId, periodEnd }, "Cancellation scheduled for the next billing date");
+  else {
+    logger.info({ subscriptionId, periodEnd }, "Cancellation scheduled for the next billing date");
+    if (newlyScheduled) onPlanCancelled(existing?.user_id, existing?.plan || null, periodEnd);
+  }
 }
 
 /** First confirmed payment for this subscription resets usage. Opening the success page again does not. */
@@ -1407,6 +1584,7 @@ async function handleRefundSucceeded(data: any, webhookId: string) {
     logger.info({ paymentId }, "Payment marked refunded");
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleRefundSucceeded");
+    throw error;
   }
 }
 
@@ -1476,6 +1654,7 @@ async function handlePaymentSucceeded(data: any, webhookId: string) {
       webhookId,
       metadata: { raw: data },
     });
+    onPaymentSucceeded(data.metadata?.user_id || (email ? await findUserIdByEmail(email) : null));
 
     // ── Subscription activation fallback ────────────────────────────────────
     // subscription.active may never reach localhost; activate here if the
@@ -1523,6 +1702,7 @@ async function handlePaymentSucceeded(data: any, webhookId: string) {
     }
   } catch (error: any) {
     logger.error({ error: error?.message, stack: error?.stack }, "Error in handlePaymentSucceeded");
+    throw error;
   }
 }
 
@@ -1549,8 +1729,13 @@ async function handlePaymentFailed(data: any, webhookId: string) {
       webhookId,
       metadata: { raw: data },
     });
+    onPaymentFailed(
+      data.metadata?.user_id || (email ? await findUserIdByEmail(email) : null),
+      resolvePaidPlan(data, data.product_cart?.[0]?.product_id || data.product_id)
+    );
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handlePaymentFailed");
+    throw error;
   }
 }
 
@@ -1715,6 +1900,94 @@ async function findUserIdByEmail(email: string): Promise<string | null> {
     return null;
   }
   return data?.[0]?.id || null;
+}
+
+/**
+ * Check whether a user has already used a free trial on their account.
+ * Inspects users.has_used_trial and historical user_subscriptions metadata.
+ */
+async function checkUserTrialUsed(userId?: string | null, email?: string | null): Promise<boolean> {
+  if (!userId && !email) return false;
+
+  try {
+    // 1. Direct check on users table if userId is present
+    if (userId) {
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("id, has_used_trial, email")
+        .eq("id", userId)
+        .maybeSingle();
+      if ((userRow as any)?.has_used_trial === true) {
+        return true;
+      }
+      if (!email && userRow?.email) {
+        email = userRow.email;
+      }
+    }
+
+    // 2. Resolve userId from email if missing
+    const resolvedUserId = userId || (email ? await findUserIdByEmail(email) : null);
+
+    // 3. Check historical subscription records for either resolvedUserId or email
+    // user_subscriptions has no email column, so history is matched by user id only.
+    const { data: subs, error } = resolvedUserId
+      ? await supabase
+          .from("user_subscriptions")
+          .select("id, metadata, status, plan, is_trial")
+          .eq("user_id", resolvedUserId)
+          .limit(25)
+      : { data: null, error: null };
+
+    if (!error && subs && subs.length > 0) {
+      const hasUsedPlanOrTrial = subs.some((s) => {
+        const meta = (s.metadata || {}) as Record<string, unknown>;
+        return (
+          s.is_trial === true ||
+          meta.is_trial === true ||
+          Number(meta.trial_period_days || 0) > 0 ||
+          s.status === "active" ||
+          s.status === "cancelled" ||
+          s.status === "expired" ||
+          s.status === "past_due" ||
+          s.status === "on_hold"
+        );
+      });
+      if (hasUsedPlanOrTrial) return true;
+    }
+
+    // 4. Check payment history: any succeeded payment also means already paid customer
+    let payQuery = supabase
+      .from("subscription_payments")
+      .select("id")
+      .eq("status", "succeeded");
+
+    if (resolvedUserId && email) {
+      payQuery = payQuery.or(`user_id.eq.${resolvedUserId},email.eq.${email}`);
+    } else if (resolvedUserId) {
+      payQuery = payQuery.eq("user_id", resolvedUserId);
+    } else if (email) {
+      payQuery = payQuery.eq("email", email);
+    }
+
+    const { data: payments } = await payQuery.limit(1);
+    if (payments && payments.length > 0) {
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    logger.warn({ err, userId, email }, "checkUserTrialUsed encountered non-fatal error");
+    return false;
+  }
+}
+
+/** Mark that a user has claimed their free trial */
+async function markUserTrialUsed(userId: string, email?: string | null): Promise<void> {
+  try {
+    await supabase.from("users").update({ has_used_trial: true } as any).eq("id", userId);
+  } catch (err) {
+    logger.debug({ err, userId }, "Could not set has_used_trial on users table (column may not exist yet)");
+  }
 }
 
 /** Upsert period allotment by user_id. Never touches credits_bonus. Clamps used on mid-cycle downgrade. */

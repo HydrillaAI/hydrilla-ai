@@ -39,7 +39,6 @@
     "posthog-node": "^5.46.1",
     "standardwebhooks": "^1.0.0",
     "xss": "^1.0.15",
-    "zeptomail": "^7.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
