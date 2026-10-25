@@ -1,0 +1,14 @@
+# Next.js build output
+.next/
+out/
+
+# Dependencies
+node_modules/
+
+# Mintlify cache & builds
+.mintlify/
+
+# System files
+.DS_Store
+*.log
+*.tsbuildinfo

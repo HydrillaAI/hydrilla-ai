@@ -1,0 +1,429 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hydrilla AI Developer API",
+    "description": "Production REST API for BlueFox 3D reconstruction and multi-model image generation.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.hydrilla.ai",
+      "description": "Production API Server"
+    },
+    {
+      "url": "https://api.hydrilla.co",
+      "description": "Direct Gateway Server"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/v1/3d/image-to-3d": {
+      "post": {
+        "summary": "Generate 3D Model from Image",
+        "description": "Submits an image to the BlueFox 3D cascade pipeline to generate a production-ready textured GLB file.",
+        "operationId": "createImageTo3dTask",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Public HTTP/HTTPS URL of the reference image."
+                  },
+                  "resolution": {
+                    "type": "integer",
+                    "enum": [1024, 1536],
+                    "default": 1536,
+                    "description": "Cascade resolution. 1536 offers maximum surface and texture detail."
+                  },
+                  "seed": {
+                    "type": "integer",
+                    "default": 42,
+                    "description": "Random seed for reproducible latent generation."
+                  }
+                },
+                "required": ["image_url"]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Binary image file (PNG, JPG, WEBP)."
+                  },
+                  "resolution": {
+                    "type": "integer",
+                    "enum": [1024, 1536],
+                    "default": 1536
+                  },
+                  "seed": {
+                    "type": "integer",
+                    "default": 42
+                  }
+                },
+                "required": ["image"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "3D generation task created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCreated"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Insufficient credit balance."
+          }
+        }
+      }
+    },
+    "/v1/3d/text-to-3d": {
+      "post": {
+        "summary": "Generate 3D Model from Text Prompt",
+        "description": "Pipelines a text prompt through a 2D concept generator into the BlueFox 3D reconstruction engine.",
+        "operationId": "createTextTo3dTask",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "Description of the 3D model to create."
+                  },
+                  "image_model": {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": ["openai", "gemini"],
+                        "default": "openai"
+                      },
+                      "quality": {
+                        "type": "string",
+                        "enum": ["low", "high"],
+                        "default": "high"
+                      },
+                      "aspect": {
+                        "type": "string",
+                        "enum": ["1:1", "3:2", "2:3"],
+                        "default": "1:1"
+                      }
+                    }
+                  },
+                  "resolution": {
+                    "type": "integer",
+                    "enum": [1024, 1536],
+                    "default": 1536
+                  },
+                  "seed": {
+                    "type": "integer",
+                    "default": 42
+                  }
+                },
+                "required": ["prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Text-to-3D task created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCreated"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/3d/tasks/{taskId}": {
+      "get": {
+        "summary": "Get 3D Task Status",
+        "description": "Polls the status of an active or completed 3D generation task and retrieves download URLs.",
+        "operationId": "get3dTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task status details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Cancel 3D Task",
+        "description": "Cancels a pending or active 3D generation task.",
+        "operationId": "cancel3dTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task cancelled."
+          }
+        }
+      }
+    },
+    "/v1/images/generate": {
+      "post": {
+        "summary": "Generate Concept Image",
+        "description": "Generates 2D images and turnarounds using OpenAI or Google Gemini.",
+        "operationId": "generateImage",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": ["openai", "gemini"],
+                    "default": "openai"
+                  },
+                  "quality": {
+                    "type": "string",
+                    "enum": ["low", "high"],
+                    "default": "low"
+                  },
+                  "aspect": {
+                    "type": "string",
+                    "enum": ["1:1", "3:2", "2:3"],
+                    "default": "1:1"
+                  }
+                },
+                "required": ["prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated image result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/images/edit": {
+      "post": {
+        "summary": "Edit Concept Image",
+        "description": "Edits an existing image using an instructional text prompt.",
+        "operationId": "editImage",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image_url": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": ["openai", "gemini"],
+                    "default": "openai"
+                  },
+                  "quality": {
+                    "type": "string",
+                    "enum": ["low", "high"],
+                    "default": "low"
+                  }
+                },
+                "required": ["image_url", "prompt"]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": ["openai", "gemini"],
+                    "default": "openai"
+                  },
+                  "quality": {
+                    "type": "string",
+                    "enum": ["low", "high"],
+                    "default": "low"
+                  }
+                },
+                "required": ["image", "prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Edited image result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "summary": "List Available Models",
+        "description": "Lists all 3D reconstruction and 2D vision models available on your account.",
+        "operationId": "listModels",
+        "responses": {
+          "200": {
+            "description": "List of models."
+          }
+        }
+      }
+    },
+    "/v1/user/me": {
+      "get": {
+        "summary": "Get Developer Account & Credits",
+        "description": "Retrieves developer quota, plan tier, and remaining credit balance.",
+        "operationId": "getUserMe",
+        "responses": {
+          "200": {
+            "description": "User profile details."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Supply key in format 'Bearer hyd_live_...'"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      }
+    },
+    "schemas": {
+      "TaskCreated": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "object": { "type": "string", "example": "task" },
+          "type": { "type": "string", "example": "image-to-3d" },
+          "model": { "type": "string", "example": "bluefox-1" },
+          "status": { "type": "string", "example": "PENDING" },
+          "resolution": { "type": "integer", "example": 1536 },
+          "jobs_ahead": { "type": "integer", "example": 0 },
+          "progress": { "type": "integer", "example": 0 },
+          "created_at": { "type": "integer" }
+        }
+      },
+      "TaskStatus": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "object": { "type": "string", "example": "task" },
+          "type": { "type": "string", "example": "image-to-3d" },
+          "status": { "type": "string", "enum": ["PENDING", "IN_PROGRESS", "SUCCEEDED", "FAILED", "CANCELLED"] },
+          "progress": { "type": "integer", "example": 100 },
+          "model": { "type": "string", "example": "bluefox-1" },
+          "result": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "mesh_url": { "type": "string", "format": "uri" },
+              "preview_image_url": { "type": "string", "format": "uri" },
+              "format": { "type": "string", "example": "glb" },
+              "face_count": { "type": "integer", "example": 820000 }
+            }
+          },
+          "error": { "type": "string", "nullable": true },
+          "created_at": { "type": "integer" },
+          "completed_at": { "type": "integer", "nullable": true }
+        }
+      },
+      "ImageResult": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "object": { "type": "string", "example": "image" },
+          "provider": { "type": "string", "example": "openai" },
+          "model": { "type": "string", "example": "gpt-image-2.5-sunburst" },
+          "image_url": { "type": "string", "format": "uri" },
+          "quality": { "type": "string", "example": "high" },
+          "credits_used": { "type": "integer", "example": 5 },
+          "created_at": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
