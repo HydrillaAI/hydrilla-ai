@@ -1,19 +1,15 @@
 import type { ReactNode } from "react";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { createPageMetadata, getFaqJsonLd } from "@/lib/seo";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "FAQ",
+  title: "Hydrilla FAQ: Licensing, Accounts, and Support | Hydrilla AI",
   description:
-    "Answers about Hydrilla — 3D generation, BlueFox, pricing, exports, studio workflows, and getting started for creators and teams.",
+    "Answers about owning what you generate with Hydrilla, accounts and data, and getting support. Plans and formats have their own pages.",
+  ogTitle: "Hydrilla FAQ",
   path: "/faq",
+  absoluteTitle: true,
 });
 
 export default function FAQLayout({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <JsonLd data={getFaqJsonLd()} />
-      {children}
-    </>
-  );
+  return children;
 }

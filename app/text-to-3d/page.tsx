@@ -1,5 +1,7 @@
+import { getKitJsonLd } from "@/lib/kit-schema";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
+import { PickleMediaGrid } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
 
@@ -12,38 +14,6 @@ export const metadata = createPageMetadata({
   absoluteTitle: true,
 });
 
-const TEXT_TO_3D_JSON_LD = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "HowTo",
-      "@id": "https://hydrilla.ai/text-to-3d#howto",
-      name: "Text to 3D with BlueFox",
-      step: [
-        {
-          "@type": "HowToStep",
-          position: 1,
-          text: "Write a prompt naming the subject, its style, and its use.",
-        },
-        {
-          "@type": "HowToStep",
-          position: 2,
-          text: "An image model renders a reference, at Low or High quality, in a square, landscape, or portrait frame.",
-        },
-        {
-          "@type": "HowToStep",
-          position: 3,
-          text: "Adjust the image with an Edit prompt until it looks right.",
-        },
-        {
-          "@type": "HowToStep",
-          position: 4,
-          text: "Generate the 3D model, then preview it and export.",
-        },
-      ],
-    },
-  ],
-};
 
 const PROMPT_ROWS = [
   ["Low-poly wooden crate for a Unity mobile game", "Names the style and engine"],
@@ -55,61 +25,81 @@ const PROMPT_ROWS = [
 export default function TextTo3DPage() {
   return (
     <>
-      <JsonLd data={TEXT_TO_3D_JSON_LD} />
+      <JsonLd data={getKitJsonLd("/text-to-3d")} />
       <article className="pickle-article">
         <header className="pickle-article-header">
           <p className="pickle-article-kicker">Product</p>
           <h1 className="pickle-article-title" data-wide="true">
             Text to 3D with BlueFox
           </h1>
-          <div className="pickle-text" style={{ textAlign: "center" }}>
+          <div className="pickle-lead">
             <p>
               Describe an asset, approve a picture of it, and BlueFox, Hydrilla&apos;s 3D model, builds it as a segmented 3D model in Hydrilla AI.{" "}
-              <Link href="/bluefox">About BlueFox →</Link>
+              <Link href="/bluefox">About BlueFox</Link>
             </p>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+          <div className="pickle-actions">
             <Link href="/app/studio" className="pickle-pill-solid">
               Start generating
             </Link>
-            <Link
-              href="/pricing"
-              className="pickle-glass-pill"
-              style={{ height: "48px", fontSize: "17px", padding: "0 22px" }}
-            >
+            <Link href="/pricing" className="pickle-pill-ghost">
               See pricing
             </Link>
           </div>
         </header>
 
         <div className="pickle-article-column">
-          {/* TODO(kit): visual – three frames in sequence (prompt, reference image, 3D model) */}
-          <figure className="pickle-figure">
-            <div
-              role="img"
-              aria-label="Three frames left to right: a typed prompt for a brass lantern, the image it produced, and the finished 3D lantern."
-              className="pickle-card-surface"
-            />
-          </figure>
+          {/* TODO(kit): visual – replace with the three-frame capture (prompt, reference image, 3D model) for one asset */}
+          <PickleMediaGrid
+            ratio="4 / 5"
+            items={[
+              {
+                src: "/workflow/describe.png",
+                alt: "The 3D character generator panel with a typed prompt for a greyhound explorer in a long coat.",
+                label: <><strong>1</strong>Prompt</>,
+                fit: "contain",
+                tone: "white",
+              },
+              {
+                src: "/workflow/refine.png",
+                alt: "The reference image rendered from the prompt: a greyhound character in a long coat and scarf.",
+                label: <><strong>2</strong>Reference image</>,
+                tone: "white",
+              },
+              {
+                src: "/workflow/generated-model2.png",
+                alt: "The finished 3D model of the character, shown untextured and textured side by side.",
+                label: <><strong>3</strong>3D model</>,
+                tone: "white",
+              },
+            ]}
+          />
+
+          <div className="pickle-intro">
+            <p>
+              Text to 3D is the right start <strong>when the idea exists only as words</strong>: a prop list from a level designer, a line in a script, or a note from an art director. You write what the asset is and how it will be used, and Hydrilla turns that description into a model you can preview and take further.
+            </p>
+          </div>
 
           <section className="pickle-head-block">
             <h2 className="pickle-h2">Four steps from prompt to model</h2>
             <div className="pickle-text">
               <p>
-                Text to 3D starts with a reference image that you can refine before the 3D model is generated.
+                Text to 3D starts with a reference image that you can refine before the 3D model is generated. That picture is your chance to agree on the look before any geometry exists.
               </p>
-              <ol>
+              <ol className="pickle-steps">
                 <li>Write a prompt naming the subject, its style, and its use.</li>
                 <li>
                   An image model renders a reference, at Low or High quality, in a square, landscape, or portrait frame.
                 </li>
                 <li>Adjust the image with an Edit prompt until it looks right.</li>
                 <li>
-                  Generate the 3D model, then preview it and <Link href="/features#exports">export →</Link>.
+                  Generate the 3D model, then preview it and <Link href="/features#exports">export</Link>.
                 </li>
               </ol>
               <p>
-                Every model comes back UV-unwrapped, with PBR maps, <Link href="/bluefox">details →</Link>.
+                Every model comes back UV-unwrapped, with PBR maps, so it is ready for material work from the start.{" "}
+                <Link href="/bluefox">What BlueFox returns</Link>
               </p>
             </div>
           </section>
@@ -119,7 +109,7 @@ export default function TextTo3DPage() {
               <h2 className="pickle-h2">Write prompts that say how the asset will be used</h2>
               <div className="pickle-text">
                 <p>
-                  Be specific about scale and use. Naming the use, scale, and camera distance gives BlueFox a clearer brief.
+                  Be specific about scale and use. A prompt that names the use, the scale, and how close the camera will get gives BlueFox a clearer brief than a list of adjectives. The examples below show the difference that one extra detail makes.
                 </p>
               </div>
             </div>
@@ -150,9 +140,18 @@ export default function TextTo3DPage() {
             <h2 className="pickle-h2">Refine the image before you spend on 3D</h2>
             <div className="pickle-text">
               <p>
-                Settle the look at the image stage, where a change is one more Edit prompt. Have a picture already? Use{" "}
-                <Link href="/image-to-3d">image to 3D →</Link>.{" "}
-                <Link href="/pricing">See what a model costs →</Link>
+                Settle the look at the image stage, where a change is one more Edit prompt. Adjust color, proportion, or wear on the picture until it reads the way you want, then generate the model once. It keeps review short and credits focused on the version you actually approve.
+              </p>
+            </div>
+          </section>
+
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">When another start fits better</h2>
+            <div className="pickle-text">
+              <p>
+                If you already have a photo or concept image, start from it with{" "}
+                <Link href="/image-to-3d">image to 3D</Link>. If the job is a whole set of pieces rather than one model, brief{" "}
+                <Link href="/water">Water Agent</Link> instead. <Link href="/pricing">See what a model costs</Link>
               </p>
             </div>
           </section>

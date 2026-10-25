@@ -94,9 +94,15 @@ const BREAKDOWN_ICONS: Record<string, typeof Box> = {
 
 const CHART_TYPE_ORDER = ["Image generation", "3D model", "Edit image"] as const;
 const CHART_COLORS: Record<string, string> = {
-  "Image generation": "#525252",
-  "3D model": "#171717",
-  "Edit image": "#a3a3a3",
+  "Image generation": "#3f6fa8",
+  "3D model": "#7eb1e3",
+  "Edit image": "#b49be6",
+};
+
+const TYPE_ICONS: Record<string, typeof Box> = {
+  "Image generation": ImageIcon,
+  "3D model": Box,
+  "Edit image": PenLine,
 };
 
 function formatResetDate(iso: string | null | undefined): string {
@@ -265,114 +271,95 @@ export default function UsagePage() {
 
   return (
     <div className="app-content-page font-dm-sans bg-[var(--app-canvas)]">
-      <section className="flex flex-col gap-8 sm:gap-10 max-w-6xl mx-auto w-full">
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 sm:gap-12">
         {/* Header */}
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] sm:text-xs font-medium text-neutral-400 tracking-[0.14em] uppercase">
-              Account
+            <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-neutral-400">Account</p>
+            <h1 className="mt-2 text-neutral-900">Usage</h1>
+            <p className="mt-2.5 text-[15px] text-neutral-500">
+              {loading ? "Loading your usage…" : `${planLabel} plan · credits and generation history`}
             </p>
-            <h1 className="mt-1.5 text-[28px] sm:text-[34px] font-semibold text-neutral-900 tracking-[-0.03em] leading-[1.1]">
-              Usage
-            </h1>
-            <p className="mt-2 text-sm text-neutral-500">
-              {loading
-                ? "Loading your usage…"
-                : `${planLabel} plan · ${remaining.toLocaleString()} credits remaining`}
-            </p>
-            {loadError ? (
-              <p className="mt-2 text-sm text-amber-700">{loadError}</p>
-            ) : null}
+            {loadError ? <p className="mt-2 text-sm text-amber-700">{loadError}</p> : null}
           </div>
           <Link
             href="/app/settings?section=billing"
-            className="inline-flex items-center justify-center gap-1.5 h-10 px-5 text-sm font-medium text-neutral-700 bg-white border border-neutral-200/80 hover:bg-neutral-50 hover:text-neutral-900 rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors shrink-0"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 self-start rounded-full border border-neutral-200 bg-white px-5 text-[13px] font-semibold text-neutral-800 transition-colors hover:bg-neutral-50 sm:self-auto"
           >
-            Billing
-            <ChevronRight className="w-4 h-4" />
+            Plan &amp; billing
+            <ChevronRight className="h-4 w-4" />
           </Link>
-        </div>
+        </header>
 
-        {/* Credits balance */}
-        <section
-          className="rounded-[22px] border border-neutral-200/70 bg-white p-5 sm:p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
-          style={{
-            background:
-              "linear-gradient(165deg, #ffffff 0%, #fafafa 55%, #f5f5f5 100%)",
-          }}
-        >
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-400">
-                This billing period
+        {/* Overview */}
+        <section aria-label="Credits overview" className="grid gap-3 sm:grid-cols-3">
+          <div className="app-panel p-5 sm:col-span-1 sm:p-6">
+            <p className="text-[13px] font-medium text-neutral-500">Used this period</p>
+            {loading ? (
+              <div className="studio-skeleton mt-3 h-9 w-32 rounded-full" />
+            ) : (
+              <p className="mt-2 text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-neutral-900">
+                {credits?.used.toLocaleString() ?? "0"}
+                <span className="text-[18px] font-medium text-neutral-400"> / {credits?.total.toLocaleString() ?? "0"}</span>
               </p>
-              {loading ? (
-                <div className="mt-3 h-9 w-40 rounded-full bg-neutral-200/70 animate-pulse" />
-              ) : (
-                <p className="mt-2 text-[34px] font-semibold tracking-[-0.03em] text-neutral-900 tabular-nums leading-none">
-                  {credits?.used.toLocaleString() ?? "0"}
-                  <span className="text-neutral-400 font-medium text-[22px]">
-                    {" "}/ {credits?.total.toLocaleString() ?? "0"}
-                  </span>
-                </p>
-              )}
-              <p className="mt-2 text-sm text-neutral-500">
-                Period credits used
-                {resetStr ? <> · Next renewal {resetStr}</> : null}
-              </p>
-              {!loading && (credits?.bonus ?? 0) > 0 ? (
-                <p className="mt-1 text-sm text-neutral-500 tabular-nums">
-                  {(credits?.bonus ?? 0).toLocaleString()} bonus credits (carry across renewals)
-                </p>
-              ) : null}
+            )}
+            <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
+              <div
+                className={cn("h-full rounded-full transition-all duration-500 ease-out", pct >= 85 ? "bg-amber-500" : "bg-[var(--hyd-400)]")}
+                style={{ width: `${loading ? 0 : Math.min(pct, 100)}%` }}
+              />
             </div>
-            <div className="text-right shrink-0">
-              <p className="text-[22px] font-semibold tracking-tight text-neutral-900 tabular-nums">
-                {loading ? "—" : remaining.toLocaleString()}
-              </p>
-              <p className="text-[12px] text-neutral-500 mt-0.5">remaining</p>
-            </div>
+            <p className="mt-2 text-[12px] tabular-nums text-neutral-500">{loading ? " " : `${pct}% of plan credits`}</p>
           </div>
-          {!loading && credits && credits.total > 0 && (
-            <div className="mt-5">
-              <div className="h-1.5 w-full rounded-full bg-neutral-200/80 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-neutral-900 transition-all duration-500 ease-out"
-                  style={{ width: `${Math.min(pct, 100)}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[12px] text-neutral-400 tabular-nums">
-                {pct}% used
+
+          <div className="app-panel p-5 sm:p-6">
+            <p className="text-[13px] font-medium text-neutral-500">Remaining</p>
+            {loading ? (
+              <div className="studio-skeleton mt-3 h-9 w-24 rounded-full" />
+            ) : (
+              <p className="mt-2 text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-neutral-900">
+                {remaining.toLocaleString()}
               </p>
-            </div>
-          )}
+            )}
+            <p className="mt-5 text-[12px] leading-relaxed text-neutral-500">
+              {!loading && (credits?.bonus ?? 0) > 0
+                ? `Includes ${(credits?.bonus ?? 0).toLocaleString()} bonus credits that carry over`
+                : "Credits available to spend now"}
+            </p>
+          </div>
+
+          <div className="app-panel flex flex-col p-5 sm:p-6">
+            <p className="text-[13px] font-medium text-neutral-500">Plan</p>
+            <p className="mt-2 text-[24px] font-semibold leading-tight tracking-[-0.02em] text-neutral-900">
+              {loading ? "—" : planLabel}
+            </p>
+            <p className="mt-auto pt-5 text-[12px] text-neutral-500">
+              {resetStr ? `Renews ${resetStr}` : "Renewal date appears once your plan is active"}
+            </p>
+          </div>
         </section>
 
         {/* Breakdown */}
         {breakdown.length > 0 && (
-          <section>
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-400 mb-3">
-              Credits by type
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <section className="flex flex-col gap-4">
+            <SectionHeading title="Credits by type" description="What your credits went to this period." />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {breakdown.map((item) => {
                 const Icon = BREAKDOWN_ICONS[item.type] || Box;
                 return (
-                  <div
-                    key={item.type}
-                    className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex items-center gap-3"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4 text-neutral-600" strokeWidth={1.75} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-neutral-900 truncate tracking-tight">
-                        {item.label}
-                      </p>
-                      <p className="text-[12px] text-neutral-500 tabular-nums mt-0.5">
-                        {item.count} job{item.count !== 1 ? "s" : ""} · {item.credits} credits
+                  <div key={item.type} className="app-panel flex items-center gap-3.5 p-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-neutral-700 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+                      <Icon className="h-4 w-4" strokeWidth={1.75} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold text-neutral-900">{item.label}</p>
+                      <p className="mt-0.5 text-[12px] tabular-nums text-neutral-500">
+                        {item.count} job{item.count !== 1 ? "s" : ""}
                       </p>
                     </div>
+                    <p className="shrink-0 text-[18px] font-semibold tabular-nums text-neutral-900">
+                      {item.credits.toLocaleString()}
+                    </p>
                   </div>
                 );
               })}
@@ -380,35 +367,26 @@ export default function UsagePage() {
           </section>
         )}
 
-        {/* Usage chart + table */}
-        <section className="flex flex-col gap-5">
+        {/* Chart + history */}
+        <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-[17px] font-semibold text-neutral-900 tracking-tight">
-                Your usage
-              </h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                Daily credit usage across this period.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-[13px] text-neutral-500 tabular-nums hidden sm:inline">
-                {dateRangeLabel}
-              </span>
-              <div className="inline-flex h-9 items-center rounded-full border border-neutral-200/80 bg-white p-1 gap-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <SectionHeading title="Activity" description="Credits spent over the current billing period." />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="hidden text-[13px] tabular-nums text-neutral-500 md:inline">{dateRangeLabel}</span>
+              <div className="inline-flex h-9 items-center gap-0.5 rounded-full bg-neutral-100 p-1" role="radiogroup" aria-label="Table range">
                 {(["1d", "7d", "30d"] as const).map((r) => (
                   <button
                     key={r}
                     type="button"
+                    role="radio"
+                    aria-checked={range === r}
                     onClick={() => setRange(r)}
                     className={cn(
-                      "h-7 px-3 rounded-full text-[12px] font-medium transition-colors",
-                      range === r
-                        ? "bg-neutral-900 text-white"
-                        : "text-neutral-500 hover:text-neutral-800"
+                      "h-7 rounded-full px-3.5 text-[12px] font-semibold transition-colors",
+                      range === r ? "bg-white text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-neutral-500 hover:text-neutral-900"
                     )}
                   >
-                    {r}
+                    {r === "1d" ? "24h" : r === "7d" ? "7 days" : "30 days"}
                   </button>
                 ))}
               </div>
@@ -416,87 +394,76 @@ export default function UsagePage() {
                 type="button"
                 onClick={() => exportToCsv(filteredHistory, dateRangeLabel)}
                 disabled={filteredHistory.length === 0}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200/80 bg-white px-3.5 text-[12px] font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 text-[12px] font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5" />
-                Export
+                <Download className="h-3.5 w-3.5" />
+                Export CSV
               </button>
             </div>
           </div>
 
-          {/* Chart */}
-          <div className="rounded-[22px] border border-neutral-200/70 bg-white overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-            <div className="px-5 py-3.5 border-b border-neutral-100/80 flex items-center justify-between gap-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-400">
-                Cumulative by type
-              </p>
+          <div className="app-panel overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 sm:px-6">
+              <p className="text-[13px] font-medium text-neutral-500">Cumulative credits</p>
               {chartData.length > 0 && (
-                <div className="hidden sm:flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-4">
                   {CHART_TYPE_ORDER.map((type) => (
                     <div key={type} className="flex items-center gap-1.5">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: CHART_COLORS[type] ?? "#888" }}
-                      />
-                      <span className="text-[11px] text-neutral-500">{type}</span>
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[type] }} />
+                      <span className="text-[12px] text-neutral-500">{type}</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-            <div className="p-4 sm:p-5">
+            <div className="px-3 pb-4 pt-3 sm:px-4">
               {chartData.length === 0 ? (
-                <div className="h-64 flex flex-col items-center justify-center text-center gap-2">
-                  <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center mb-1">
-                    <Sparkles className="w-5 h-5 text-neutral-400" strokeWidth={1.5} />
-                  </div>
-                  <p className="text-sm font-medium text-neutral-600">No usage yet</p>
-                  <p className="text-[13px] text-neutral-500 max-w-xs">
-                    Credits you spend on images and 3D models will appear here.
-                  </p>
+                <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
+                  <span className="mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+                    <Sparkles className="h-5 w-5 text-neutral-400" strokeWidth={1.5} />
+                  </span>
+                  <p className="text-sm font-medium text-neutral-700">No usage yet</p>
+                  <p className="max-w-xs text-[13px] text-neutral-500">Credits you spend on images and 3D models will appear here.</p>
                 </div>
               ) : (
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                       <defs>
                         {CHART_TYPE_ORDER.map((type) => (
                           <linearGradient key={type} id={`area-${type.replace(/\s/g, "-")}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={CHART_COLORS[type] ?? "#888"} stopOpacity={0.35} />
-                            <stop offset="100%" stopColor={CHART_COLORS[type] ?? "#888"} stopOpacity={0.04} />
+                            <stop offset="0%" stopColor={CHART_COLORS[type]} stopOpacity={0.35} />
+                            <stop offset="100%" stopColor={CHART_COLORS[type]} stopOpacity={0.03} />
                           </linearGradient>
                         ))}
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-neutral-200)" vertical={false} />
                       <XAxis
                         dataKey="date"
-                        tickFormatter={(v) => {
-                          const d = new Date(v);
-                          return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-                        }}
-                        tick={{ fontSize: 11, fill: "#a3a3a3" }}
-                        axisLine={{ stroke: "#f0f0f0" }}
+                        tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        tick={{ fontSize: 11, fill: "var(--color-neutral-400)" }}
+                        axisLine={false}
                         tickLine={false}
+                        minTickGap={24}
                       />
                       <YAxis
-                        tick={{ fontSize: 11, fill: "#a3a3a3" }}
+                        width={44}
+                        tick={{ fontSize: 11, fill: "var(--color-neutral-400)" }}
                         axisLine={false}
                         tickLine={false}
                         tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))}
                       />
                       <Tooltip
-                        formatter={(value: unknown) => [typeof value === "number" ? value : 0, ""]}
+                        formatter={(value: unknown, name) => [typeof value === "number" ? value.toLocaleString() : 0, name]}
                         labelFormatter={(label) =>
-                          new Date(String(label)).toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })
+                          new Date(String(label)).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
                         }
                         contentStyle={{
-                          borderRadius: 16,
-                          border: "1px solid rgba(0,0,0,0.06)",
-                          boxShadow: "0 8px 30px -8px rgba(0,0,0,0.15)",
+                          borderRadius: 14,
+                          border: "1px solid var(--color-neutral-200)",
+                          background: "var(--color-white)",
+                          color: "var(--color-neutral-900)",
+                          boxShadow: "0 8px 30px -8px rgba(0,0,0,0.2)",
                           fontSize: 12,
                         }}
                       />
@@ -506,229 +473,219 @@ export default function UsagePage() {
                           type="monotone"
                           dataKey={type}
                           stackId="1"
-                          stroke={CHART_COLORS[type] ?? "#888"}
+                          stroke={CHART_COLORS[type]}
                           fill={`url(#area-${type.replace(/\s/g, "-")})`}
-                          strokeWidth={1.5}
+                          strokeWidth={1.75}
                         />
                       ))}
-                      <ReferenceLine x={todayKey} stroke="#d4d4d4" strokeDasharray="4 4" />
+                      <ReferenceLine x={todayKey} stroke="var(--color-neutral-300)" strokeDasharray="4 4" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </div>
-            {chartData.length > 0 && (
-              <div className="px-5 pb-4 flex flex-wrap gap-3 justify-center sm:hidden">
-                {CHART_TYPE_ORDER.map((type) => (
-                  <div key={type} className="flex items-center gap-1.5">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: CHART_COLORS[type] ?? "#888" }}
-                    />
-                    <span className="text-[11px] text-neutral-500">{type}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
-          {/* History table */}
-          <div className="rounded-[22px] border border-neutral-200/70 bg-white overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+          <div className="app-panel overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
+              <p className="text-[14px] font-semibold text-neutral-900">History</p>
+              <p className="text-[12px] tabular-nums text-neutral-500">
+                {historyLoading ? "" : `${filteredHistory.length} event${filteredHistory.length !== 1 ? "s" : ""}`}
+              </p>
+            </div>
             {historyLoading ? (
-              <div className="p-16 text-center">
-                <div className="w-8 h-8 border-2 border-neutral-200 border-t-neutral-800 rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-sm text-neutral-500">Loading usage…</p>
-              </div>
+              <TableMessage spinner title="Loading usage…" />
             ) : filteredHistory.length === 0 ? (
-              <div className="p-16 text-center">
-                <p className="text-sm font-medium text-neutral-600 mb-1">No usage in this period</p>
-                <p className="text-[13px] text-neutral-500">
-                  Credits you spend will show up here.
-                </p>
-              </div>
+              <TableMessage title="No usage in this period" body="Credits you spend will show up here." />
             ) : (
-              <>
-                <div className="px-5 py-3.5 border-b border-neutral-100/80 flex items-center justify-between gap-3">
-                  <p className="text-[13px] text-neutral-500">
-                    <span className="font-medium text-neutral-800 tabular-nums">
-                      {filteredHistory.length}
-                    </span>{" "}
-                    event{filteredHistory.length !== 1 ? "s" : ""}
-                  </p>
-                  <p className="text-[12px] text-neutral-400 tabular-nums hidden sm:block">
-                    {dateRangeLabel}
-                  </p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-neutral-100">
-                        <th className="text-left font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Date
-                        </th>
-                        <th className="text-left font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Type
-                        </th>
-                        <th className="text-right font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Credits
-                        </th>
-                        <th className="text-left font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHistory.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/80 transition-colors"
-                        >
-                          <td className="px-5 py-3.5 text-neutral-500 tabular-nums text-[13px]">
-                            {formatTableDate(row.date)}
-                          </td>
-                          <td className="px-5 py-3.5 text-neutral-900 font-medium text-[13px]">
-                            {row.type}
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-neutral-900 text-[13px]">
-                            {row.credits}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-medium text-neutral-600 capitalize">
-                              {row.status}
+              <div className="overflow-x-auto px-2 pb-2 sm:px-3 sm:pb-3">
+                <table className="w-full min-w-[560px] table-fixed border-separate border-spacing-0 text-[13px]">
+                  <colgroup>
+                    <col className="w-[34%]" />
+                    <col className="w-[30%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[18%]" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <Th>Date</Th>
+                      <Th>Type</Th>
+                      <Th>Status</Th>
+                      <Th align="right">Credits</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHistory.map((row) => {
+                      const Icon = TYPE_ICONS[row.type] ?? Box;
+                      return (
+                        <tr key={row.id} className="group">
+                          <Td className="whitespace-nowrap tabular-nums text-neutral-500">{formatTableDate(row.date)}</Td>
+                          <Td>
+                            <span className="inline-flex min-w-0 items-center gap-2 font-medium text-neutral-900">
+                              <Icon className="h-3.5 w-3.5 shrink-0 text-neutral-400" strokeWidth={1.9} />
+                              <span className="truncate">{row.type}</span>
                             </span>
-                          </td>
+                          </Td>
+                          <Td>
+                            <StatusPill status={row.status} />
+                          </Td>
+                          <Td align="right" className="font-semibold tabular-nums text-neutral-900">
+                            {row.credits.toLocaleString()}
+                          </Td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
 
         {/* Water LLM tokens (BYOK — not Hydrilla credits) */}
-        <section id="water-tokens" className="scroll-mt-24 space-y-4">
-          <div>
-            <h2 className="text-[15px] font-semibold text-neutral-900 tracking-tight">
-              Water tokens
-            </h2>
-            <p className="text-[13px] text-neutral-500 mt-0.5">
-              LLM usage from your Water runs (your API key). Separate from Hydrilla credits.
-            </p>
-          </div>
-          <div className="rounded-[22px] border border-neutral-200/70 bg-white overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+        <section id="water-tokens" className="flex scroll-mt-24 flex-col gap-4">
+          <SectionHeading
+            title="Water tokens"
+            description="LLM usage from your Water runs with your own API key. Separate from Hydrilla credits."
+          />
+          <div className="app-panel overflow-hidden">
             {waterLoading ? (
-              <div className="p-16 text-center">
-                <div className="w-8 h-8 border-2 border-neutral-200 border-t-neutral-800 rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-sm text-neutral-500">Loading Water tokens…</p>
-              </div>
+              <TableMessage spinner title="Loading Water tokens…" />
             ) : waterUsage.length === 0 ? (
-              <div className="p-16 text-center">
-                <p className="text-sm font-medium text-neutral-600 mb-1">No Water runs yet</p>
-                <p className="text-[13px] text-neutral-500">
-                  Token counts appear after you generate with Water.
-                </p>
-              </div>
+              <TableMessage title="No Water runs yet" body="Token counts appear after you generate with Water." />
             ) : (
-              <>
-                <div className="px-5 py-3.5 border-b border-neutral-100/80">
-                  <p className="text-[13px] text-neutral-500">
-                    <span className="font-medium text-neutral-800 tabular-nums">
-                      {waterUsage.length}
-                    </span>{" "}
-                    job{waterUsage.length !== 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-neutral-100">
-                        <th className="text-left font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Date
-                        </th>
-                        <th className="text-left font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Prompt
-                        </th>
-                        <th className="text-left font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Model
-                        </th>
-                        <th className="text-right font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Input
-                        </th>
-                        <th className="text-right font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Output
-                        </th>
-                        <th className="text-right font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Total
-                        </th>
-                        <th className="text-left font-medium text-[11px] uppercase tracking-[0.1em] text-neutral-400 px-5 py-3">
-                          Status
-                        </th>
+              <div className="overflow-x-auto p-2 sm:p-3">
+                <table className="w-full min-w-[760px] table-fixed border-separate border-spacing-0 text-[13px]">
+                  <colgroup>
+                    <col className="w-[19%]" />
+                    <col className="w-[27%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <Th>Date</Th>
+                      <Th>Prompt</Th>
+                      <Th>Model</Th>
+                      <Th align="right">Input</Th>
+                      <Th align="right">Output</Th>
+                      <Th align="right">Total</Th>
+                      <Th align="right">Status</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waterUsage.map((row) => (
+                      <tr key={row.id} className="group">
+                        <Td className="whitespace-nowrap tabular-nums text-neutral-500">{formatTableDate(row.createdAt)}</Td>
+                        <Td className="truncate font-medium text-neutral-900" title={row.prompt || undefined}>
+                          {row.prompt?.trim() || "—"}
+                        </Td>
+                        <Td className="truncate text-neutral-600" title={row.model || undefined}>
+                          {row.model || "—"}
+                        </Td>
+                        <Td align="right" className="tabular-nums text-neutral-700">
+                          {formatTokens(row.inputTokens)}
+                        </Td>
+                        <Td align="right" className="tabular-nums text-neutral-700">
+                          {formatTokens(row.outputTokens)}
+                        </Td>
+                        <Td align="right" className="font-semibold tabular-nums text-neutral-900">
+                          {formatTokens(row.totalTokens)}
+                        </Td>
+                        <Td align="right">
+                          <StatusPill status={row.status} />
+                        </Td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {waterUsage.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/80 transition-colors"
-                        >
-                          <td className="px-5 py-3.5 text-neutral-500 tabular-nums text-[13px] whitespace-nowrap">
-                            {formatTableDate(row.createdAt)}
-                          </td>
-                          <td
-                            className="px-5 py-3.5 text-neutral-900 font-medium text-[13px] max-w-[220px] truncate"
-                            title={row.prompt || undefined}
-                          >
-                            {row.prompt?.trim() || "—"}
-                          </td>
-                          <td
-                            className="px-5 py-3.5 text-neutral-600 text-[13px] max-w-[160px] truncate"
-                            title={row.model || undefined}
-                          >
-                            {row.model || "—"}
-                          </td>
-                          <td className="px-5 py-3.5 text-right tabular-nums text-neutral-900 text-[13px]">
-                            {row.inputTokens && row.inputTokens > 0 ? row.inputTokens : "—"}
-                          </td>
-                          <td className="px-5 py-3.5 text-right tabular-nums text-neutral-900 text-[13px]">
-                            {row.outputTokens && row.outputTokens > 0 ? row.outputTokens : "—"}
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-neutral-900 text-[13px]">
-                            {row.totalTokens && row.totalTokens > 0 ? row.totalTokens : "—"}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-medium text-neutral-600 capitalize">
-                              {row.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
-
-        {/* CTA */}
-        <div className="rounded-[22px] border border-neutral-200/70 bg-white py-10 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <p className="text-[15px] font-semibold text-neutral-900 tracking-tight mb-1.5">
-            Ready to create?
-          </p>
-          <p className="text-sm text-neutral-500 mb-5">
-            Open a workspace and start generating.
-          </p>
-          <Link
-            href="/app/studio"
-            className="inline-flex items-center gap-1.5 h-10 px-5 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 rounded-full transition-colors"
-          >
-            <Sparkles className="w-4 h-4" />
-            Go to Studio
-          </Link>
-        </div>
       </section>
     </div>
   );
+}
+
+function SectionHeading({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="min-w-0">
+      <h2 className="text-[20px] leading-tight text-neutral-900">{title}</h2>
+      {description && <p className="mt-1 text-[14px] text-neutral-500">{description}</p>}
+    </div>
+  );
+}
+
+function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+  return (
+    <th
+      scope="col"
+      className={cn(
+        "border-b border-neutral-200 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400 first:pl-3 sm:px-4",
+        align === "right" ? "text-right" : "text-left"
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  align = "left",
+  className,
+  title,
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <td
+      title={title}
+      className={cn(
+        "border-b border-neutral-200/60 px-3 py-3 align-middle transition-colors group-last:border-b-0 group-hover:bg-white sm:px-4",
+        "group-hover:first:rounded-l-xl group-hover:last:rounded-r-xl",
+        align === "right" ? "text-right" : "text-left",
+        className
+      )}
+    >
+      {children}
+    </td>
+  );
+}
+
+function TableMessage({ title, body, spinner = false }: { title: string; body?: string; spinner?: boolean }) {
+  return (
+    <div className="px-6 pb-14 pt-10 text-center">
+      {spinner && <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-800" />}
+      <p className="text-sm font-medium text-neutral-700">{title}</p>
+      {body && <p className="mt-1 text-[13px] text-neutral-500">{body}</p>}
+    </div>
+  );
+}
+
+const STATUS_STYLES: { match: RegExp; className: string }[] = [
+  { match: /fail|error|cancel/i, className: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  { match: /refund|pending|run|wait|queue/i, className: "bg-amber-500/12 text-amber-700 dark:text-amber-400" },
+  { match: /done|complete|success|charged|ok/i, className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
+];
+
+function StatusPill({ status }: { status: string }) {
+  const style = STATUS_STYLES.find((s) => s.match.test(status))?.className ?? "bg-neutral-200/70 text-neutral-600";
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize", style)}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      {status.toLowerCase()}
+    </span>
+  );
+}
+
+function formatTokens(n: number | null): string {
+  return n && n > 0 ? n.toLocaleString() : "—";
 }

@@ -1,135 +1,177 @@
-import Link from "next/link";
+import { getKitJsonLd } from "@/lib/kit-schema";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  PickleResearchPage,
-  PickleResearchCard,
-  type PickleRelatedItem,
-  type PickleThumbVariant,
-} from "@/components/layout/PicklePage";
-import { INTEGRATIONS } from "@/lib/integrations";
-import { createPageMetadata, getWebPageJsonLd } from "@/lib/seo";
+import Link from "next/link";
+import Footer from "@/components/layout/Footer";
+import { PickleCta, PickleFlow, PickleLinkCards, type PickleLinkItem } from "@/components/layout/PicklePage";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Integrations — Blender, Unity, Unreal, MCP",
+  title: "Integrations: Blender, Unity, Unreal, Godot | Hydrilla AI",
   description:
-    "Install the Hydrilla Blender add-on, plus Unity, Unreal, Godot, MCP, and REST API connectors. Generate in-app or send meshes from Studio through the local Bridge.",
+    "Send Hydrilla models into Blender, Unity, Unreal, and Godot through plugins and the local Bridge, or connect AI agents over MCP and code over REST.",
+  ogTitle: "Hydrilla integrations",
   path: "/integrations",
-  keywords: [
-    "Hydrilla Blender plugin",
-    "Unity 3D integration",
-    "Unreal Engine AI 3D",
-    "MCP 3D generation",
-  ],
+  absoluteTitle: true,
 });
 
-const AVAILABLE_COUNT = INTEGRATIONS.filter(
-  (item) => item.status === "available"
-).length;
+const TOOL_CARDS = [
+  {
+    title: "Blender",
+    tileLabel: "Blender",
+    tileDetail: "Add-on",
+    href: "/integrations/blender",
+    line: "Generation in a sidebar tab, plus models sent from Studio.",
+  },
+  {
+    title: "Unity",
+    tileLabel: "Unity",
+    tileDetail: "Editor window",
+    href: "/integrations/unity",
+    line: "Generation and GLB import inside the Unity Editor.",
+  },
+  {
+    title: "Unreal Engine",
+    tileLabel: "Unreal Engine",
+    tileDetail: "Python plugin",
+    href: "/integrations/unreal",
+    line: "A Python editor plugin for generation and import.",
+  },
+  {
+    title: "Godot",
+    tileLabel: "Godot",
+    tileDetail: "Godot 4 dock",
+    href: "/integrations/godot",
+    line: "A Godot 4 editor dock that generates and receives.",
+  },
+  {
+    title: "MCP server",
+    tileLabel: "MCP server",
+    tileDetail: "stdio",
+    href: "/integrations/mcp",
+    line: "Hydrilla generation for any MCP client.",
+  },
+  {
+    title: "REST API",
+    tileLabel: "REST API",
+    tileDetail: "/v1/3d",
+    href: "/api",
+    line: "Generation jobs from your own code.",
+  },
+] satisfies PickleLinkItem[];
 
-const THUMB_BY_SLUG: Record<string, PickleThumbVariant> = {
-  blender: "pipeline-arch",
-  unity: "unity-engine",
-  unreal: "unreal-engine",
-  godot: "godot-engine",
-  mcp: "privacy-enclave",
-  api: "api-stream",
-};
+const MATRIX_ROWS = [
+  ["Blender", "Yes", "Bridge", "Studio account or API key"],
+  ["Unity", "Yes", "Bridge", "API key"],
+  ["Unreal Engine", "Yes", "Bridge", "API key"],
+  ["Godot 4", "Yes", "Bridge", "API key"],
+  ["MCP server", "Through your agent", "No", "API key"],
+  ["REST API", "From your code", "No", "API key"],
+] as const;
 
 export default function IntegrationsPage() {
-  const cards: PickleRelatedItem[] = INTEGRATIONS.map((item) => ({
-    title: item.name,
-    subtitle: item.summary,
-    href: `/integrations/${item.slug}`,
-    date: item.status === "available" ? "Available" : "Coming soon",
-    author: item.category === "engines" ? "Game Engine Plugin" : item.category === "modeling" ? "DCC Add-on" : "Developer Connector",
-    imageSrc: item.guideSteps?.[0]?.imageSrc || null,
-    thumbVariant: THUMB_BY_SLUG[item.slug] || "pipeline-arch",
-  }));
-
   return (
     <>
-      <JsonLd
-        data={getWebPageJsonLd({
-          name: "Hydrilla Integrations",
-          description:
-            "Connect Hydrilla to Blender, Unity, Unreal, Godot, MCP agents, and the REST API.",
-          path: "/integrations",
-        })}
-      />
-      <PickleResearchPage
-        title="Integrations"
-        description="Native Blender add-on, game-engine plugins, a local Bridge for Studio-to-DCC send, plus MCP and REST for custom pipelines."
-        items={cards}
-      >
-        <div className="pickle-article-column" style={{ marginTop: "96px" }}>
-          <section className="pickle-head-block">
-            <h2 className="pickle-h2">How the local Bridge works</h2>
-            <div className="pickle-text">
-              <ol>
-                <li>
-                  <strong>Install a plugin</strong> for Blender or your game engine,
-                  then start the built-in Bridge so Studio can reach it on{" "}
-                  <code>127.0.0.1:7345</code>.
-                </li>
-                <li>
-                  <strong>Sign in</strong> with the same Hydrilla account you use in
-                  Studio, click Sync inside the plugin, and leave the Connect tab open
-                  while you generate — or paste a <code>hyd_live_</code> API key instead.
-                </li>
-                <li>
-                  <strong>Generate or send</strong> from the plugin panel, or click
-                  Send to DCC in Studio to drop a mesh straight into your open scene.
-                </li>
-              </ol>
+      <JsonLd data={getKitJsonLd("/integrations")} />
+      <article className="pickle-article">
+        <header className="pickle-article-header">
+          <p className="pickle-article-kicker">Product</p>
+          <h1 className="pickle-article-title">Integrations</h1>
+          <div className="pickle-lead">
+            <p>
+              Hydrilla AI connects to the tools you already run: a Blender add-on, plugins for Unity, Unreal, and Godot, a local Bridge from Studio, and MCP and REST for custom pipelines.
+            </p>
+          </div>
+          <div className="pickle-actions">
+            <Link href="/app/api-keys" className="pickle-pill-solid">
+              Get an API key
+            </Link>
+            <Link href="/docs" className="pickle-pill-ghost">
+              Read the docs
+            </Link>
+          </div>
+        </header>
+
+        <div className="pickle-article-column">
+          <div className="pickle-intro">
+            <p>
+              <strong>Generation is most useful when it happens next to the work.</strong> Each integration below brings Hydrilla into a tool your team already knows, so artists can generate, receive, and place models without leaving their scene, and engineers can wire generation into the systems around it.
+            </p>
+          </div>
+
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">From Studio to your open scene</h2>
+              <div className="pickle-text">
+                <p>
+                  The local Bridge runs on your machine and sends meshes from Studio into Blender, Unity, Unreal, or Godot. Start it from a plugin, then use Send to DCC in Studio. The model arrives in the tool you have open, so you can review it in context, under your own lighting, at the moment you need it.
+                </p>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Link href="/integrations/connect" className="pickle-pill-solid">
-                Sign in for plugins
-              </Link>
-              <Link
-                href="/app/api-keys"
-                className="pickle-glass-pill"
-                style={{ height: "48px", fontSize: "17px", padding: "0 22px" }}
-              >
-                Create API key
-              </Link>
-            </div>
+            <PickleFlow
+              label="Diagram: Hydrilla Studio in the browser, an arrow to the Bridge running locally on port 7345, and an arrow to an open Blender scene."
+              steps={[
+                { title: "Studio", detail: "In your browser" },
+                { title: "Bridge on your machine", detail: "127.0.0.1:7345" },
+                { title: "Your open tool", detail: "Blender, Unity, Unreal, or Godot", emphasis: true },
+              ]}
+            />
           </section>
 
-          <section className="pickle-head-block">
-            <h2 className="pickle-h2">Frequently asked questions</h2>
-            <div className="pickle-text">
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">One workspace, six ways in</h2>
+              <div className="pickle-text">
+                <p>
+                  Pick the integration that matches where the work happens. Artists usually start with a plugin; pipeline and tools teams reach for the API or MCP.
+                </p>
+              </div>
+            </div>
+            <PickleLinkCards items={TOOL_CARDS} columns={3} />
+          </section>
+
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">What each integration does</h2>
+              <div className="pickle-text">
+                <p>
+                  Every plugin can generate inside the tool and receive models over the Bridge. Plugins import GLB, and every model can also be exported from Studio in GLB, FBX, OBJ, or USDZ for tools you connect by hand.
+                </p>
+              </div>
+            </div>
+            <figure className="pickle-figure">
+              <div className="pickle-card-surface">
+                <table className="pickle-table">
+                  <thead>
+                    <tr>
+                      <th>Tool</th>
+                      <th>Generate in the tool</th>
+                      <th>Receive from Studio</th>
+                      <th>Sign-in</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MATRIX_ROWS.map((row) => (
+                      <tr key={row[0]}>
+                        <th>{row[0]}</th>
+                        <td>{row[1]}</td>
+                        <td>{row[2]}</td>
+                        <td>{row[3]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </figure>
+            <div id="sign-in" className="pickle-text scroll-mt-28">
               <p>
-                <strong>Do I need a separate login for plugins?</strong>
-                <br />
-                No. Use Sign in for plugins with your Studio account, then Sync in the
-                add-on. Keep that Connect browser tab open while you generate so your
-                session stays fresh. An API key works as an alternative if you prefer
-                keys over browser sign-in.
-              </p>
-              <p>
-                <strong>What is the Bridge?</strong>
-                <br />
-                A small local server started from inside the plugin. It lets Studio send
-                a mesh straight into your open DCC or engine, and it carries the
-                signed-in session from the Connect page back to the plugin.
-              </p>
-              <p>
-                <strong>What format do plugins import?</strong>
-                <br />
-                GLB. Apps that already support glTF/GLB import directly into the scene;
-                others save the file so you can convert with your usual tools.
-              </p>
-              <p>
-                <strong>How many integrations ship today?</strong>
-                <br />
-                {AVAILABLE_COUNT} connectors ship today — Blender for modeling, Unity,
-                Unreal Engine, and Godot 4 for game engines, plus MCP and the REST API.
+                The Blender add-on can use your Studio sign-in in the browser. Every plugin, and the MCP server, also accepts a hyd_live_ API key, created from your account.
               </p>
             </div>
           </section>
+          <PickleCta line="Install the plugin for the tool you use most, and keep generation inside your scene." />
         </div>
-      </PickleResearchPage>
+      </article>
+      <Footer />
     </>
   );
 }

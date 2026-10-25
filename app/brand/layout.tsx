@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Press kit",
-  description:
-    "Hydrilla names, logo, and boilerplate for press. Not linked from the public site.",
+  title: "Press Kit | Hydrilla AI",
+  description: "Hydrilla logos, naming, and approved boilerplate for press.",
+  ogTitle: "Hydrilla press kit",
   path: "/brand",
+  absoluteTitle: true,
   noIndex: true,
 });
 

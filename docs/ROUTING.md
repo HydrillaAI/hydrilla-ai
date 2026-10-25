@@ -177,13 +177,13 @@ Cards: Hawan Research Labs → `/research`. Compare AI 3D Generators → `/compa
 
 Heading: Pricing
 
-Line: Monthly credits for 3D generation. Save 40% when you generate in a daily selected hour.
+Line: Monthly credits for 3D generation. Save 33% when you generate in a daily selected hour.
 
 Browser title: `Pricing: Free, Starter, Pro, and Hourly Plans | Hydrilla`
 
 Description: Hydrilla pricing: Free $0, Starter $5, Pro $12, Hourly $3, Hourly Pro $8. Includes a 14-day free trial, monthly model generations, and full plugin suite.
 
-Toggle words: Monthly. Hourly. “40% off on Hourly”.
+Toggle words: Monthly. Hourly. “33% off on Hourly”.
 
 Table caption: Default quality. Text is 45 credits per model. An uploaded image is 30.
 

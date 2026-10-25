@@ -76,7 +76,7 @@ export const LibraryOptionsBar = memo(function LibraryOptionsBar({
   return (
     <nav
       aria-label="Library"
-      className="library-rail pointer-events-auto flex max-h-[min(32rem,calc(100dvh-18rem))] min-h-0 w-full flex-col gap-2 overflow-hidden rounded-[24px] border border-neutral-200 bg-white p-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_16px_36px_-20px_rgba(0,0,0,0.38)]"
+      className="library-rail studio-float pointer-events-auto flex max-h-[min(32rem,calc(100dvh-18rem))] min-h-0 w-full flex-col gap-2 overflow-hidden rounded-[24px] border border-neutral-200 bg-white p-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_16px_36px_-20px_rgba(0,0,0,0.38)]"
     >
       <div className="flex h-8 w-full shrink-0 rounded-xl bg-neutral-100 p-0.5" role="radiogroup" aria-label="Library filter">
         {FILTERS.map(({ id, label }) => {
@@ -93,7 +93,7 @@ export const LibraryOptionsBar = memo(function LibraryOptionsBar({
                 EASE,
                 FOCUS,
                 selected
-                  ? "bg-white text-neutral-950 shadow-[0_1px_2px_rgba(0,0,0,0.12)]"
+                  ? "bg-white text-neutral-950 shadow-[0_1px_2px_rgba(0,0,0,0.12)] dark:bg-neutral-200"
                   : "text-neutral-600 hover:text-neutral-950"
               )}
             >
@@ -167,12 +167,12 @@ export const LibraryOptionsBar = memo(function LibraryOptionsBar({
                   </span>
                 ) : null}
                 {running ? (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/35">
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/50 border-t-white" />
+                  <span className="absolute inset-0 flex items-center justify-center bg-scrim/35">
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-on-scrim/50 border-t-on-scrim" />
                   </span>
                 ) : null}
                 {failed ? (
-                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-label="Failed" />
+                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-on-scrim" aria-label="Failed" />
                 ) : null}
               </button>
             );

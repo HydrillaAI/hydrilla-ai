@@ -30,14 +30,14 @@ export function NewWorkspaceDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/30 backdrop-blur-md p-4 dark:bg-scrim/60"
       onClick={() => {
         if (creating || forced) return;
         onDismiss();
       }}
     >
       <Card
-        className="w-full max-w-md rounded-[22px] border-neutral-200/60 bg-white/95 backdrop-blur-xl shadow-[0_24px_80px_-16px_rgba(0,0,0,0.28)]"
+        className="studio-float w-full max-w-md rounded-[22px] border-neutral-200/60 bg-white/95 backdrop-blur-xl shadow-[0_24px_80px_-16px_rgba(0,0,0,0.28)]"
         onClick={(e) => e.stopPropagation()}
       >
         <CardContent className="p-6 sm:p-7">

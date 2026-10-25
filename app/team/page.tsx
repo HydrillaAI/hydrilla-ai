@@ -1,54 +1,84 @@
+import { getKitJsonLd } from "@/lib/kit-schema";
+import { JsonLd } from "@/components/seo/JsonLd";
 import Image from "next/image";
 import Link from "next/link";
-import { MarketingPage } from "@/components/layout/MarketingPage";
+import Footer from "@/components/layout/Footer";
+import { PickleCta } from "@/components/layout/PicklePage";
 import { TEAM_MEMBERS } from "@/lib/team";
+
+const KIT_ROLES: Record<string, string> = {
+  "Tharak Nagaveti": "Co-Founder",
+  "Dharani Kumar": "Co-Founder and CTO",
+  "Tejesh Varma": "Co-Founder and CGO",
+  "Aditya Sontena": "Lead Developer",
+  "Rishik Kalyan": "Creative Director",
+  "Hem Charan": "Software Engineer",
+  "Krishna Manohar": "Data Scientist",
+  "Kishan Kumar": "Marketing Head",
+};
 
 export default function TeamPage() {
   return (
-    <MarketingPage
-      eyebrow="Company"
-      title="Team"
-      description="The people at Hydrilla and Hawan Research Labs building BlueFox 1."
-      formats={false}
-      related={[
-        { label: "About", href: "/about", hint: "Lab, product, model" },
-        { label: "Careers", href: "/careers", hint: "Who we hire" },
-        { label: "Research", href: "/research", hint: "Model card" },
-      ]}
-    >
-      <div className="mx-auto max-w-[42rem] px-5 py-14 sm:px-6 sm:py-16">
-        <ul className="grid gap-8 sm:grid-cols-2">
-          {TEAM_MEMBERS.map((member) => (
-            <li key={member.id}>
-              <div className="relative aspect-square overflow-hidden bg-neutral-100">
-                <Image
-                  src={member.image}
-                  alt={member.name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 640px) 100vw, 21rem"
-                />
-              </div>
-              <h2 id={member.id} className="mt-4 text-[18px] font-semibold tracking-[-0.02em] text-neutral-950">
-                {member.name}
-              </h2>
-              <p className="mt-1 text-[14px] leading-6 text-neutral-600">
-                {member.role}
-              </p>
-              {member.connect ? (
-                <Link
-                  href={member.connect}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-block text-[13px] font-semibold text-neutral-950 underline underline-offset-2"
-                >
-                  LinkedIn
-                </Link>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </MarketingPage>
+    <>
+      <JsonLd data={getKitJsonLd("/team")} />
+      <article className="pickle-article">
+        <header className="pickle-article-header">
+          <p className="pickle-article-kicker">Company</p>
+          <h1 className="pickle-article-title">Team</h1>
+          <div className="pickle-lead">
+            <p>
+              The people at Hydrilla AI building BlueFox, Hydrilla&apos;s 3D model, and the AI 3D workspace. Each card links to that person&apos;s LinkedIn profile.{" "}
+              <Link href="/about">About Hydrilla</Link>
+            </p>
+          </div>
+        </header>
+        <div className="pickle-article-column">
+          <div className="pickle-intro">
+            <p>
+              We are <strong>a small team</strong> that spans engineering, research, data, creative direction, and marketing. That mix shows up in the product: the people who build the model sit next to the people who judge whether its output works in an artist&apos;s scene.
+            </p>
+          </div>
+
+          <section className="pickle-section">
+            <ul className="grid w-full grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4">
+              {TEAM_MEMBERS.map((member) => {
+                const role = KIT_ROLES[member.name] || member.role;
+                const card = (
+                  <>
+                    <Image
+                      src={member.image}
+                      alt={`Portrait of ${member.name}, ${role} at Hydrilla.`}
+                      width={320}
+                      height={320}
+                      className="aspect-square w-full rounded-[24px] bg-[#f5f5f7] object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                    />
+                    <span className="mt-3 block text-[17px] font-medium text-black">{member.name}</span>
+                    <span className="block text-[15px] text-black/70">{role}</span>
+                  </>
+                );
+                return (
+                  <li key={member.id}>
+                    {member.connect ? (
+                      <a href={member.connect} className="group block">{card}</a>
+                    ) : (
+                      card
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+          <PickleCta
+            line={
+              <>
+                We&apos;re hiring across engineering and research. <Link href="/careers">See open roles</Link>
+              </>
+            }
+            secondary={{ label: "See open roles", href: "/careers" }}
+          />
+        </div>
+      </article>
+      <Footer />
+    </>
   );
 }

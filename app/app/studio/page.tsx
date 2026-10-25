@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useDeferredValue } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
@@ -17,7 +17,8 @@ import {
   peekPendingHeroPrompt,
 } from "../../../lib/pendingHeroPrompt";
 import { track } from "../../../lib/analytics";
-import { MessageSquare, FolderOpen, Plus, Search } from "lucide-react";
+import { MessageSquare, FolderOpen, Plus, Search, RotateCw } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { WorkspaceFolderCard } from "@/components/app/WorkspaceFolderCard";
 
 function getGreeting() {
@@ -42,7 +43,8 @@ export default function StudioPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameSaving, setRenameSaving] = useState(false);
   const renameLock = useRef(false);
-  const newWorkspaceRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const deferredQuery = useDeferredValue(searchQuery);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [deleteConfirmWorkspace, setDeleteConfirmWorkspace] = useState<Workspace | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -217,35 +219,48 @@ export default function StudioPage() {
 
   useEffect(() => {
     if (!showNewModal) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (creating) return;
-      if (newWorkspaceRef.current?.contains(event.target as Node)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setShowNewModal(false);
-    };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !creating) setShowNewModal(false);
     };
-    document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [showNewModal, creating]);
 
-  const filtered = workspaces
-    .filter((ws) => ws.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    );
+  // "/" jumps to search, like every other console.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const el = event.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Close the delete dialog with Escape.
+  useEffect(() => {
+    if (!deleteConfirmWorkspace) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deletingId) setDeleteConfirmWorkspace(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [deleteConfirmWorkspace, deletingId]);
+
+  const filtered = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase();
+    return workspaces
+      .filter((ws) => !q || ws.name.toLowerCase().includes(q))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [workspaces, deferredQuery]);
 
   // Hero handoff: minimal transition — don't paint the studio list while we create + open.
   if (heroBootstrapping) {
     return (
       <div className="app-content-page font-dm-sans flex min-h-[50vh] flex-col items-center justify-center gap-3">
-        <div className="w-8 h-8 border-2 border-neutral-200 border-t-neutral-800 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[color:var(--hyd-100)] border-t-neutral-900 rounded-full animate-spin" />
         <p className="text-sm text-neutral-500">Opening your workspace…</p>
         {actionError && (
           <div className="mt-2 max-w-md rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -261,121 +276,113 @@ export default function StudioPage() {
       <section className="flex flex-col gap-8 sm:gap-10">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] sm:text-xs font-medium text-neutral-400 tracking-[0.14em] uppercase">
-              My Workspace
-            </p>
-            <h1 className="mt-1.5 text-[28px] sm:text-[34px] font-semibold text-neutral-900 tracking-[-0.03em] leading-[1.1] truncate">
-              {getGreeting()}{userName ? `, ${userName}` : ""}
+            <h1 className="text-[26px] sm:text-[30px] font-semibold text-neutral-900 tracking-[-0.03em] leading-[1.1] truncate">
+              Workspaces
             </h1>
-            <p className="mt-2 text-sm text-neutral-500 max-w-md">
-              {loading
-                ? "Loading your projects…"
-                : `${filtered.length} workspace${filtered.length !== 1 ? "s" : ""}`}
+            <p className="mt-2 text-sm text-neutral-500 max-w-md truncate">
+              {getGreeting()}
+              {userName ? `, ${userName}` : ""}
+              {!loading && workspaces.length > 0 && (
+                <>
+                  <span aria-hidden className="mx-2 text-[color:var(--hyd-200)]">/</span>
+                  <span className="tabular-nums">
+                    {workspaces.length} {workspaces.length === 1 ? "workspace" : "workspaces"}
+                  </span>
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2.5 w-full lg:w-auto lg:shrink-0">
-            <div className="relative min-w-0 flex-1 lg:flex-none lg:w-52">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+            <div className="relative min-w-0 flex-1 lg:flex-none lg:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" strokeWidth={1.75} />
               <input
-                type="text"
-                placeholder="Search"
+                ref={searchRef}
+                type="search"
+                placeholder="Search workspaces"
+                aria-label="Search workspaces"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-10 pl-10 pr-4 text-sm bg-white/80 border border-neutral-200/80 rounded-full text-neutral-900 placeholder:text-neutral-400 shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:bg-white focus:border-neutral-300 focus:ring-4 focus:ring-neutral-900/[0.04] outline-none transition-all"
-              />
-            </div>
-            <div ref={newWorkspaceRef} className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setNewName("");
-                  setShowNewModal((open) => !open);
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setSearchQuery("");
+                    e.currentTarget.blur();
+                  }
                 }}
-                className="inline-flex items-center justify-center gap-1.5 h-10 px-4 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.08),0_4px_12px_-4px_rgba(0,0,0,0.2)] transition-all active:scale-[0.98]"
-                aria-expanded={showNewModal}
-                aria-haspopup="dialog"
+                className="peer w-full h-10 pl-9 pr-9 text-sm bg-[var(--hyd-50)] border border-transparent rounded-[10px] text-neutral-900 placeholder:text-neutral-400 hover:bg-[var(--hyd-100)]/50 focus:bg-white focus:border-[color:var(--hyd-400)] focus:ring-4 focus:ring-[color:var(--hyd-100)] outline-none transition-[background-color,border-color,box-shadow] [&::-webkit-search-cancel-button]:hidden"
+              />
+              <kbd
+                aria-hidden
+                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 hidden h-5 min-w-5 items-center justify-center rounded border border-[color:var(--hyd-100)] bg-white/60 px-1 text-[11px] font-medium text-neutral-500 sm:inline-flex peer-focus:hidden peer-[:not(:placeholder-shown)]:hidden"
               >
-                <Plus className="w-4 h-4" strokeWidth={2.25} />
-                New
-              </button>
-              {showNewModal && (
-                <div
-                  role="dialog"
-                  aria-labelledby="new-workspace-title"
-                  className="absolute right-0 top-[calc(100%+8px)] z-40 w-[280px] rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-[0_18px_50px_-24px_rgba(0,0,0,0.45)]"
-                >
-                  <h3 id="new-workspace-title" className="text-[15px] font-semibold text-neutral-900 tracking-tight">
-                    New workspace
-                  </h3>
-                  <p className="mt-1 text-[13px] text-neutral-500">Name it, then create.</p>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Workspace name"
-                    aria-label="Workspace name"
-                    className="mt-3 w-full h-10 px-3 rounded-xl border border-neutral-200 bg-neutral-50/80 text-sm text-neutral-900 placeholder:text-neutral-400 focus:bg-white focus:border-neutral-300 focus:ring-4 focus:ring-neutral-900/[0.04] outline-none transition-all"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && newName.trim()) handleCreateWorkspace();
-                      if (e.key === "Escape" && !creating) setShowNewModal(false);
-                    }}
-                    autoFocus
-                    disabled={creating}
-                  />
-                  <div className="mt-3 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => !creating && setShowNewModal(false)}
-                      className="h-9 px-3 text-sm font-medium text-neutral-600 hover:text-neutral-900 rounded-full hover:bg-neutral-100 transition-colors"
-                      disabled={creating}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCreateWorkspace}
-                      disabled={!newName.trim() || creating}
-                      className="h-9 px-3.5 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {creating ? "Creating…" : "Create"}
-                    </button>
-                  </div>
-                </div>
-              )}
+                /
+              </kbd>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setNewName("");
+                setActionError(null);
+                setShowNewModal(true);
+              }}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 h-10 px-3.5 sm:px-4 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 rounded-[10px] transition-[background-color,transform] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--hyd-400)]"
+              aria-haspopup="dialog"
+            >
+              <Plus className="w-4 h-4" strokeWidth={2} />
+              <span className="sm:hidden">New</span>
+              <span className="hidden sm:inline">New workspace</span>
+            </button>
           </div>
         </div>
 
-        {actionError && (
-          <div className="rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3.5 text-sm text-red-800">
-            {actionError}
+        {actionError && !showNewModal && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-xl border border-red-200/80 bg-red-50/70 px-4 py-3 text-sm text-red-800"
+          >
+            <span className="min-w-0">{actionError}</span>
+            <button
+              type="button"
+              onClick={() => void loadWorkspaces()}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-red-800 hover:bg-red-100/70 transition-colors"
+            >
+              <RotateCw className="h-3.5 w-3.5" strokeWidth={2} />
+              Retry
+            </button>
           </div>
         )}
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-5 gap-y-8 sm:gap-x-6 sm:gap-y-10">
+          <div aria-busy="true" aria-label="Loading workspaces" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-5 gap-y-8 sm:gap-x-6 sm:gap-y-10">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="animate-pulse w-full rounded-[28px] bg-neutral-200/70" style={{ aspectRatio: "340 / 326" }} />
+              <div key={i} className="studio-skeleton w-full rounded-[24px]" style={{ aspectRatio: "340 / 326" }} />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-[24px] border border-neutral-200/70 bg-white py-24 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-            <div className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center mx-auto mb-5">
-              <FolderOpen className="w-7 h-7 text-neutral-400" strokeWidth={1.5} />
+          <div className="rounded-2xl border border-dashed border-[color:var(--hyd-200)] bg-[var(--hyd-50)] px-6 py-16 sm:py-20 text-center">
+            <div className="w-12 h-12 rounded-xl bg-white border border-[color:var(--hyd-100)] flex items-center justify-center mx-auto mb-4">
+              <FolderOpen className="w-6 h-6 text-[color:var(--hyd-400)]" strokeWidth={1.5} />
             </div>
-            <p className="text-[17px] font-semibold text-neutral-900 tracking-tight mb-1.5">
+            <p className="text-[16px] font-semibold text-neutral-900 tracking-tight mb-1">
               {searchQuery ? "No matches" : "No workspaces yet"}
             </p>
-            <p className="text-sm text-neutral-500 mb-6">
+            <p className="text-sm text-neutral-500 mb-5">
               {searchQuery
-                ? "Try a different search term."
+                ? `Nothing matches "${searchQuery}".`
                 : "Create a workspace to start generating."}
             </p>
-            {!searchQuery && (
+            {searchQuery ? (
               <button
                 type="button"
-                onClick={() => { setNewName(""); setShowNewModal(true); }}
-                className="inline-flex items-center gap-1.5 h-10 px-5 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 rounded-full transition-colors"
+                onClick={() => setSearchQuery("")}
+                className="inline-flex items-center h-9 px-4 text-sm font-medium text-neutral-900 bg-white border border-[color:var(--hyd-100)] hover:border-[color:var(--hyd-200)] rounded-lg transition-colors"
+              >
+                Clear search
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setNewName(""); setActionError(null); setShowNewModal(true); }}
+                className="inline-flex items-center gap-1.5 h-10 px-4 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 New workspace
@@ -429,42 +436,92 @@ export default function StudioPage() {
         </section>
       )}
 
-      {/* Delete workspace confirmation */}
-      {deleteConfirmWorkspace && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-4"
-          onClick={() => !deletingId && setDeleteConfirmWorkspace(null)}
-        >
-          <div
-            className="bg-white/95 backdrop-blur-xl rounded-[22px] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.28)] border border-neutral-200/60 w-full max-w-sm p-6 sm:p-7"
-            onClick={(e) => e.stopPropagation()}
+      {/* Create workspace */}
+      <Dialog open={showNewModal} onOpenChange={(open) => !creating && setShowNewModal(open)}>
+        <DialogContent className="max-w-[440px] p-7 sm:p-8" hideClose>
+          <DialogTitle className="community-display text-[26px] leading-tight text-neutral-900">New workspace</DialogTitle>
+          <DialogDescription className="sr-only">Name your new workspace.</DialogDescription>
+          <form
+            className="mt-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleCreateWorkspace();
+            }}
           >
-            <h3 className="text-[17px] font-semibold text-neutral-900 tracking-tight mb-1">Delete workspace?</h3>
-            <p className="text-sm text-neutral-500 mb-5">
-              &ldquo;{deleteConfirmWorkspace.name}&rdquo; will be removed. Jobs inside it are not deleted.
-            </p>
-            <div className="flex gap-2.5 justify-end">
+            <label htmlFor="new-workspace-name" className="sr-only">
+              Workspace name
+            </label>
+            <input
+              id="new-workspace-name"
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Workspace name"
+              maxLength={60}
+              autoFocus
+              autoComplete="off"
+              disabled={creating}
+              className="h-12 w-full rounded-full border border-neutral-200 bg-neutral-50 px-5 text-[16px] text-neutral-900 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-neutral-400 focus:border-[var(--hyd-400)] focus:bg-white focus:shadow-[0_0_0_4px_var(--hyd-100)] disabled:opacity-60 sm:text-[15px]"
+            />
+
+            {actionError && (
+              <p role="alert" className="mt-3 rounded-2xl bg-red-500/10 px-4 py-2.5 text-[13px] text-red-700 dark:text-red-400">
+                {actionError}
+              </p>
+            )}
+
+            <div className="mt-6 flex gap-2">
               <button
                 type="button"
-                onClick={() => !deletingId && setDeleteConfirmWorkspace(null)}
-                className="h-10 px-4 text-sm font-medium text-neutral-600 hover:text-neutral-900 rounded-full hover:bg-neutral-100 transition-colors"
-                disabled={!!deletingId}
+                onClick={() => setShowNewModal(false)}
+                disabled={creating}
+                className="h-11 flex-1 rounded-full text-[14px] font-semibold text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-50 sm:flex-none sm:px-5"
               >
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={() => handleDeleteWorkspace(deleteConfirmWorkspace.id)}
-                disabled={!!deletingId}
-                className="h-10 px-5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                type="submit"
+                disabled={!newName.trim() || creating}
+                className="h-11 flex-1 rounded-full bg-neutral-900 px-6 text-[14px] font-semibold text-white transition-[background-color,opacity] hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-30 sm:ml-auto sm:flex-none"
               >
-                {deletingId === deleteConfirmWorkspace.id ? "Deleting…" : "Delete"}
+                {creating ? "Creating…" : "Create"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </form>
+        </DialogContent>
+      </Dialog>
 
+      {/* Delete workspace confirmation */}
+      <Dialog
+        open={Boolean(deleteConfirmWorkspace)}
+        onOpenChange={(open) => !open && !deletingId && setDeleteConfirmWorkspace(null)}
+      >
+        <DialogContent className="max-w-[420px] p-7 sm:p-8" hideClose role="alertdialog">
+          <DialogTitle className="community-display text-[24px] leading-tight text-neutral-900">Delete workspace?</DialogTitle>
+          <DialogDescription className="mt-2 text-[14px] leading-relaxed text-neutral-500">
+            &ldquo;{deleteConfirmWorkspace?.name}&rdquo; will be removed. The models and images inside it stay in your assets.
+          </DialogDescription>
+          <div className="mt-7 flex gap-2">
+            <button
+              type="button"
+              onClick={() => !deletingId && setDeleteConfirmWorkspace(null)}
+              disabled={!!deletingId}
+              autoFocus
+              className="h-11 flex-1 rounded-full text-[14px] font-semibold text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 sm:flex-none sm:px-5"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteConfirmWorkspace && handleDeleteWorkspace(deleteConfirmWorkspace.id)}
+              disabled={!!deletingId}
+              className="h-11 flex-1 rounded-full bg-red-600 px-6 text-[14px] font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto sm:flex-none"
+            >
+              {deletingId && deletingId === deleteConfirmWorkspace?.id ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

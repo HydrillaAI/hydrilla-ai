@@ -272,15 +272,29 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
     ? "/logo-hydrilla/hydsvg.svg"
     : "/logo-hydrilla/hydsvgblack.svg";
 
+  const logoSize = compact
+    ? shouldShrink ? "h-7 translate-y-px" : "h-9 translate-y-[2px]"
+    : mode === "v2"
+      ? shouldShrink ? "h-7 translate-y-px" : "h-6 translate-y-px"
+      : sectioned
+        ? "h-5 translate-y-px"
+        : "h-8 sm:h-9";
+
+  const markSize = compact
+    ? shouldShrink ? "h-9" : "h-11"
+    : mode === "v2"
+      ? shouldShrink ? "h-9" : "h-8"
+      : sectioned
+        ? "h-7"
+        : "h-10 sm:h-11";
+
   const control =
     mode === "compact"
       ? shouldShrink
         ? "h-8 px-3 text-[14px]"
         : "h-10 px-4 text-[15px]"
       : mode === "v2"
-        ? shouldShrink
-          ? "h-8 px-3 text-[14px]"
-          : "h-8 px-3 text-[13px]"
+        ? "h-8 px-3 text-[14px]"
         : "h-8 px-2.5 text-[13px]";
   const controlRadius =
     mode === "compact" || (mode === "v2" && shouldShrink) ? "rounded-xl" : mode === "v2" ? "rounded-[10px]" : "rounded-lg";
@@ -292,7 +306,7 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
       : "px-4 py-2 rounded-lg bg-gray-100 text-xs font-semibold text-black uppercase tracking-wider hover:bg-gray-200 transition-all duration-500 ease-out";
 
   const signInButtonClasses = sectioned
-    ? `${mode === "v2" && !shouldShrink ? "h-8 px-2.5 text-[13px]" : control} cursor-pointer font-medium tracking-[-0.01em] text-[#141414] hover:bg-black/[0.05] hover:text-[#141414]`
+    ? `${control} cursor-pointer font-medium tracking-[-0.01em] text-[#141414] hover:bg-black/[0.05] hover:text-[#141414]`
     : onDark
       ? "h-9 px-3 text-sm font-medium text-white hover:bg-white/10 hover:text-white"
       : "h-9 px-3 text-sm font-medium text-[#000c1f] hover:bg-[#000c1f]/5 hover:text-[#000c1f]";
@@ -459,19 +473,21 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
             } ${dynamicPadding} transition-[padding,height] ${BAR_EASE}`}
           >
           <Link href="/" className={`relative z-10 flex shrink-0 items-center group ${compact ? "lg:justify-self-start" : mode === "v2" ? "lg:justify-self-start" : ""}`} aria-label="Hydrilla">
-            <img
-              src={wordmarkSrc}
-              alt="Hydrilla"
-              className={`block w-auto transition-[height] ${BAR_EASE} ${
-                compact
-                  ? shouldShrink ? "h-7 translate-y-px" : "h-9 translate-y-[2px]"
-                  : mode === "v2"
-                    ? shouldShrink ? "h-7 translate-y-px" : "h-6 translate-y-px"
-                  : sectioned
-                    ? "h-5 translate-y-px"
-                    : "h-8 sm:h-9"
-              }`}
-            />
+            <span className="flex items-center gap-2.5">
+              <img
+                src="/hyd01.png"
+                alt=""
+                aria-hidden
+                className={`block w-auto shrink-0 transition-[height] ${BAR_EASE} ${markSize} ${
+                  textColor === "text-white" ? "brightness-0 invert" : ""
+                }`}
+              />
+              <img
+                src={wordmarkSrc}
+                alt="Hydrilla"
+                className={`block w-auto transition-[height] ${BAR_EASE} ${logoSize}`}
+              />
+            </span>
           </Link>
 
           <nav
@@ -554,11 +570,7 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
             <SignedIn>
               <Link
                 href="/app/studio"
-                className={`hidden md:flex ${generateButtonClasses} font-dm-sans overflow-hidden transition-[max-width,opacity,padding,margin] ${BAR_EASE} ${
-                  shouldShrink
-                    ? "pointer-events-none max-w-0 opacity-0 px-0 mr-0 border-0"
-                    : "max-w-[9rem] opacity-100"
-                }`}
+                className={`hidden md:flex ${generateButtonClasses} font-dm-sans`}
               >
                 App
               </Link>
@@ -581,7 +593,7 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
             </SignedIn>
 
             <SignedOut>
-              <div className={`hidden md:flex items-center ${compact ? "gap-2" : sectioned ? "gap-1.5" : "gap-2 md:gap-4"}`}>
+              <div className={`hidden md:flex items-center ${compact || mode === "v2" ? "gap-2" : sectioned ? "gap-1.5" : "gap-2 md:gap-4"}`}>
                 <div
                   className={`overflow-hidden transition-[max-width,opacity] ${BAR_EASE} ${
                     shouldShrink
@@ -599,7 +611,7 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
                       href="/sign-in"
                       tabIndex={shouldShrink ? -1 : 0}
                     >
-                      Sign in
+                      Log in
                     </Link>
                   </Button>
                 </div>
@@ -609,7 +621,7 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
                   className={`${signUpButtonClasses} font-dm-sans`}
                 >
                   <Link href="/app/studio">
-                    Start generating
+                    Get started
                   </Link>
                 </Button>
               </div>

@@ -15,7 +15,8 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: #ffffff;
+        /* Transparent: the themed viewer frame shows through until the backdrop arrives. */
+        background: transparent;
         font-family: ui-sans-serif, system-ui, sans-serif;
       }
       #c {
@@ -35,6 +36,11 @@
         background: #fef2f2;
         font-size: 13px;
         line-height: 1.45;
+      }
+      /* Set from the parent's look (water-look → tone). */
+      html[data-tone="dark"] #err {
+        color: #fca5a5;
+        background: #1c1214;
       }
     </style>
   </head>
@@ -75,7 +81,10 @@
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xffffff);
+      // No backdrop until the parent's look arrives, so dark mode never flashes white.
+      scene.background = null;
+      /** Backdrop color the frame loop eases toward; null when transparent. */
+      let bgTarget = null;
       const perspCam = new THREE.PerspectiveCamera(45, 1, 0.01, 200);
       perspCam.position.set(2.4, 1.6, 2.8);
       const orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 200);
@@ -135,7 +144,12 @@
       rim.position.set(0, 3, -8);
       scene.add(rim);
 
-      const grid = new THREE.GridHelper(8, 16, 0xd4d4d4, 0xe5e5e5);
+      // White lines tinted by the material, so one helper reads on light and dark backdrops.
+      const grid = new THREE.GridHelper(8, 16, 0xffffff, 0xffffff);
+      grid.material.transparent = true;
+      grid.material.depthWrite = false;
+      grid.material.color.set(0x000000);
+      grid.material.opacity = 0.11;
       grid.visible = false;
       scene.add(grid);
 
@@ -216,7 +230,7 @@
         root.updateMatrixWorld(true);
         const meshes = [];
         root.traverse((child) => {
-          if (child.isMesh && !child.isSkinnedMesh && child.name === highlightName) meshes.push(child);
+          if (child.isMesh && !child.isSkinnedMesh && child.name === highlightName && isShown(child)) meshes.push(child);
         });
         for (const mesh of meshes) highlightGroup.add(followMesh(new THREE.Mesh(mesh.geometry, highlightMats.rim), mesh));
         // Rim shows this frame; crease outlines are O(triangles) so they follow a tick later.
@@ -237,6 +251,57 @@
       let resolvedLook = null;
       /** name → { color, roughness, metalness }; meshes not listed use their authored material. */
       let partMaterials = {};
+      /** Mesh names hidden in the viewport (mirrors components/ThreeViewer.tsx). */
+      let hiddenParts = new Set();
+      // Layers, not `visible`: exports use onlyVisible, and hidden parts must still export.
+      const HIDDEN_LAYER = 31;
+      const isShown = (mesh) => mesh.layers.isEnabled(0);
+
+      function applyPartVisibility() {
+        if (!root) return;
+        root.traverse((child) => {
+          if (child.isMesh) child.layers.set(hiddenParts.has(child.name) ? HIDDEN_LAYER : 0);
+        });
+      }
+
+      // Edges drawn over the shaded surface. Outside `root`, so exports never include them.
+      const wireGroup = new THREE.Group();
+      scene.add(wireGroup);
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: "#18181b",
+        wireframe: true,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        toneMapped: false,
+      });
+
+      function applyWireOverlay() {
+        wireGroup.clear();
+        const color = resolvedLook?.wireOverlay;
+        if (!root || !color) return;
+        wireMat.color.set(color);
+        root.updateMatrixWorld(true);
+        root.traverse((child) => {
+          if (child.isMesh && !child.isSkinnedMesh && isShown(child)) {
+            wireGroup.add(followMesh(new THREE.Mesh(child.geometry, wireMat), child));
+          }
+        });
+      }
+
+      /** Bounds of the visible meshes with this name, or null when none are shown. */
+      function partSphere(name) {
+        if (!root || !name) return null;
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3();
+        root.traverse((child) => {
+          if (child.isMesh && child.name === name && isShown(child)) box.expandByObject(child);
+        });
+        if (box.isEmpty()) return null;
+        const sphere = box.getBoundingSphere(new THREE.Sphere());
+        sphere.radius = Math.max(sphere.radius, frameSphere.radius * 0.02);
+        return sphere;
+      }
 
       function materialsOf(mesh) {
         if (!mesh || !mesh.material) return [];
@@ -307,6 +372,11 @@
               mat.clearcoatRoughness = 0.12;
             }
             if ("wireframe" in mat) mat.wireframe = wire;
+            // Push surfaces back a hair so overlay edges never z-fight with them.
+            const overlay = Boolean(resolvedLook?.wireOverlay);
+            mat.polygonOffset = overlay;
+            mat.polygonOffsetFactor = overlay ? 1 : 0;
+            mat.polygonOffsetUnits = overlay ? 1 : 0;
             mat.needsUpdate = true;
           }
         });
@@ -374,7 +444,20 @@
         if (!look || typeof look !== "object") return;
         resolvedLook = look;
         renderer.toneMappingExposure = Number(look.exposure) || 1;
-        scene.background = look.background ? new THREE.Color(look.background) : null;
+        document.documentElement.dataset.tone = look.tone === "dark" ? "dark" : "light";
+        if (!look.background) {
+          scene.background = null;
+          bgTarget = null;
+        } else {
+          bgTarget = new THREE.Color(look.background);
+          const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          // From transparent (or with reduced motion) there is nothing to ease from.
+          if (!(scene.background && scene.background.isColor) || reduced) scene.background = bgTarget.clone();
+        }
+        const stage = look.stage || {};
+        if (typeof stage.gridColor === "string") grid.material.color.set(stage.gridColor);
+        if (typeof stage.gridOpacity === "number") grid.material.opacity = stage.gridOpacity;
+        if (typeof stage.shadowOpacity === "number") ground.material.opacity = stage.shadowOpacity;
         grid.visible = Boolean(look.grid);
         ground.visible = Boolean(look.shadow);
         key.castShadow = Boolean(look.shadow);
@@ -385,7 +468,9 @@
         key.intensity = Number(lights.key) || 0;
         fill.intensity = Number(lights.fill) || 0;
         rim.intensity = Number(lights.rim) || 0;
+        placeLights();
         applyPartMaterials();
+        applyWireOverlay();
         updateCamera();
       }
 
@@ -408,6 +493,38 @@
         camera.position.copy(presetPosition(view));
       }
 
+      /** Frame one part from the current viewing angle. */
+      function frameSelection(name) {
+        const part = partSphere(name);
+        if (!part) {
+          moveCamera("reset");
+          return;
+        }
+        const direction = camera.position.clone().sub(controls.target).normalize();
+        if (camera === orthoCam) {
+          orthoCam.userData.halfHeight = part.radius * FRAME_PADDING;
+          updateCamera();
+        }
+        // Ortho stays outside the whole model so near-plane clipping never cuts into it.
+        const distance = camera === orthoCam ? frameSphere.radius * 4 : fitDistance(part.radius, perspCam.fov);
+        const toPos = part.center.clone().addScaledVector(direction, distance);
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          camera.zoom = 1;
+          camera.updateProjectionMatrix();
+          controls.target.copy(part.center);
+          camera.position.copy(toPos);
+          return;
+        }
+        fly = {
+          start: performance.now(),
+          fromPos: camera.position.clone(),
+          toPos,
+          fromTarget: controls.target.clone(),
+          toTarget: part.center.clone(),
+          fromZoom: camera.zoom,
+        };
+      }
+
       function moveCamera(view) {
         resetOrthoFrame();
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -425,6 +542,25 @@
       }
 
       /** Sit the shadow catcher/grid under the model and fit the key light's shadow frustum. */
+      // Rig directions at 0° light rotation (mirrors LIGHT_BASE in components/ThreeViewer.tsx).
+      const LIGHT_DIRS = {
+        key: new THREE.Vector3(4, 8, 5).normalize(),
+        fill: new THREE.Vector3(-4, 5, -4).normalize(),
+        rim: new THREE.Vector3(0, 3, -8).normalize(),
+      };
+      const Y_AXIS = new THREE.Vector3(0, 1, 0);
+      const stage = { center: new THREE.Vector3(0, 0.4, 0), r: 1 };
+
+      /** Yaw the rig and the environment reflections around the model together. */
+      function placeLights() {
+        const yaw = Number(resolvedLook?.lightRotation) || 0;
+        const at = (dir, dist) => stage.center.clone().add(dir.clone().applyAxisAngle(Y_AXIS, yaw).multiplyScalar(dist));
+        key.position.copy(at(LIGHT_DIRS.key, stage.r * 3));
+        fill.position.copy(at(LIGHT_DIRS.fill, stage.r * 3));
+        rim.position.copy(at(LIGHT_DIRS.rim, stage.r * 3));
+        scene.environmentRotation.y = yaw;
+      }
+
       function fitStage(box) {
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
@@ -432,7 +568,9 @@
         ground.position.y = box.min.y - 0.001;
         grid.position.set(center.x, box.min.y, center.z);
         grid.scale.setScalar(Math.max(1, r / 4));
-        key.position.copy(center).add(new THREE.Vector3(4, 8, 5).normalize().multiplyScalar(r * 3));
+        stage.center.copy(center);
+        stage.r = r;
+        placeLights();
         key.target.position.copy(center);
         key.target.updateMatrixWorld();
         const sc = key.shadow.camera;
@@ -506,6 +644,12 @@
 
       function frame(time) {
         // Factories are static (D2). Never run userData.tick even if older jobs still emit it.
+        // Ease the backdrop toward its target so theme and swatch changes glide instead of cutting.
+        if (bgTarget && scene.background && scene.background.isColor && !scene.background.equals(bgTarget)) {
+          scene.background.lerp(bgTarget, 0.16);
+          const bg = scene.background;
+          if (Math.abs(bg.r - bgTarget.r) + Math.abs(bg.g - bgTarget.g) + Math.abs(bg.b - bgTarget.b) < 0.002) bg.copy(bgTarget);
+        }
         if (fly) {
           const t = Math.min(1, (performance.now() - fly.start) / FLY_MS);
           const eased = 1 - Math.pow(1 - t, 3);
@@ -519,7 +663,7 @@
         }
         if (interactive) controls.update();
         if (highlightMats) highlightMats.rim.uniforms.uTime.value = (time || 0) / 1000;
-        for (const overlay of highlightGroup.children) {
+        for (const overlay of [...highlightGroup.children, ...wireGroup.children]) {
           overlay.matrix.copy(overlay.userData.follow.matrixWorld);
         }
         renderer.render(scene, camera);
@@ -657,13 +801,16 @@
           scene.add(root);
           applyInstanceTransform(window.__waterInstance || null);
           applyPartMaterials();
+          applyPartVisibility();
           applyHighlight();
+          applyWireOverlay();
           const box = new THREE.Box3().setFromObject(root);
           const sphere = box.getBoundingSphere(new THREE.Sphere());
           frameSphere = { center: sphere.center.clone(), radius: Math.max(sphere.radius, 0.01) };
           fitStage(box);
           updateCamera();
-          controls.minDistance = frameSphere.radius * 0.35;
+          // Low floor so framing a small part can get close.
+          controls.minDistance = frameSphere.radius * 0.02;
           controls.maxDistance = frameSphere.radius * 14;
           placeCamera("reset");
           controls.update();
@@ -727,6 +874,8 @@
           }
 
           const modelStats = computeModelStats(root);
+          const dims = box.getSize(new THREE.Vector3());
+          modelStats.size = [dims.x, dims.y, dims.z];
 
           parent.postMessage({
             type: "code-sculpt-ready",
@@ -976,6 +1125,12 @@ const {
           partMaterials = data.parts && typeof data.parts === "object" ? data.parts : {};
           applyPartMaterials();
         }
+        if (data.type === "water-visibility") {
+          hiddenParts = new Set(Array.isArray(data.hidden) ? data.hidden.filter((n) => typeof n === "string") : []);
+          applyPartVisibility();
+          applyHighlight();
+          applyWireOverlay();
+        }
         if (data.type === "water-look" && data.look) {
           applyLook(data.look);
         }
@@ -987,7 +1142,9 @@ const {
             applyHighlight();
           }
         }
-        if (data.type === "water-view" && VIEW_DIRECTIONS[data.view]) {
+        if (data.type === "water-view" && data.view === "selection") {
+          frameSelection(typeof data.name === "string" ? data.name : null);
+        } else if (data.type === "water-view" && VIEW_DIRECTIONS[data.view]) {
           moveCamera(data.view);
         }
         if (data.type === "water-lift") {

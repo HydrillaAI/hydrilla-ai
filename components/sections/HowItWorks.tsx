@@ -46,7 +46,6 @@ const STEPS: Step[] = [
 /* Design tokens (mirrors the reference system) */
 const INK = "#000c1f"; // --color-blue-900
 const INK_SECONDARY = "rgba(0, 12, 31, 0.65)"; // --color-text-secondary
-const INK_TERTIARY = "rgba(0, 12, 31, 0.45)"; // --color-text-tertiary
 const SURFACE = "#f7f7f7"; // --color-grey-50
 const EASE_OUT_QUINT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -200,12 +199,6 @@ export default function HowItWorks() {
         }}
       >
         <header className="flex flex-col items-center gap-3 px-6 text-center">
-          <p
-            className="m-0 text-xs font-medium uppercase"
-            style={{ color: INK_TERTIARY, letterSpacing: "0.1em", fontFamily: SANS_FONT }}
-          >
-            Process
-          </p>
           <BlurReveal
             as="h2"
             id="howitworks-heading"

@@ -1,0 +1,140 @@
+{
+  "branding": {
+    "colorScheme": "light",
+    "fonts": [
+      {
+        "family": "Suisse Intl",
+        "role": "body"
+      },
+      {
+        "family": "ABC Diatype Unlicensed Trial",
+        "role": "heading"
+      }
+    ],
+    "colors": {
+      "primary": "#000000",
+      "accent": "#000000",
+      "background": "#FFFFFF",
+      "textPrimary": "#000000",
+      "link": "#000000"
+    },
+    "typography": {
+      "fontFamilies": {
+        "primary": "Suisse Intl",
+        "heading": "ABC Diatype Unlicensed Trial"
+      },
+      "fontStacks": {
+        "heading": [
+          "ABC Diatype Unlicensed Trial",
+          "Suisse Intl",
+          "sans-serif"
+        ],
+        "body": [
+          "Times New Roman"
+        ],
+        "paragraph": [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Display",
+          "SF Pro",
+          "Helvetica Neue",
+          "Suisse Intl",
+          "sans-serif"
+        ]
+      },
+      "fontSizes": {
+        "h1": "60px",
+        "h2": "32px",
+        "body": "14px"
+      }
+    },
+    "spacing": {
+      "baseUnit": 4,
+      "borderRadius": "6px"
+    },
+    "components": {
+      "buttonPrimary": {
+        "background": "#FFFFFF",
+        "textColor": "#000000",
+        "borderColor": "#EBEBEB",
+        "borderRadius": "90px",
+        "borderRadiusCorners": {
+          "topLeft": "90px",
+          "topRight": "90px",
+          "bottomRight": "90px",
+          "bottomLeft": "90px"
+        },
+        "shadow": "rgba(0, 0, 0, 0.06) 0px 2px 8px 0px, rgba(255, 255, 255, 0.95) 0px 1px 1px 0px inset, rgba(255, 255, 255, 0.4) 0px -1px 1px 0px inset, rgba(255, 255, 255, 0.7) 1px 2px 4px 0px inset"
+      }
+    },
+    "images": {
+      "logo": "https://pickle.com/landing/pickle-logo.svg",
+      "favicon": "https://pickle.com/favicon.png",
+      "ogImage": "https://pickle.com/og/blog_thumbnail.png",
+      "logoHref": "/",
+      "logoAlt": "Pickle"
+    },
+    "personality": {
+      "tone": "playful",
+      "energy": "low",
+      "targetAudience": "developers"
+    },
+    "designSystem": {
+      "framework": "custom",
+      "componentLibrary": ""
+    },
+    "confidence": {
+      "buttons": 1,
+      "colors": 0.9566666666666667,
+      "overall": 0.9783333333333333
+    },
+    "brandName": "Pickle",
+    "logo": "https://pickle.com/landing/pickle-logo.svg"
+  },
+  "metadata": {
+    "og:title": "How we make Critter act in real time",
+    "og:type": "article",
+    "og:image": "https://pickle.com/og/blog_thumbnail.png",
+    "twitter:card": "summary_large_image",
+    "og:site_name": "Pickle",
+    "ogSiteName": "Pickle",
+    "og:image:type": "image/png",
+    "og:image:width": "1200",
+    "description": "Raise your AI",
+    "language": "en",
+    "ogDescription": "Raise your AI",
+    "ogImage": "https://pickle.com/og/blog_thumbnail.png",
+    "viewport": "width=device-width, initial-scale=1.0",
+    "og:url": "https://pickle.com/how-we-make-critter-act-in-real-time",
+    "og:image:height": "630",
+    "twitter:description": "Raise your AI",
+    "twitter:title": "How we make Critter act in real time",
+    "twitter:image": "https://pickle.com/og/blog_thumbnail.png",
+    "ogTitle": "How we make Critter act in real time",
+    "ogUrl": "https://pickle.com/how-we-make-critter-act-in-real-time",
+    "title": "How we make Critter act in real time | Pickle",
+    "og:description": "Raise your AI",
+    "favicon": "https://pickle.com/favicon.png",
+    "scrapeId": "01a13fdf-f527-724c-8832-80f2dfaf41d5",
+    "sourceURL": "https://pickle.com/how-we-make-critter-act-in-real-time",
+    "url": "https://pickle.com/how-we-make-critter-act-in-real-time",
+    "statusCode": 200,
+    "contentType": "text/html; charset=utf-8",
+    "timezone": "America/New_York",
+    "proxyUsed": "basic",
+    "indexId": "a908346b-c515-4ccc-8661-d96d19418a2f",
+    "creditsUsed": 1,
+    "concurrencyLimited": false
+  },
+  "images": [
+    "https://pickle.com/whitepaper/a_table_desktop.png",
+    "https://pickle.com/whitepaper/e_latencycost_desktop.png",
+    "https://pickle.com/whitepaper/b_architecture_desktop.png",
+    "https://d3h202kifjtcwm.cloudfront.net/landing/pickle-com/2026-10-02-01/videos/footer_banner_loop-2648.webp",
+    "https://pickle.com/whitepaper/d_preference_desktop.png",
+    "https://pickle.com/landing/pickle-logo.svg",
+    "https://d3h202kifjtcwm.cloudfront.net/whitepaper/pickle-com/2026-07-18-02/videos/02_cascading_video-poster.webp",
+    "https://d3h202kifjtcwm.cloudfront.net/whitepaper/pickle-com/2026-07-18-02/videos/01_hero_video-poster.webp",
+    "https://pickle.com/whitepaper/c_streaming_desktop.png"
+  ]
+}

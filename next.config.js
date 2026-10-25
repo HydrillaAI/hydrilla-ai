@@ -85,14 +85,21 @@ const nextConfig = {
       { source: "/blog/page/:n.md", destination: "/blog.md", statusCode: 301 },
       { source: "/blog/page/:n", destination: "/blog", statusCode: 301 },
       { source: "/blog/page/:n/", destination: "/blog", statusCode: 301 },
+      // Profiles: /@name is canonical; /u/name is the internal route.
+      { source: "/@:username([A-Za-z0-9._]{3,30})/", destination: "/@:username", statusCode: 301 },
+      { source: "/u/:username", destination: "/@:username", statusCode: 301 },
+      { source: "/u/:username/", destination: "/@:username", statusCode: 301 },
     ];
   },
   async rewrites() {
     return [
-      { source: "/index.md", destination: "/md/index" },
-      { source: "/:file.md", destination: "/md/:file" },
-      { source: "/:dir/:file.md", destination: "/md/:dir/:file" },
-      { source: "/:dir/:subdir/:file.md", destination: "/md/:dir/:subdir/:file" },
+      // Public profiles live at /@username; a folder named "@..." would be a parallel-route slot.
+      // Must precede the .md rules, which would otherwise read "/@name.md"-style paths as files.
+      { source: "/@:username([A-Za-z0-9._]{3,30})", destination: "/u/:username" },
+      { source: "/index.md", destination: "/markdown-mirror/index" },
+      { source: "/:file.md", destination: "/markdown-mirror/:file" },
+      { source: "/:dir/:file.md", destination: "/markdown-mirror/:dir/:file" },
+      { source: "/:dir/:subdir/:file.md", destination: "/markdown-mirror/:dir/:subdir/:file" },
     ];
   },
   // Caching headers: only static assets get long cache; documents stay fresh for Core Web Vitals

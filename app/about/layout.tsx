@@ -1,26 +1,15 @@
 import type { ReactNode } from "react";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { createPageMetadata, getAboutJsonLd } from "@/lib/seo";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "About Hydrilla, Hawan Research Labs, and BlueFox",
+  title: "About: The AI 3D Company Behind BlueFox | Hydrilla AI",
   description:
-    "Hydrilla is the product. Hawan Research Labs is the lab. BlueFox 3D is the model family. Built for creators and studios who need production-ready 3D, fast.",
+    "Hydrilla AI is an AI 3D workspace for studio and artist pipelines. We build the Hydrilla workspace and BlueFox, Hydrilla's 3D model.",
+  ogTitle: "About Hydrilla AI",
   path: "/about",
-  keywords: [
-    "Hydrilla",
-    "Hawan Research Labs",
-    "about Hydrilla",
-    "BlueFox",
-    "AI 3D company",
-  ],
+  absoluteTitle: true,
 });
 
 export default function AboutLayout({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <JsonLd data={getAboutJsonLd()} />
-      {children}
-    </>
-  );
+  return children;
 }

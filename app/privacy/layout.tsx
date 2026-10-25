@@ -5,6 +5,7 @@ export const metadata = createPageMetadata({
   title: "Privacy Policy | Hydrilla AI",
   description:
     "How Hydrilla collects, uses, shares, and protects account and service information, and the rights and choices you have.",
+  ogTitle: "Privacy Policy",
   path: "/privacy",
   absoluteTitle: true,
 });

@@ -52,5 +52,14 @@ backend/
 /Users/tharak/Developer/hydrilla-ai/hyd-f/backend
 # Separate GitHub repo (dhanushyangal/admin)
 admin/
+# Separate GitHub repo (dhanushyangal/hydrilla_doc)
+hdocs/
 __pycache__/
 *.py[cod]
+backups/
+*.sql
+*.sql.gz
+C72EEEC0-*.png
+
+# Generated email templates (npm run email:build)
+email/dist/

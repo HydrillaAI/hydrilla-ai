@@ -2,6 +2,7 @@
 
 import {
   Children,
+  useState,
   isValidElement,
   type CSSProperties,
   type ReactNode,
@@ -91,8 +92,9 @@ type BlurRevealProps = {
 };
 
 /**
- * Heading scroll reveal — opacity + translate only (no CSS blur filters).
- * Blur-per-word was a major GPU cost on long marketing pages.
+ * Heading scroll reveal: opacity, lift and a soft blur that resolves slowly.
+ * Cheap on purpose: at most 8 words animate separately, each heading runs
+ * once, and the filter layer is removed as soon as the reveal finishes.
  */
 export function BlurReveal({
   children,
@@ -100,22 +102,25 @@ export function BlurReveal({
   className,
   style,
   delay = 0,
-  stagger = 0.06,
-  duration = 0.55,
+  stagger = 0.075,
+  duration = 1.05,
   margin = "-10% 0px -6% 0px",
-  blurPx = 0,
-  y = 10,
+  blurPx = 8,
+  y = 14,
   once = true,
   id,
 }: BlurRevealProps) {
   const reduceMotion = useReducedMotion();
+  const [done, setDone] = useState(false);
+  const blur = Math.min(blurPx, 10);
+  const hidden = { opacity: 0, y, filter: `blur(${blur}px)` };
+  const shown = { opacity: 1, y: 0, filter: "blur(0px)" };
   const Tag = MOTION_TAGS[as];
   const units = toWordUnits(children);
   const words = units.filter((u) => u.kind === "word");
   const plainText = words.map((u) => (u as { text: string }).text).join(" ");
   // Cap expensive per-word work; long lines animate as a single block.
   const usePerWord = words.length > 0 && words.length <= 8;
-  void blurPx;
 
   if (reduceMotion || words.length === 0) {
     const StaticTag = as;
@@ -130,12 +135,13 @@ export function BlurReveal({
     return (
       <Tag
         id={id}
-        className={cn(className)}
+        className={cn(className, done && "blur-reveal-done")}
         style={style}
-        initial={{ opacity: 0, y }}
-        whileInView={{ opacity: 1, y: 0 }}
+        initial={hidden}
+        whileInView={shown}
         viewport={{ once, margin, amount: 0.35 }}
         transition={{ duration, delay, ease: EASE }}
+        onAnimationComplete={() => setDone(true)}
       >
         {children}
       </Tag>
@@ -164,20 +170,16 @@ export function BlurReveal({
             <motion.span
               key={`w-${i}-${unit.text}`}
               className={cn(
-                "inline-block will-change-[opacity,transform]",
+                "inline-block will-change-[opacity,transform,filter]",
+                done && "blur-reveal-done",
                 unit.italic && "italic"
               )}
               style={{
                 marginRight: isLast ? undefined : "0.28em",
               }}
-              initial={{
-                opacity: 0,
-                y,
-              }}
-              whileInView={{
-                opacity: 1,
-                y: 0,
-              }}
+              initial={hidden}
+              whileInView={shown}
+              onAnimationComplete={isLast ? () => setDone(true) : undefined}
               viewport={{ once, margin, amount: 0.35 }}
               transition={{
                 duration,

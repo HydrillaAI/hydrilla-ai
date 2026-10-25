@@ -1,26 +1,15 @@
 import type { ReactNode } from "react";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { createPageMetadata, getWebPageJsonLd } from "@/lib/seo";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Contact Hydrilla — Demos, Studios, and Support",
+  title: "Contact Hydrilla: AI 3D Support and Press | Hydrilla AI",
   description:
-    "Get in touch with Hydrilla. Book a demo, reach the founders, or send a message about studio and enterprise 3D production.",
+    "Reach Hydrilla for product support or press at founders@hydrilla.ai. For studio plans, volume, or a demo, go to Enterprise.",
+  ogTitle: "Contact Hydrilla",
   path: "/contact",
   absoluteTitle: true,
 });
 
 export default function ContactLayout({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <JsonLd
-        data={getWebPageJsonLd({
-          name: "Contact Hydrilla — Demos, Studios, and Support",
-          description: metadata.description as string,
-          path: "/contact",
-        })}
-      />
-      {children}
-    </>
-  );
+  return children;
 }

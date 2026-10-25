@@ -22,27 +22,23 @@ const BACKEND_URL =
 
 const PLAN_INFO: Record<
   CheckoutPlanId,
-  { label: string; credits: string; color: string }
+  { label: string; credits: string }
 > = {
   starter: {
     label: PRICING.starter.label,
     credits: PRICING.starter.creditsLabel,
-    color: "#3B8EE8",
   },
   pro: {
     label: PRICING.pro.label,
     credits: PRICING.pro.creditsLabel,
-    color: "#111111",
   },
   slot: {
     label: SLOT_PRICING.slot.label,
     credits: SLOT_PRICING.slot.summary,
-    color: "#3B8EE8",
   },
   slot_pro: {
     label: SLOT_PRICING.slot_pro.label,
     credits: SLOT_PRICING.slot_pro.summary,
-    color: "#111111",
   },
 };
 
@@ -175,105 +171,75 @@ function CheckoutContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4">
-      <div className="max-w-md w-full text-center">
-        <div className="mb-8">
-          <span
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "DM Sans, sans-serif" }}
-          >
-            Hydrilla
-          </span>
-        </div>
-
+    <article className="pickle-article">
+      <header className="pickle-article-header">
+        <p className="pickle-article-kicker">Checkout</p>
+        {planInfo && <span className="pickle-chip">{planInfo.label} Plan</span>}
         {status === "error" ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-8">
-            <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+          <>
+            <h1 className="pickle-article-title">Something went wrong</h1>
+            <div className="pickle-lead">
+              <p>{error}</p>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
-            <p className="text-sm text-gray-600 mb-6">{error}</p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={startCheckout}
-                className="w-full py-3 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
-              >
+            <div className="pickle-actions">
+              <button type="button" onClick={startCheckout} className="pickle-pill-solid">
                 Try Again
               </button>
-              <button
-                onClick={() => router.back()}
-                className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors"
-              >
+              <button type="button" onClick={() => router.back()} className="pickle-pill-ghost">
                 Go Back
               </button>
             </div>
-          </div>
+          </>
         ) : (
-          <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
-            {planInfo && (
-              <div
-                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold text-white mb-6"
-                style={{ backgroundColor: planInfo.color }}
-              >
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-                {planInfo.label} Plan
+          <>
+            <h1 className="pickle-article-title">
+              {status === "loading" ? "Opening Checkout…" : "Preparing your checkout"}
+            </h1>
+            {planInfo && priceLabel && (
+              <div className="pickle-lead">
+                <p>
+                  {planInfo.label} · {priceLabel}
+                </p>
+                <p>{planInfo.credits}</p>
               </div>
             )}
 
-            <div className="w-16 h-16 mx-auto mb-6 relative">
-              <div className="w-16 h-16 rounded-full border-4 border-gray-100 border-t-black animate-spin" />
-            </div>
-
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              {status === "loading" ? "Opening Checkout…" : "Preparing your checkout"}
-            </h2>
-
-            {planInfo && priceLabel && (
-              <p className="text-sm text-gray-500 mb-1">
-                {planInfo.label} · {priceLabel}
-              </p>
-            )}
-            {planInfo && (
-              <p className="text-sm text-gray-400">{planInfo.credits}</p>
-            )}
-
             {trialEligible === true ? (
-              <div className="my-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-left">
-                <div className="flex items-center justify-between text-xs font-semibold text-emerald-900">
+              <div className="pickle-form-panel" style={{ maxWidth: 480, padding: "24px 28px", gap: 8 }}>
+                <div className="flex w-full items-center justify-between gap-4 font-medium">
                   <span>14-Day Free Trial</span>
-                  <span className="text-emerald-700 font-bold">$0.00 today</span>
+                  <span>$0.00 today</span>
                 </div>
-                <p className="mt-1 text-[11px] text-emerald-700 leading-normal">
+                <p className="pickle-card-body">
                   Full plan access for 14 days. Cancel anytime before the trial ends without being charged.
                 </p>
               </div>
             ) : trialEligible === false ? (
-              <div className="my-4 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3 text-left">
-                <div className="flex items-center justify-between text-xs font-semibold text-neutral-900">
+              <div className="pickle-form-panel" style={{ maxWidth: 480, padding: "24px 28px", gap: 8 }}>
+                <div className="flex w-full items-center justify-between gap-4 font-medium">
                   <span>Monthly Subscription</span>
-                  <span className="text-neutral-700 font-bold">{priceLabel}</span>
+                  <span>{priceLabel}</span>
                 </div>
-                <p className="mt-1 text-[11px] text-neutral-500 leading-normal">
-                  Billed monthly. Cancel anytime in your billing settings.
-                </p>
+                <p className="pickle-card-body">Billed monthly. Cancel anytime in your billing settings.</p>
               </div>
             ) : null}
 
-            <p className="mt-6 text-xs text-gray-400">
+            <div
+              role="status"
+              aria-label="Loading"
+              className="mt-2 h-9 w-9 animate-spin rounded-full border-[3px] border-black/10 border-t-black"
+            />
+            <p className="pickle-caption">
               {trialEligible === true
                 ? "You will continue to Dodo Payments to start your 14-day trial."
                 : trialEligible === false
                 ? "You will continue to Dodo Payments to complete your subscription."
                 : "Preparing checkout with Dodo Payments…"}
             </p>
-          </div>
+          </>
         )}
-      </div>
-    </div>
+      </header>
+    </article>
   );
 }
 

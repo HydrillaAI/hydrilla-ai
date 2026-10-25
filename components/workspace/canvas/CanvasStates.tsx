@@ -61,7 +61,7 @@ export function CanvasEmptyState({ mode, onExample }: { mode: ComposerMode; onEx
 export function CanvasPreview({ imageUrl }: { imageUrl: string }) {
   return (
     <div className="flex flex-1 min-h-0 items-center justify-center p-4 pt-16 pb-48 sm:p-5 sm:pt-5 sm:pb-56">
-      <div className="relative flex h-full max-h-full w-full max-w-full items-center justify-center overflow-hidden rounded-[20px] sm:rounded-[24px] border border-neutral-200/70 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_16px_40px_-16px_rgba(0,0,0,0.14)]">
+      <div className="studio-float relative flex h-full max-h-full w-full max-w-full items-center justify-center overflow-hidden rounded-[20px] sm:rounded-[24px] border border-neutral-200/70 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_16px_40px_-16px_rgba(0,0,0,0.14)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={displayImageUrl(imageUrl)} alt="Preview" className="h-auto max-h-full w-auto max-w-full object-contain" />
       </div>
@@ -87,7 +87,7 @@ export function CanvasGeneratingOverlay({ message, progress, water, queueInfo, o
       aria-live="polite"
       aria-busy="true"
     >
-      <ThinkingOrb state="solving" size={64} />
+      <ThinkingOrb state="solving" size={64} theme="auto" />
       <p className="mt-5 max-w-sm text-center text-[15px] font-medium tracking-tight text-neutral-800">{message}</p>
       {water && <WaterPassRail tier={water.tier} pass={water.pass} className="mt-5 justify-center" />}
       {showQueue && (
@@ -229,7 +229,7 @@ export function CanvasError({
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 pb-56 text-center font-dm-sans" role="alert">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400">
         <AlertTriangle className="h-5 w-5" strokeWidth={2} />
       </div>
       <h3 className="mt-4 text-[22px] font-semibold tracking-[-0.03em] text-neutral-900">That didn&apos;t work</h3>

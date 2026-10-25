@@ -1,0 +1,21 @@
+<!--
+id: C04
+name: Checkout help
+layout: personal
+kind: campaign
+sender: rishi
+category: conversion
+topic: news-and-tips
+trigger: event checkout_started; wait 24 hours; exit if subscription_activated
+phase: 2
+subject: Anything I can help with?
+preheader: A quick question about the plan you were looking at.
+footer_reason: You're receiving this because you started a checkout on Hydrilla.
+optional: true
+data: event.plan_name
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>You started signing up for the {{ event.plan_name | default: "Hydrilla" }} plan yesterday and didn't finish.</mj-text>
+<mj-text>If something got in the way, like a question about credits, pricing or what the plan includes, reply here and I'll answer it.</mj-text>
+<mj-text><a href="https://hydrilla.ai/app/pricing">Compare plans</a></mj-text>
+<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>

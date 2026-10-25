@@ -1,0 +1,26 @@
+<!--
+id: INT01
+name: New message (internal)
+layout: base
+kind: transactional
+sender: hi
+category: internal
+topic: none
+trigger: contact, enterprise, support or feedback form; sent to the team inbox with Reply-To set to the sender
+phase: 1
+subject: New {{ trigger.kind | default: "contact" }} message from {{ trigger.name | default: "someone" }}
+preheader: Reply to this email to answer them directly.
+footer_reason: Internal alert for the Hydrilla team.
+optional: false
+data: kind, name, email, company, request_type, message, details
+-->
+<mj-text>A new <strong>{{ trigger.kind | default: "contact" }}</strong> message arrived. Replying to this email goes straight to the sender.</mj-text>
+<mj-text font-size="14px">
+  <strong>From:</strong> {{ trigger.name | default: "Unknown" | escape }} &lt;{{ trigger.email | default: "no email" | escape }}&gt;<br />
+  {% if trigger.company %}<strong>Company:</strong> {{ trigger.company | default: "" | escape }}<br />{% endif %}
+  {% if trigger.request_type %}<strong>Type:</strong> {{ trigger.request_type | default: "" | escape }}<br />{% endif %}
+</mj-text>
+<mj-text font-size="14px" container-background-color="#f1f5fb" padding="14px 16px">{{ trigger.message | default: "" | escape | newline_to_br }}</mj-text>
+<mj-raw>{% if trigger.details %}</mj-raw>
+<mj-text css-class="muted" font-size="13px">{{ trigger.details | default: "" | escape | newline_to_br }}</mj-text>
+<mj-raw>{% endif %}</mj-raw>

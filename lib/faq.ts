@@ -5,77 +5,78 @@ export type FaqItem = {
   answer: string;
 };
 
-/** Canonical FAQ copy. Rendered on /faq (SSR) and emitted as FAQPage JSON-LD. */
+/**
+ * Homepage FAQ, worded from BUILD-KIT/pages (pricing, features, bluefox,
+ * water, integrations, research, faq). Plan numbers come from lib/pricing.
+ * Formats link to /features#exports instead of being listed (kit rule).
+ */
 export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Who is Hydrilla designed for?",
     answer:
-      "Hydrilla is built for creators, studios, and teams who need fast generation of production-ready 3D assets for games, film, architecture, and digital products.",
-  },
-  {
-    question: "How fast is generation?",
-    answer:
-      "Hydrilla can generate structured 3D assets in minutes, so teams spend less time on early modeling and concept asset production. Final hero quality still needs an artist pass.",
-  },
-  {
-    question: "Is there a free plan available?",
-    answer:
-      `Yes. Free is $${PRICING.free.monthly}/month with ${PRICING.free.credits.toLocaleString("en-US")} credits and GLB export. No card required.`,
-  },
-  {
-    question: "Can I change or cancel my plan anytime?",
-    answer:
-      "Yes. All paid plans start with a 14-day free trial and are billed monthly afterward. Manage changes and cancellation anytime from account settings.",
-  },
-  {
-    question: "How many 3D models can I generate each month?",
-    answer:
-      "Free covers 3 model generations each month (100 credits). Starter and Hourly include 30 model generations each month (900 credits). Pro and Hourly Pro include 100 model generations per month (3,000 credits).",
-  },
-  {
-    question: "What are Hourly and Hourly Pro?",
-    answer:
-      `Hourly includes 30 monthly model generations and premium plugins at $${SLOT_PRICING.slot.monthly}/month with a 1-hour daily generation window. Hourly Pro includes 100 monthly model generations and the full plugin suite at $${SLOT_PRICING.slot_pro.monthly}/month with a 2-hour daily window. Both start with a 14-day free trial.`,
-  },
-  {
-    question: "Is Hydrilla difficult to learn?",
-    answer:
-      "No. If you already work in Unity, Unreal, or Blender, you generate, preview, and export into the same formats you already import.",
+      "Hydrilla AI is an AI 3D workspace for studio and artist pipelines, used across games, film, architecture, XR, and product work.",
   },
   {
     question: "What inputs does Hydrilla support?",
     answer:
-      "Text prompts and reference images.",
+      "A typed prompt or an uploaded picture. For whole sets, Water Agent works from a brief, and a brief can be one prop or a whole scene.",
   },
   {
-    question: "What is BlueFox 3D?",
+    question: "What is BlueFox?",
     answer:
-      "BlueFox 3D is the model family built by Hawan Research Labs. BlueFox 1 is the current model that runs generation inside Hydrilla.",
+      "BlueFox, Hydrilla's 3D model, turns a prompt or a picture into a segmented 3D model with UVs and PBR textures. Hawan Research Labs, Hydrilla AI's research lab, builds it.",
   },
   {
-    question: "What is Hawan Research Labs?",
+    question: "What is Water Agent?",
     answer:
-      "Hawan Research Labs is the research lab that builds BlueFox. Hydrilla is the product you use to run it.",
+      "Water Agent is the AI 3D agent for artists and studios. It works inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin, costs no credits, and is included on every plan.",
   },
   {
-    question: "Can Hydrilla integrate with my pipeline?",
+    question: "Do generated models still need an artist?",
     answer:
-      "Yes. Export GLB, FBX, OBJ, and USDZ. Pro plans include API access for production workflows. See https://hydrilla.ai/api and https://hydrilla.ai/docs.",
+      "Assets close to camera still need an artist's pass. Use generated models as a starting point for hero work, and check the limits of BlueFox at https://hydrilla.ai/bluefox#limits.",
   },
   {
-    question: "Do I own what I generate?",
+    question: "Which engines and tools does Hydrilla work with?",
     answer:
-      "Yes. Hydrilla’s terms grant personal and commercial use of generated content. Read the Terms for the full license.",
+      "Hydrilla AI connects to the tools you already run: a Blender add-on, plugins for Unity, Unreal, and Godot, a local Bridge from Studio, and MCP and REST for custom pipelines. See https://hydrilla.ai/integrations.",
   },
   {
     question: "What formats does Hydrilla export?",
     answer:
-      "GLB, FBX, OBJ, and USDZ. Free exports GLB. Starter, Pro, Hourly, and Hourly Pro export all four.",
+      "Every plan exports every format, Free included. The full list is at https://hydrilla.ai/features#exports.",
   },
   {
-    question: "Which engines and tools?",
+    question: "Is there a free plan available?",
+    answer: `Yes. Free is $${PRICING.free.monthly} a month with ${PRICING.free.credits.toLocaleString("en-US")} credits, for trying Hydrilla on your own projects.`,
+  },
+  {
+    question: "What does a model cost?",
     answer:
-      "Native Blender add-on and a local Bridge, plus Unity, Unreal, Godot, MCP, and REST API. See https://hydrilla.ai/integrations.",
+      "A model from text costs 45 credits and a model from an uploaded image costs 30, at default quality.",
+  },
+  {
+    question: "How does the 14-day trial work?",
+    answer:
+      "Start on the Free plan, or try any Monthly or Hourly plan, Pro included, free for 14 days. The trial needs a card.",
+  },
+  {
+    question: "How do Hourly plans save?",
+    answer: `Hourly Pro gives Pro's ${PRICING.pro.credits.toLocaleString("en-US")} credits for 33% less, $${SLOT_PRICING.slot_pro.monthly} instead of $${PRICING.pro.monthly}, in a chosen daily window. Hourly gives Starter's ${PRICING.starter.credits.toLocaleString("en-US")} credits for $${SLOT_PRICING.slot.monthly} instead of $${PRICING.starter.monthly}, in one chosen hour a day.`,
+  },
+  {
+    question: "Which plan includes the API?",
+    answer: "Pro includes REST API access. See https://hydrilla.ai/api.",
+  },
+  {
+    question: "Do I own what I generate?",
+    answer:
+      "Hydrilla's Terms of Service cover ownership of the 3D assets you generate. The ownership section of the Terms has the exact wording: https://hydrilla.ai/terms#ownership.",
+  },
+  {
+    question: "What is Hawan Research Labs?",
+    answer:
+      "Hawan Research Labs is Hydrilla AI's research lab, where the 3D research happens and BlueFox is built.",
   },
 ];
 

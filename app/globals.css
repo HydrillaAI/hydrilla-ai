@@ -22,6 +22,9 @@
   --text-prompt--line-height: 1;
   --tracking-display: -0.03em;
   --tracking-body: -0.01em;
+  /* Overlays on imagery (thumbnails, canvas badges). Never flipped by the dark theme. */
+  --color-scrim: #000000;
+  --color-on-scrim: #ffffff;
   --animate-shimmer: shimmer 2s infinite;
 
   @keyframes shimmer {
@@ -38,41 +41,160 @@
   --color-background: #ffffff;
   --color-foreground: #000000;
   --color-muted-foreground: #737373;
-  --app-canvas: #fafafa;
+  --app-canvas: #ffffff;
+  /* Studio palette: black, white, sky blue, soft blue, #d6e5fa. Flat fills only. */
+  --hyd-ink: #0a0a0b;
+  --hyd-sky: #7eb1e3;
+  --hyd-soft: #b5cee5;
+  --hyd-mist: #d6e5fa;
+  --hyd-50: rgb(214 229 250 / 0.38);
+  --hyd-100: #d6e5fa;
+  --hyd-200: #b5cee5;
+  --hyd-400: #7eb1e3;
 }
 
 .dark {
-  --color-background: #0a0a0a;
+  --color-background: #0b0b0d;
   --color-foreground: #fafafa;
   --color-muted-foreground: #a3a3a3;
-  --app-canvas: #0a0a0a;
+  --app-canvas: #0b0b0d;
+  --hyd-ink: #ffffff;
+  --hyd-50: rgb(126 177 227 / 0.07);
+  --hyd-100: rgb(126 177 227 / 0.15);
+  --hyd-200: rgb(126 177 227 / 0.28);
+  --hyd-400: #7eb1e3;
 }
 
-/* Product surfaces: invert the neutral scale so existing bg-white / text-neutral-900 cards follow the theme. */
+/* Product surfaces, light: cool the neutral scale toward the palette so every /app page shares it. */
+.app-themed {
+  --color-neutral-50: #f4f8fe;
+  --color-neutral-100: #e9f1fc;
+  --color-neutral-200: #d6e5fa;
+  --color-neutral-300: #b5cee5;
+  --color-neutral-400: #8a96a8;
+  --color-neutral-500: #667085;
+  --color-neutral-600: #475467;
+  --color-neutral-700: #344054;
+  --color-neutral-800: #1d2939;
+  --color-neutral-900: #0a0a0b;
+  --color-neutral-950: #000000;
+}
+
+/*
+ * Product surfaces, dark: invert the neutral scale so existing bg-white / text-neutral-900 cards follow the theme.
+ * Graphite with a faint cool cast (matches the dark sidebar) instead of flat grey; each step is a visible layer.
+ */
 .dark .app-themed {
   color-scheme: dark;
-  --color-white: #171717;
+  --color-white: #141417;
   --color-black: #fafafa;
-  --color-neutral-50: #171717;
-  --color-neutral-100: #1f1f1f;
-  --color-neutral-200: #2e2e2e;
-  --color-neutral-300: #404040;
-  --color-neutral-400: #737373;
-  --color-neutral-500: #a3a3a3;
-  --color-neutral-600: #d4d4d4;
-  --color-neutral-700: #e5e5e5;
-  --color-neutral-800: #f5f5f5;
+  --color-neutral-50: #18181b;
+  --color-neutral-100: #1e1e22;
+  --color-neutral-200: #2a2a2f;
+  --color-neutral-300: #3a3a41;
+  --color-neutral-400: #6c6c76;
+  --color-neutral-500: #9d9da7;
+  --color-neutral-600: #c9c9d1;
+  --color-neutral-700: #e3e3e8;
+  --color-neutral-800: #f1f1f4;
   --color-neutral-900: #fafafa;
   --color-neutral-950: #ffffff;
 }
 
-.app-themed,
-.app-themed [class*="bg-"],
-.app-themed [class*="border-"],
-.app-themed [class*="text-"] {
-  transition-property: background-color, border-color, color, fill, stroke;
-  transition-duration: 180ms;
-  transition-timing-function: ease;
+/* Theme switch only: cross-fade surfaces for a beat, then drop the rule so normal interactions stay free. */
+.app-themed.theme-switching,
+.app-themed.theme-switching * {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease !important;
+}
+
+/*
+ * Floating studio surfaces (composer, toolbars, rails). Drop shadows vanish on a dark canvas, so dark mode
+ * lifts them with a hairline edge and a faint top highlight instead. Unlayered, so it wins over utilities.
+ */
+.dark .studio-float {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.06),
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 18px 44px -20px rgb(0 0 0 / 0.75);
+}
+
+/*
+ * Workspace composer, in the Pickle field language: a hairline at rest, and while typing the edge
+ * firms up with a soft halo drawn OUTSIDE the card (never a ring inside it). Keyed to the prompt
+ * itself via :has(), so clicking a mode chip does not light the card.
+ */
+.studio-composer {
+  background: var(--color-white);
+  border: 1px solid rgb(0 0 0 / 0.08);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 16px 40px -18px rgb(0 0 0 / 0.2);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.studio-composer:has(.studio-composer-input:focus) {
+  border-color: rgb(0 0 0 / 0.2);
+  box-shadow:
+    0 0 0 4px rgb(0 0 0 / 0.045),
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 20px 48px -20px rgb(0 0 0 / 0.26);
+}
+.studio-composer[data-dragging="true"] {
+  border-color: rgb(0 0 0 / 0.32);
+  box-shadow:
+    0 0 0 4px rgb(0 0 0 / 0.06),
+    0 20px 48px -20px rgb(0 0 0 / 0.26);
+}
+.dark .studio-composer {
+  border-color: rgb(255 255 255 / 0.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 20px 48px -22px rgb(0 0 0 / 0.8);
+}
+.dark .studio-composer:has(.studio-composer-input:focus) {
+  border-color: rgb(255 255 255 / 0.2);
+  box-shadow:
+    0 0 0 4px rgb(255 255 255 / 0.05),
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 20px 48px -22px rgb(0 0 0 / 0.8);
+}
+.dark .studio-composer[data-dragging="true"] {
+  border-color: rgb(255 255 255 / 0.3);
+  box-shadow:
+    0 0 0 4px rgb(255 255 255 / 0.06),
+    0 20px 48px -22px rgb(0 0 0 / 0.8);
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-composer {
+    transition: none;
+  }
+}
+
+/* Attachment enters with a short lift so a new image reads as "landed". */
+@keyframes composer-attach-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.composer-attach-in {
+  animation: composer-attach-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-attach-in {
+    animation: none;
+  }
+}
+
+/* Theme toggle: the new theme grows out of the toggle as a circle (lib/theme-transition.ts sets the origin). */
+:root.theme-reveal::view-transition-old(root),
+:root.theme-reveal::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root.theme-reveal::view-transition-new(root) {
+  animation: theme-reveal 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes theme-reveal {
+  from { clip-path: circle(0 at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 0%)); }
+  to { clip-path: circle(var(--theme-reveal-r, 150vmax) at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 0%)); }
 }
 
 /* App shell: hide main site navbar when inside /app */
@@ -103,64 +225,125 @@ body.not-found-scrolled:has(.not-found-grass) [data-site-navbar] {
   }
 }
 
-/* App sidebar – Studio continuity (#fafafa) */
-.app-sidebar-root {
-  --sidebar-bg: var(--app-canvas);
-  --sidebar-fg: 0 0% 9%;
-  --sidebar-fg-muted: 0 0% 9% / 0.55;
-  --sidebar-accent: 0 0% 100%;
-  --sidebar-accent-hover: 0 0% 100%;
-  --sidebar-border: 0 0% 90%;
-  --sidebar-spacing: 10px;
-  --sidebar-radius: 999px;
-  --sidebar-item-height: 44px;
-  --sidebar-item-px: 14px;
-  --sidebar-transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-.app-sidebar-root .sidebar-item {
-  transition: var(--sidebar-transition);
-  border: 1px solid transparent;
-}
-.app-sidebar-root .sidebar-item:hover {
-  background-color: rgba(255, 255, 255, 0.7);
-  color: #111;
-  border-color: rgba(17, 17, 17, 0.06);
-}
-.app-sidebar-root .sidebar-item.active {
-  background-color: #fff;
-  color: #111;
-  border-color: rgba(17, 17, 17, 0.08);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px -6px rgba(0, 0, 0, 0.1);
-}
-.app-sidebar-root .sidebar-toggle {
-  transition: var(--sidebar-transition);
-  border: 1px solid transparent;
-}
-.app-sidebar-root .sidebar-toggle:hover {
-  background-color: #fff;
-  border-color: rgba(17, 17, 17, 0.08);
-  color: #111;
-}
-.app-sidebar-root .sidebar-upgrade-btn {
-  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-.app-sidebar-root .sidebar-upgrade-btn:hover {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 20px -8px rgba(0, 0, 0, 0.28);
+@layer components {
+  /* App sidebar: flat surfaces, one clear selected state */
+  .app-sidebar-root {
+    --sidebar-bg: var(--app-canvas);
+    --sidebar-fg: 240 6% 4%;
+    --sidebar-fg-muted: 220 14% 34%;
+    --sidebar-border: 217 80% 91%;
+    --sidebar-spacing: 10px;
+    --nav-hover: rgb(214 229 250 / 0.5);
+    --nav-active-bg: #d6e5fa;
+    --nav-active-fg: #0a0a0b;
+    --nav-icon-active: #0a0a0b;
+    --card-bg: rgb(214 229 250 / 0.38);
+    --track-bg: #d6e5fa;
+    --fill: #7eb1e3;
+  }
+  .app-sidebar-root .sidebar-item,
+  .app-sidebar-root .sidebar-toggle {
+    transition: color 0.14s ease, background-color 0.14s ease;
+  }
+  .app-sidebar-root .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: hsl(var(--sidebar-fg-muted));
+  }
+  @media (max-width: 767px) {
+    .app-sidebar-root .sidebar-item {
+      min-height: 44px;
+      font-size: 15px;
+    }
+  }
+  .app-sidebar-root .sidebar-item:hover,
+  .app-sidebar-root .sidebar-toggle:hover {
+    background-color: var(--nav-hover);
+    color: var(--nav-active-fg);
+  }
+  .app-sidebar-root .sidebar-item.active {
+    background-color: var(--nav-active-bg);
+    color: var(--nav-active-fg);
+    font-weight: 600;
+  }
+  .app-sidebar-root .sidebar-item.active .sidebar-icon {
+    color: var(--nav-icon-active);
+  }
+  .app-sidebar-root .sidebar-item:focus-visible,
+  .app-sidebar-root .sidebar-toggle:focus-visible,
+  .app-sidebar-root .sidebar-upgrade-btn:focus-visible {
+    outline: 2px solid var(--hyd-400);
+    outline-offset: 1px;
+  }
+  .app-sidebar-root .credits-card {
+    background: var(--card-bg);
+  }
+  .app-sidebar-root .credits-track {
+    background: var(--track-bg);
+  }
+  .app-sidebar-root .credits-fill {
+    background: var(--fill);
+  }
+  .app-sidebar-root .sidebar-upgrade-btn {
+    transition: background-color 0.14s ease, transform 0.14s ease;
+  }
+  .app-sidebar-root .sidebar-upgrade-btn:active {
+    transform: scale(0.985);
+  }
+  .credits-bar {
+    transform-origin: left center;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .dark .app-sidebar-root {
+    --sidebar-bg: #0e0f11;
+    --sidebar-fg: 0 0% 98%;
+    --sidebar-fg-muted: 220 9% 66%;
+    --sidebar-border: 0 0% 100% / 0.07;
+    --nav-hover: rgb(255 255 255 / 0.06);
+    --nav-active-bg: rgb(126 177 227 / 0.2);
+    --nav-active-fg: #ffffff;
+    --nav-icon-active: #7eb1e3;
+    --card-bg: rgb(255 255 255 / 0.045);
+    --track-bg: rgb(255 255 255 / 0.1);
+  }
 }
 
-.dark .app-sidebar-root {
-  --sidebar-fg: 0 0% 96%;
-  --sidebar-fg-muted: 0 0% 96% / 0.55;
-  --sidebar-accent: 0 0% 12%;
-  --sidebar-accent-hover: 0 0% 12%;
-  --sidebar-border: 0 0% 20%;
+/* Studio: skeleton shimmer and small enter motions (transform/opacity only) */
+.studio-skeleton {
+  background: var(--hyd-50);
+  animation: studioPulse 1.4s ease-in-out infinite;
 }
-.dark .app-sidebar-root .sidebar-item:hover,
-.dark .app-sidebar-root .sidebar-item.active,
-.dark .app-sidebar-root .sidebar-toggle:hover {
-  background-color: #171717;
-  color: #fafafa;
-  border-color: rgba(255, 255, 255, 0.08);
+@keyframes studioPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes studioPop {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes studioSheet {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes studioFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.studio-pop { animation: studioPop 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (max-width: 639px) {
+  .studio-pop { animation: studioSheet 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+}
+.studio-fade { animation: studioFade 140ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .studio-skeleton, .studio-pop, .studio-fade { animation: none; }
 }
 
 /* In-app page enter — fast, subtle, no layout shift */
@@ -174,8 +357,9 @@ body.not-found-scrolled:has(.not-found-grass) [data-site-navbar] {
     transform: translateY(0);
   }
 }
+/* `backwards`, not `both`: a transform left on the page would trap position:fixed modals inside it. */
 .app-page-enter {
-  animation: appPageEnter 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: appPageEnter 140ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-page-enter {
@@ -197,6 +381,14 @@ body.not-found-scrolled:has(.not-found-grass) [data-site-navbar] {
   padding: var(--app-content-py) var(--app-content-px);
   overflow: auto;
   min-height: 0;
+  padding-bottom: max(var(--app-content-py), env(safe-area-inset-bottom));
+}
+@media (max-width: 767px) {
+  .app-content-page {
+    --app-content-gap: 24px;
+    --app-content-px: 16px;
+    --app-content-py: 20px;
+  }
 }
 .app-content-page::-webkit-scrollbar {
   width: 8px;
@@ -206,7 +398,7 @@ body.not-found-scrolled:has(.not-found-grass) [data-site-navbar] {
   background: transparent;
 }
 .app-content-page::-webkit-scrollbar-thumb {
-  background: rgb(229 231 235);
+  background: var(--hyd-100);
   border-radius: 4px;
 }
 
@@ -233,6 +425,27 @@ body {
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+}
+
+/* Lenis (homepage smooth scroll) */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+
+/* BlurReveal: drop the filter layer once the reveal has finished */
+.blur-reveal-done {
+  filter: none !important;
+  will-change: auto !important;
 }
 
 /* Custom scrollbar */
@@ -335,10 +548,29 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1) !important;
 }
 
+/* App shell: sky-blue focus instead of the marketing black */
+.app-themed input:focus,
+.app-themed textarea:focus,
+.app-themed select:focus {
+  border-color: var(--hyd-400) !important;
+  box-shadow: 0 0 0 4px var(--hyd-100) !important;
+}
+
 /* Override focus styles for PromptBox textarea - remove colored ring */
 .prompt-box-textarea:focus {
   box-shadow: none !important;
   border-color: transparent !important;
+}
+
+/*
+ * Bare fields: inputs that live inside a control that draws its own focus state (the composer card,
+ * scrub values, inline rename). Specific enough to beat the `.app-themed` rule above, which would
+ * otherwise paint a ring inside the parent while typing.
+ */
+.app-themed :is(input, textarea).studio-bare-field:focus,
+:is(input, textarea).studio-bare-field:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Button active state */
@@ -943,12 +1175,16 @@ input.range-minimal::-moz-range-track {
 
 .pickle-article-kicker a {
   color: inherit;
-  text-decoration: none;
-  transition: opacity 0.15s ease;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
 
 .pickle-article-kicker a:hover {
-  opacity: 0.65;
+  color: #000000;
+  text-decoration-color: #000000;
 }
 
 .pickle-article-title {
@@ -1195,17 +1431,41 @@ input.range-minimal::-moz-range-track {
 }
 
 .pickle-text a,
-.pickle-license a {
+.pickle-license a,
+.pickle-intro a,
+.pickle-lead a,
+.pickle-card-body a,
+.pickle-qa a,
+.pickle-prose a {
   color: inherit;
-  text-underline-position: from-font;
   text-decoration: underline;
-  text-decoration-thickness: from-font;
-  transition: opacity 0.1s ease;
+  text-decoration-color: rgba(0, 0, 0, 0.3);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  text-underline-position: from-font;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
 }
 
 .pickle-text a:hover,
-.pickle-license a:hover {
-  opacity: 0.6;
+.pickle-license a:hover,
+.pickle-intro a:hover,
+.pickle-lead a:hover,
+.pickle-card-body a:hover,
+.pickle-qa a:hover,
+.pickle-prose a:hover {
+  color: #000000;
+  text-decoration-color: #000000;
+  opacity: 1;
+}
+
+.pickle-text a:focus-visible,
+.pickle-intro a:focus-visible,
+.pickle-lead a:focus-visible,
+.pickle-card-body a:focus-visible,
+.pickle-qa a:focus-visible {
+  outline: 2px solid #000000;
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .pickle-h2 {
@@ -1852,6 +2112,900 @@ input.range-minimal::-moz-range-track {
 
   .pickle-research-card-subtitle {
     font-size: 16px;
+  }
+}
+
+/* 4. Pickle page primitives: lead, actions, media frames, cards, flows, steps, Q&A, CTA panel */
+.pickle-lead {
+  letter-spacing: -0.2px;
+  color: #6e6e73;
+  width: 600px;
+  max-width: 100%;
+  margin-top: 2px;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+/* Opening paragraph(s) of the body, directly after the hero visual */
+.pickle-intro {
+  width: 600px;
+  max-width: 100%;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: -0.18px;
+  color: #000000;
+}
+
+.pickle-intro p {
+  margin: 0;
+}
+
+
+.pickle-intro p + p {
+  margin-top: 0.9em;
+}
+
+.pickle-intro strong {
+  font-weight: 566;
+  color: #000000;
+}
+
+.pickle-intro a {
+  color: #000000;
+}
+
+.pickle-lead p {
+  margin: 0;
+}
+
+.pickle-lead p + p {
+  margin-top: 0.9em;
+}
+
+.pickle-lead a {
+  color: #000000;
+}
+
+.pickle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pickle-actions[data-align="start"] {
+  justify-content: flex-start;
+  margin-top: 0;
+}
+
+.pickle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 16px 7px 13px;
+  border-radius: 999px;
+  background: #f5f5f7;
+  font-size: 15px;
+  line-height: 1.3;
+  letter-spacing: -0.15px;
+  color: rgba(0, 0, 0, 0.72);
+}
+
+.pickle-chip::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #22a559;
+  box-shadow: 0 0 0 3px rgba(34, 165, 89, 0.18);
+}
+
+.pickle-pill-ghost {
+  box-sizing: border-box;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 90px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), sans-serif;
+  font-size: 17px;
+  font-weight: 510;
+  letter-spacing: -0.34px;
+  line-height: 1.2;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.pickle-pill-ghost:hover {
+  background: #f5f5f7;
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+.pickle-media {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 36px;
+  background: #f5f5f7;
+  isolation: isolate;
+  box-shadow:
+    0 1px 1.5px rgba(0, 0, 0, 0.05),
+    0 6px 3px rgba(0, 0, 0, 0.03),
+    0 13px 4px rgba(0, 0, 0, 0.02);
+}
+
+.pickle-media[data-hero="true"] {
+  border-radius: 48px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 18px 40px -12px rgba(0, 0, 0, 0.18),
+    0 40px 80px -40px rgba(0, 0, 0, 0.22);
+}
+
+.pickle-media[data-tone="white"] {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.pickle-media[data-tone="dark"] {
+  background: #0a0a0c;
+}
+
+.pickle-media img,
+.pickle-media video {
+  object-fit: cover;
+}
+
+.pickle-media[data-fit="contain"] img {
+  object-fit: contain;
+}
+
+.pickle-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(100% 80% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 65%),
+    #ececf0;
+}
+
+.pickle-media-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  margin: 0;
+}
+
+.pickle-media-grid .pickle-media {
+  border-radius: 28px;
+}
+
+.pickle-media-label {
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.4;
+  letter-spacing: -0.15px;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.pickle-media-label strong {
+  color: #000000;
+  font-weight: 566;
+  margin-right: 6px;
+}
+
+.pickle-cards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pickle-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 100%;
+  padding: 28px 30px 30px;
+  border-radius: 28px;
+  background: #f5f5f7;
+  color: #000000;
+}
+
+.pickle-card-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  margin: -12px -14px 14px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #ffffff;
+}
+
+.pickle-card-media img {
+  object-fit: cover;
+}
+
+.pickle-card-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+}
+
+.pickle-card-icon svg {
+  width: 44px;
+  height: 44px;
+}
+
+.pickle-card-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 566;
+  line-height: 1.3;
+  letter-spacing: -0.21px;
+  color: #000000;
+}
+
+.pickle-card-body {
+  margin: 0;
+  font-size: 16.5px;
+  line-height: 1.5;
+  letter-spacing: -0.16px;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.pickle-card-body p {
+  margin: 0;
+}
+
+.pickle-card-body ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+
+.pickle-card-body li + li {
+  margin-top: 0.35em;
+}
+
+.pickle-card-body a,
+.pickle-qa a,
+.pickle-cta a:not(.pickle-pill-solid):not(.pickle-pill-ghost) {
+  color: #000000;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 0, 0, 0.3);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.pickle-cta a:not(.pickle-pill-solid):not(.pickle-pill-ghost):hover {
+  text-decoration-color: #000000;
+}
+
+.pickle-link-cards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  gap: 48px 24px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pickle-research-card:hover .pickle-link-card-title,
+.pickle-research-card:focus-visible .pickle-link-card-title {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.pickle-link-card-title {
+  margin: 18px 0 0;
+  font-size: 22px;
+  font-weight: 566;
+  line-height: 1.3;
+  letter-spacing: -0.22px;
+  color: #000000;
+}
+
+.pickle-link-card-line {
+  margin: 6px 0 0;
+  font-size: 16.5px;
+  line-height: 1.5;
+  letter-spacing: -0.16px;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.pickle-icon-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 60%),
+    #ececf0;
+}
+
+.pickle-research-thumbnail[data-tone="dark"] {
+  background: #0a0a0c;
+}
+
+.pickle-research-thumbnail[data-tone="white"] {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.pickle-research-thumbnail[data-fit="contain"] img {
+  object-fit: contain;
+}
+
+.pickle-research-thumbnail > .pickle-icon-tile {
+  display: flex;
+}
+
+.pickle-icon-tile svg {
+  width: 72px;
+  height: 72px;
+}
+
+.pickle-tile-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.pickle-tile-label {
+  font-size: 40px;
+  font-weight: 566;
+  line-height: 1.1;
+  letter-spacing: -0.8px;
+  color: #000000;
+}
+
+.pickle-tile-detail {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.pickle-flow {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 40px 36px;
+  border-radius: 36px;
+  background: #f5f5f7;
+}
+
+.pickle-flow[data-direction="column"] {
+  flex-direction: column;
+  align-items: center;
+}
+
+.pickle-flow-node {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  text-align: center;
+}
+
+.pickle-flow[data-direction="column"] .pickle-flow-node {
+  flex: none;
+  width: min(360px, 100%);
+}
+
+.pickle-flow-node[data-emphasis="true"] {
+  background: #000000;
+  border-color: #000000;
+}
+
+.pickle-flow-node[data-emphasis="true"] .pickle-flow-title,
+.pickle-flow-node[data-emphasis="true"] .pickle-flow-detail {
+  color: #ffffff;
+}
+
+.pickle-flow-title {
+  font-size: 17px;
+  font-weight: 566;
+  line-height: 1.3;
+  letter-spacing: -0.17px;
+  color: #000000;
+}
+
+.pickle-flow-detail {
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.pickle-flow-arrow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.pickle-flow[data-direction="column"] .pickle-flow-arrow {
+  width: auto;
+  height: 32px;
+  transform: rotate(90deg);
+}
+
+.pickle-text ol.pickle-steps {
+  list-style: none;
+  counter-reset: pickle-step;
+  margin: 1.1em 0 0;
+  padding: 0;
+}
+
+.pickle-text ol.pickle-steps:first-child {
+  margin-top: 0;
+}
+
+.pickle-text ol.pickle-steps > li {
+  counter-increment: pickle-step;
+  position: relative;
+  margin: 0;
+  padding: 16px 0 16px 52px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pickle-text ol.pickle-steps > li:last-child {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pickle-text ol.pickle-steps > li::before {
+  content: counter(pickle-step);
+  position: absolute;
+  left: 0;
+  top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #f5f5f7;
+  font-size: 15px;
+  font-weight: 566;
+  font-variant-numeric: tabular-nums;
+  color: #000000;
+}
+
+.pickle-qa {
+  width: 600px;
+  max-width: 100%;
+  margin: 0;
+}
+
+.pickle-qa-item {
+  padding: 22px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pickle-qa-item:last-child {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pickle-qa dt {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 566;
+  line-height: 1.4;
+  letter-spacing: -0.18px;
+  color: #000000;
+}
+
+.pickle-qa dd {
+  margin: 8px 0 0;
+  font-size: 17px;
+  line-height: 1.5;
+  letter-spacing: -0.17px;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.pickle-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 64px 40px;
+  border-radius: 40px;
+  text-align: center;
+  background:
+    radial-gradient(90% 120% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 55%),
+    #f0f0f3;
+}
+
+.pickle-cta-title {
+  max-width: 620px;
+  margin: 0;
+  font-size: 32px;
+  font-weight: 566;
+  line-height: 1.3;
+  letter-spacing: -0.32px;
+  color: #000000;
+  text-wrap: balance;
+}
+
+.pickle-cta-line {
+  max-width: 560px;
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.5;
+  letter-spacing: -0.19px;
+  color: rgba(0, 0, 0, 0.62);
+  text-wrap: pretty;
+}
+
+.pickle-cta .pickle-actions {
+  margin-top: 0;
+}
+
+.pickle-code {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background: #1c1c1f;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 18px 40px -16px rgba(0, 0, 0, 0.35);
+}
+
+.pickle-code-pane {
+  background: #0d0d10;
+}
+
+.pickle-code-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 48px;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.pickle-code-dots {
+  display: inline-flex;
+  gap: 7px;
+}
+
+.pickle-code-dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.pickle-code pre {
+  margin: 0;
+  padding: 24px 28px 28px;
+  overflow-x: auto;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #e7e7ea;
+  white-space: pre;
+}
+
+.pickle-form-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 36px 40px 40px;
+  border-radius: 36px;
+  background: #f5f5f7;
+}
+
+.pickle-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
+  width: 100%;
+}
+
+.pickle-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.15px;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.pickle-field[data-span="full"] {
+  grid-column: 1 / -1;
+}
+
+.pickle-field input,
+.pickle-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  color: #000000;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pickle-field textarea {
+  resize: vertical;
+}
+
+.pickle-field input:focus,
+.pickle-field textarea:focus {
+  outline: none;
+  border-color: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
+}
+
+.pickle-form-error {
+  margin: 0;
+  font-size: 15px;
+  color: #b42318;
+}
+
+.pickle-log {
+  display: flex;
+  flex-direction: column;
+  width: 600px;
+  max-width: 100%;
+}
+
+.pickle-log > section {
+  position: relative;
+  width: 100%;
+  padding: 0 0 56px 36px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.pickle-log > section:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.pickle-log > section::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: #000000;
+  box-shadow: 0 0 0 5px #ffffff;
+}
+
+.pickle-legal-summary {
+  width: min(600px, 100%);
+  padding: 28px 32px;
+  border-radius: 28px;
+  background: #f5f5f7;
+}
+
+.pickle-legal-summary .pickle-h3 {
+  margin-bottom: 12px;
+}
+
+.pickle-legal-summary .pickle-text {
+  width: 100%;
+  font-size: 16.5px;
+}
+
+.pickle-legal-toc {
+  width: min(600px, 100%);
+  padding: 24px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pickle-legal-toc-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 566;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.pickle-legal-toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 2;
+  column-gap: 32px;
+}
+
+.pickle-legal-toc li {
+  break-inside: avoid;
+  padding: 4px 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.pickle-legal-toc a {
+  color: #000000;
+  text-decoration: none;
+  transition: opacity 0.1s ease;
+}
+
+.pickle-legal-toc a:hover {
+  opacity: 0.6;
+}
+
+.pickle-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 10;
+  border-radius: 28px;
+  background: #f5f5f7;
+}
+
+.pickle-swatch[data-tone="dark"] {
+  background: #0a0a0c;
+}
+
+@media (max-width: 700px) {
+  .pickle-lead {
+    width: 100%;
+    font-size: 17px;
+    text-wrap: pretty;
+  }
+
+  .pickle-intro {
+    width: 100%;
+    font-size: 16px;
+    letter-spacing: -0.16px;
+  }
+
+  .pickle-actions {
+    justify-content: flex-start;
+  }
+
+  .pickle-media,
+  .pickle-media[data-hero="true"] {
+    border-radius: 24px;
+  }
+
+  .pickle-media-grid,
+  .pickle-cards,
+  .pickle-link-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pickle-media-grid .pickle-media {
+    border-radius: 20px;
+  }
+
+  .pickle-link-cards {
+    gap: 36px;
+  }
+
+  .pickle-card {
+    padding: 22px 22px 24px;
+    border-radius: 22px;
+  }
+
+  .pickle-card-media {
+    margin: -6px -6px 10px;
+    border-radius: 16px;
+  }
+
+  .pickle-flow,
+  .pickle-flow[data-direction="column"] {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+    border-radius: 24px;
+  }
+
+  .pickle-flow[data-direction="column"] .pickle-flow-node {
+    width: 100%;
+  }
+
+  .pickle-flow-arrow {
+    width: auto;
+    height: 28px;
+    transform: rotate(90deg);
+  }
+
+  .pickle-code {
+    border-radius: 22px;
+  }
+
+  .pickle-form-panel {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .pickle-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pickle-legal-summary {
+    padding: 20px 20px;
+    border-radius: 22px;
+  }
+
+  .pickle-legal-toc ol {
+    columns: 1;
+  }
+
+  .pickle-code pre {
+    padding: 18px 18px 22px;
+    font-size: 12.5px;
+  }
+
+  .pickle-cta {
+    padding: 40px 22px;
+    border-radius: 28px;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .pickle-cta-title {
+    font-size: 24px;
+  }
+
+  .pickle-cta-line {
+    font-size: 17px;
+  }
+
+  .pickle-cta .pickle-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -2513,6 +3667,17 @@ input.range-minimal::-moz-range-track {
   color: var(--mp-text-2);
 }
 
+.mob-pricing-note {
+  margin: 0;
+  max-width: 34rem;
+  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--mp-text-3);
+  text-wrap: balance;
+}
+
 .mob-pricing-switch {
   position: relative;
   isolation: isolate;
@@ -2808,6 +3973,21 @@ input.range-minimal::-moz-range-track {
   color: var(--mp-blue);
 }
 
+/* /pricing page only (the landing section keeps its own rhythm) */
+.mob-pricing-grid[data-variant="page"] .mob-pricing-price {
+  margin-top: 12px;
+}
+
+.mob-pricing-grid[data-variant="page"] .mob-pricing-cta {
+  margin-top: 24px;
+}
+
+.mob-pricing-grid[data-variant="page"] .mob-pricing-features {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(0, 12, 31, 0.1);
+}
+
 .mob-pricing-meta {
   margin: 20px 0 0;
   text-align: center;
@@ -2922,4 +4102,198 @@ input.range-minimal::-moz-range-track {
   .mob-pricing-price-value {
     font-size: 40px;
   }
+}
+
+/* ============================================================================
+ * COMMUNITY — Discover, posts, @profiles (components/community/*).
+ * Pickle type (Suisse Intl body, ABC Diatype display) on app tokens: pages render
+ * inside `.app-themed`, so bg-white / neutral-* follow the light/dark toggle.
+ * ============================================================================ */
+.community-root {
+  font-family: "Suisse Intl", var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-neutral-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+.community-display {
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), sans-serif;
+  font-weight: 566;
+  letter-spacing: -0.02em;
+}
+
+/* Cards and panels: hairline + soft lift in light, hairline highlight in dark. */
+.community-surface {
+  background: var(--color-white);
+  border: 1px solid color-mix(in srgb, var(--color-neutral-200) 70%, transparent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -14px rgb(0 0 0 / 0.1);
+}
+.dark .community-surface {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 44px -24px rgb(0 0 0 / 0.8);
+}
+
+/* 3D stage behind models and covers: a quiet studio floor in both themes. */
+.community-stage {
+  background: radial-gradient(120% 90% at 50% 30%, #f7f9fc 0%, #e9eef5 100%);
+}
+.dark .community-stage {
+  background: radial-gradient(120% 90% at 50% 30%, #222228 0%, #121215 100%);
+}
+
+.community-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-neutral-600);
+  background: transparent;
+  border: 1px solid var(--color-neutral-200);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.community-chip:hover {
+  color: var(--color-neutral-900);
+  background: var(--color-neutral-50);
+}
+.community-chip[data-active="true"] {
+  color: var(--color-white);
+  background: var(--color-neutral-900);
+  border-color: var(--color-neutral-900);
+}
+
+@keyframes community-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes community-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.community-overlay-in {
+  animation: community-overlay-in 180ms ease-out both;
+}
+.community-pop-in {
+  animation: community-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .community-overlay-in,
+  .community-pop-in {
+    animation: none;
+  }
+}
+
+/* ============================================================================
+ * APP — Pickle look for the /app shell (components/app/AppAuthenticatedLayout).
+ * Scoped to `.app-pickle` so /workspace and marketing pages are untouched.
+ * Built on app tokens: the light/dark toggle keeps working.
+ * ============================================================================ */
+.app-pickle,
+.app-pickle .font-dm-sans {
+  font-family: "Suisse Intl", var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-pickle .app-content-page {
+  --app-content-px: clamp(16px, 4vw, 56px);
+  --app-content-py: clamp(20px, 3.4vw, 48px);
+}
+
+/* Page titles and section headings: ABC Diatype, like pickle.com */
+.app-pickle .app-content-page h1 {
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), sans-serif;
+  font-weight: 566;
+  font-size: clamp(30px, 1.6vw + 18px, 44px);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+}
+.app-pickle .app-content-page h2 {
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), sans-serif;
+  font-weight: 566;
+  letter-spacing: -0.015em;
+}
+
+/* Flat Pickle panels: soft fill, big radius, no border or drop shadow. */
+.app-panel {
+  border-radius: 24px;
+  background: var(--color-neutral-50);
+}
+.app-pickle .app-content-page [data-slot="card"] {
+  border-radius: 24px;
+  background: var(--color-neutral-50);
+  border-color: transparent;
+  box-shadow: none;
+}
+.app-pickle .app-content-page [data-slot="card"].border-dashed {
+  background: transparent;
+  border-color: var(--color-neutral-300);
+}
+.dark .app-panel,
+.dark .app-pickle .app-content-page [data-slot="card"] {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+/* Pickle buttons are pills. */
+.app-pickle [data-slot="button"] {
+  border-radius: 999px;
+}
+
+/* Sidebar: soft rail, ink pill for the current page. */
+.app-pickle .app-sidebar-root {
+  --sidebar-bg: #f6f8fb;
+  --sidebar-border: 216 33% 93%;
+  --nav-hover: rgb(10 10 11 / 0.05);
+  --nav-active-bg: #0a0a0b;
+  --nav-active-fg: #ffffff;
+  --nav-icon-active: #ffffff;
+  --card-bg: #ffffff;
+  --track-bg: #e9eef5;
+}
+.dark .app-pickle .app-sidebar-root {
+  --sidebar-bg: #0e0f11;
+  --sidebar-border: 0 0% 100% / 0.06;
+  --nav-hover: rgb(255 255 255 / 0.06);
+  --nav-active-bg: #fafafa;
+  --nav-active-fg: #0b0b0d;
+  --nav-icon-active: #0b0b0d;
+  --card-bg: rgb(255 255 255 / 0.045);
+  --track-bg: rgb(255 255 255 / 0.1);
+}
+.app-pickle .app-sidebar-root .sidebar-item {
+  min-height: 40px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-weight: 500;
+}
+.app-pickle .app-sidebar-root .sidebar-item.active {
+  font-weight: 600;
+}
+.app-pickle .app-sidebar-root .credits-card {
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -16px rgb(0 0 0 / 0.12);
+}
+.dark .app-pickle .app-sidebar-root .credits-card {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+/* Shared page frame. In a layer so a page's own max-w-* utility still wins (utilities > components). */
+@layer components {
+  /* Skip fixed overlays (modals rendered inline) so their backdrop still covers the whole screen. */
+  .app-pickle .app-content-page > :not(.fixed) {
+    width: 100%;
+    max-width: 1400px;
+    margin-inline: auto;
+  }
+}
+/* Hover is a tint with ink text; only the current page gets the inverted pill. */
+.app-pickle .app-sidebar-root .sidebar-item:not(.active):hover,
+.app-pickle .app-sidebar-root .sidebar-toggle:hover {
+  color: hsl(var(--sidebar-fg));
+}
+.app-pickle .app-sidebar-root .sidebar-item.active:hover {
+  background-color: var(--nav-active-bg);
+  color: var(--nav-active-fg);
+  opacity: 0.92;
 }

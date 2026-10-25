@@ -54,6 +54,8 @@ type Props = {
   selectedPart?: string | null;
   /** Part clicked in the canvas (null = empty space). */
   onPick?: (name: string | null) => void;
+  /** Mesh names hidden in the viewport; they still export. */
+  hiddenParts?: string[];
   onModelStats?: (stats: ModelMeshStats) => void;
   /** Camera move from the inspector; a new `id` replays the same view. */
   viewRequest?: { view: ViewerCameraView; id: number } | null;
@@ -71,7 +73,7 @@ type Props = {
 export type ExportFormat = "glb" | "gltf" | "obj" | "stl" | "png" | "ts";
 
 /** Bump when the sandbox message protocol changes so browsers don't reuse a stale cached iframe. */
-const WATER_SANDBOX_SRC = "/water-sandbox.html?v=5";
+const WATER_SANDBOX_SRC = "/water-sandbox.html?v=8";
 
 export type WaterViewerHandle = {
   exportFormat: (format: ExportFormat) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -151,6 +153,7 @@ export const WaterViewer = forwardRef<WaterViewerHandle, Props>(function WaterVi
     onParts,
     selectedPart = null,
     onPick,
+    hiddenParts,
     onModelStats,
     onInstanceTransform,
     viewRequest = null,
@@ -212,7 +215,13 @@ export const WaterViewer = forwardRef<WaterViewerHandle, Props>(function WaterVi
         setModelReady(true);
         onPartsRef.current?.(sanitizePartMaterials(data.parts));
         if (data.stats) {
-          const stats = data.stats as ModelMeshStats;
+          const raw = data.stats as ModelMeshStats;
+          // The sandbox runs generated code, so only trust a well-formed size.
+          const size =
+            Array.isArray(raw.size) && raw.size.length === 3 && raw.size.every((n) => typeof n === "number" && Number.isFinite(n))
+              ? raw.size
+              : undefined;
+          const stats: ModelMeshStats = { ...raw, size };
           setModelStats(stats);
           onModelStatsRef.current?.(stats);
         }
@@ -305,6 +314,12 @@ export const WaterViewer = forwardRef<WaterViewerHandle, Props>(function WaterVi
 
   useEffect(() => {
     const win = iframeRef.current?.contentWindow;
+    if (!win || !ready || !modelReady) return;
+    win.postMessage({ type: "water-visibility", hidden: hiddenParts ?? [] }, "*");
+  }, [hiddenParts, ready, modelReady]);
+
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow;
     if (!win || !ready) return;
     win.postMessage({ type: "water-look", look: resolvedLook }, "*");
   }, [resolvedLook, ready, modelReady]);
@@ -318,7 +333,7 @@ export const WaterViewer = forwardRef<WaterViewerHandle, Props>(function WaterVi
   useEffect(() => {
     const win = iframeRef.current?.contentWindow;
     if (!win || !ready || !modelReady || !viewRequest) return;
-    win.postMessage({ type: "water-view", view: viewRequest.view }, "*");
+    win.postMessage({ type: "water-view", view: viewRequest.view, name: selectedPart }, "*");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewRequest]);
 
@@ -401,7 +416,8 @@ export const WaterViewer = forwardRef<WaterViewerHandle, Props>(function WaterVi
   );
 
   return (
-    <div className={cn("@container relative h-full w-full overflow-hidden bg-white", className)}>
+    // App canvas behind the iframe, so a transparent backdrop matches the Cloud viewer in both themes.
+    <div className={cn("@container relative h-full w-full overflow-hidden bg-[var(--app-canvas)]", className)}>
       <iframe
         ref={iframeRef}
         title={`${ENGINE.water.label} preview`}
@@ -494,12 +510,12 @@ export const WaterViewer = forwardRef<WaterViewerHandle, Props>(function WaterVi
         </div>
       )}
       {error && (
-        <div className="absolute top-12 left-3 right-3 z-10 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div className="absolute top-12 left-3 right-3 z-10 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </div>
       )}
       {exportError && !error && (
-        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200">
           {exportError}
         </div>
       )}

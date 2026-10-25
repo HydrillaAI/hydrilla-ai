@@ -68,6 +68,11 @@ export const PUBLIC_ROUTES: Array<{
   { path: "/text-to-3d", changeFrequency: "monthly", priority: 0.9 },
   { path: "/image-to-3d", changeFrequency: "monthly", priority: 0.9 },
   { path: "/integrations", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/integrations/blender", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/integrations/unity", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/integrations/unreal", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/integrations/godot", changeFrequency: "monthly", priority: 0.5 },
+  { path: "/integrations/mcp", changeFrequency: "monthly", priority: 0.5 },
   { path: "/api", changeFrequency: "monthly", priority: 0.8 },
   { path: "/pricing", changeFrequency: "weekly", priority: 0.9 },
   { path: "/solutions", changeFrequency: "monthly", priority: 0.7 },
@@ -80,8 +85,16 @@ export const PUBLIC_ROUTES: Array<{
   { path: "/docs", changeFrequency: "monthly", priority: 0.7 },
   { path: "/faq", changeFrequency: "monthly", priority: 0.6 },
   { path: "/blog", changeFrequency: "weekly", priority: 0.5 },
+  { path: "/blog/reference-images", changeFrequency: "monthly", priority: 0.5 },
+  { path: "/blog/import-ai-meshes", changeFrequency: "monthly", priority: 0.5 },
   { path: "/changelog", changeFrequency: "weekly", priority: 0.5 },
   { path: "/compare", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/discover", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/community-guidelines", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/compare/meshy", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/compare/tripo", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/compare/hyper3d", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/compare/how-to-choose", changeFrequency: "monthly", priority: 0.6 },
   { path: "/about", changeFrequency: "monthly", priority: 0.7 },
   { path: "/research", changeFrequency: "monthly", priority: 0.7 },
   { path: "/team", changeFrequency: "monthly", priority: 0.5 },
@@ -100,6 +113,8 @@ type PageMetadataOptions = {
   /** Use for the homepage and sitelink titles to avoid the title template suffix. */
   absoluteTitle?: boolean;
   noIndex?: boolean;
+  /** Pages with no markdown mirror (user-generated content) skip the text/markdown alternate. */
+  noMarkdown?: boolean;
   keywords?: string[];
   ogImage?: string;
   ogTitle?: string;
@@ -121,6 +136,7 @@ export function createPageMetadata({
   path,
   absoluteTitle = false,
   noIndex = false,
+  noMarkdown = false,
   keywords,
   ogImage,
   ogTitle,
@@ -134,7 +150,7 @@ export function createPageMetadata({
     title: absoluteTitle ? { absolute: fullTitle } : title,
     description,
     keywords: keywords?.length ? keywords : undefined,
-    alternates: noIndex
+    alternates: noIndex || noMarkdown
       ? { canonical: url }
       : {
           canonical: url,

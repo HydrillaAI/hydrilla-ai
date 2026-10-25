@@ -1,82 +1,74 @@
-import UseCasePage from "../../../components/sections/UseCasePage";
-import Footer from "../../../components/layout/Footer";
+import { getKitJsonLd } from "@/lib/kit-schema";
+import Link from "next/link";
+import Footer from "@/components/layout/Footer";
+import { PickleCta, PickleHeroVideo } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { createPageMetadata, getUseCaseJsonLd } from "@/lib/seo";
-import { USECASE_HERO } from "@/lib/cloudinary";
+import { createPageMetadata } from "@/lib/seo";
 
 const DESCRIPTION =
-  "Turn product concepts into polished 3D for marketing, e-commerce, and digital storefronts. Export standard formats for your stack.";
-
-const DATA = {
-  id: "productdesign" as const,
-  headline: "Product visuals from concept to commerce",
-  heroImage: USECASE_HERO.prod,
-  capabilitiesHeading: "Built for product teams",
-  tagline:
-    "Marketing-ready 3D for packaging, campaigns, and digital storefronts.",
-  example:
-    "SKU-style product meshes for viewers and campaigns — a pack shot you can orbit, not a manufacturing drawing.",
-  features: [
-    {
-      title: "Clean product models",
-      body: "Generate detailed product forms for visualization and marketing.",
-    },
-    {
-      title: "Concept to presentation",
-      body: "Turn early ideas into assets design and marketing can share.",
-    },
-    {
-      title: "Commerce-ready exports",
-      body: "Download GLB and related formats for 3D viewers and digital storefronts.",
-    },
-    {
-      title: "Rapid variants",
-      body: "Explore color, material, and configuration options without remastering each asset.",
-    },
-  ],
-  who: [
-    {
-      role: "Product designers",
-      description: "Validate form and direction in 3D before physical prototyping.",
-    },
-    {
-      role: "Marketing teams",
-      description: "Build campaign visuals without a full studio shoot for every SKU.",
-    },
-    {
-      role: "E-commerce brands",
-      description: "Add 3D product views that help buyers decide with confidence.",
-    },
-    {
-      role: "Industrial designers",
-      description: "Iterate product forms faster in early concept phases.",
-    },
-  ],
-};
+  "Turn product photos into 3D models with BlueFox for marketing, web viewers, and AR, with a clear note on where a likeness differs from CAD.";
 
 export const metadata = createPageMetadata({
-  title: "AI 3D Assets for Product Visualization",
+  title: "AI 3D Product Models for E-commerce | Hydrilla AI",
   description: DESCRIPTION,
+  ogTitle: "Hydrilla for product visualization",
   path: "/solutions/product",
-  keywords: [
-    "AI product visualization",
-    "3D product models",
-    "e-commerce 3D assets",
-    "text to 3D product design",
-    "marketing 3D generation",
-  ],
-  ogImage: USECASE_HERO.prod,
+  absoluteTitle: true,
 });
 
-export default function ProductDesignPage() {
+export default function ProductSolutionPage() {
   return (
     <>
-      <JsonLd data={getUseCaseJsonLd({
-        name: "Product Visualization",
-        description: DESCRIPTION,
-        path: "/solutions/product",
-      })} />
-      <UseCasePage data={DATA} />
+      <JsonLd data={getKitJsonLd("/solutions/product")} />
+      <article className="pickle-article">
+        <header className="pickle-article-header">
+          <p className="pickle-article-kicker">Solutions</p>
+          <h1 className="pickle-article-title" data-wide="true">
+            3D product models from product photos
+          </h1>
+          <div className="pickle-lead">
+            <p>
+              Upload a product photo with <Link href="/image-to-3d">image to 3D</Link>, and BlueFox, Hydrilla&apos;s 3D model, builds a model in Hydrilla AI you can spin and light for storefronts and AR.
+            </p>
+          </div>
+        </header>
+
+        <div className="pickle-article-column">
+          <PickleHeroVideo />
+
+          <div className="pickle-intro">
+            <p>
+              Shoppers want to <strong>see a product from every side</strong> before they buy, and a photo set only goes so far. A model generated from your existing product photography gives marketing and ecommerce teams a 3D view to work with, without commissioning a full modeling job for every item in the range.
+            </p>
+          </div>
+
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">A likeness, not a CAD file</h2>
+            <div className="pickle-text">
+              <p>
+                A generated model follows what the photo shows, so treat it as a likeness rather than an engineering replica; for exact dimensions, start from your CAD source (<Link href="/bluefox#limits">limits</Link>). Results improve with a clean, well-lit photo, and the{" "}
+                <Link href="/blog/reference-images">reference guide</Link> shows how to shoot one.
+              </p>
+            </div>
+          </section>
+
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">For web viewers and AR</h2>
+            <div className="pickle-text">
+              <p>
+                Check file size before you embed, since storefront pages load on phones too. Review the model under the same light as your product photography, so color and material match what customers see elsewhere in the listing.{" "}
+                <Link href="/features#exports">Which file suits web and AR</Link>
+              </p>
+            </div>
+          </section>
+
+          <PickleCta
+            line="Show the product in 3D, and keep the spec sheet as the source of truth."
+            primary={{ label: "Start generating", href: "/app/studio" }}
+            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+          />
+        </div>
+      </article>
       <Footer />
     </>
   );

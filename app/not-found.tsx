@@ -60,7 +60,7 @@ function DesktopNotFound() {
               className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#000c1f] px-6 py-2.5 text-[0.95rem] font-medium text-white transition-opacity hover:opacity-90 active:scale-[0.98]"
               style={{ fontFamily: SANS_FONT }}
             >
-              Back to Home →
+              Back to Home
             </Link>
             <Link
               href="/app/studio"

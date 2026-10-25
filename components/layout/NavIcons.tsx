@@ -75,6 +75,14 @@ export function NavIcon({ name, className }: IconProps) {
           <path d="M16 12v8M16 12l-3 3M16 12l3 3" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </Glyph>
       );
+    case "water":
+      return (
+        <Glyph className={className}>
+          <rect x="4" y="5" width="24" height="22" rx="7" fill="#E0F2FE" />
+          <path d="M16 8c3.6 4.4 5.6 7.4 5.6 10a5.6 5.6 0 11-11.2 0C10.4 15.4 12.4 12.4 16 8z" fill="#0EA5E9" />
+          <path d="M13.4 19.2a2.8 2.8 0 002.2 2.6" stroke="#E0F2FE" strokeWidth="1.6" strokeLinecap="round" />
+        </Glyph>
+      );
     case "api":
       return (
         <Glyph className={className}>

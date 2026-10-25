@@ -1,26 +1,15 @@
 import type { ReactNode } from "react";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { createPageMetadata, getWebPageJsonLd } from "@/lib/seo";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Hydrilla Enterprise — Studio Pipelines, Seats, and API",
+  title: "Enterprise: AI 3D for Studio Pipelines | Hydrilla AI",
   description:
-    "Volume generation, team seats, and BlueFox 1 API access for studios. Custom plans and pipeline support.",
+    "Team seats, API concurrency, custom plans, and pipeline support for studios generating 3D with BlueFox at volume. Book a demo.",
+  ogTitle: "Hydrilla for studios and enterprise teams",
   path: "/enterprise",
   absoluteTitle: true,
 });
 
 export default function EnterpriseLayout({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <JsonLd
-        data={getWebPageJsonLd({
-          name: "Hydrilla Enterprise — Studio Pipelines, Seats, and API",
-          description: metadata.description as string,
-          path: "/enterprise",
-        })}
-      />
-      {children}
-    </>
-  );
+  return children;
 }

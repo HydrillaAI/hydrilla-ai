@@ -37,7 +37,7 @@ export function IntegrationCard({ item }: { item: Integration }) {
       </div>
       <p className="mt-2.5 text-[14px] leading-6 text-neutral-600">{item.summary}</p>
       <span className="mt-3 inline-flex text-[13px] font-semibold text-neutral-950 transition group-hover:translate-x-0.5">
-        Details →
+        Details
       </span>
     </Link>
   );

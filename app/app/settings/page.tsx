@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Eye,
   EyeOff,
@@ -45,11 +45,11 @@ import { SlotHours } from "@/components/app/SlotHours";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export default function SettingsPage() {
   const { getToken, isSignedIn, isLoaded } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [keys, setKeys] = useState<UserApiKeyMeta[]>([]);
   const [sharedKeys, setSharedKeys] = useState<UserApiKeyMeta[]>([]);
   const [connectors, setConnectors] = useState<ConnectorPublic[]>([]);
@@ -94,113 +94,170 @@ export default function SettingsPage() {
     void load();
   }, [isLoaded, isSignedIn]);
 
+  const selectSection = (next: "models" | "billing") => {
+    setSection(next);
+    router.replace(next === "billing" ? "/app/settings?section=billing" : "/app/settings", { scroll: false });
+  };
+
   return (
     <div className="app-content-page font-dm-sans bg-[var(--app-canvas)]">
-      <div className="mx-auto w-full max-w-2xl space-y-6">
-        <header>
-          <p className="text-[11px] sm:text-xs font-medium text-neutral-400 tracking-[0.14em] uppercase">
-            Account
-          </p>
-          <h1 className="mt-1.5 text-[28px] sm:text-[32px] font-semibold text-neutral-900 tracking-[-0.03em]">
-            Settings
-          </h1>
-          <p className="mt-2 text-sm text-neutral-500">
-            {section === "billing" ? "Plan and payments for this account." : "Keys and models for Water."}
-          </p>
+      <div className="mx-auto w-full max-w-5xl">
+        <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-neutral-400">Account</p>
+            <h1 className="mt-2 text-neutral-900">Settings</h1>
+            <p className="mt-2.5 text-[15px] text-neutral-500">
+              {section === "billing" ? "Your plan, payments and credit grants." : "Provider keys and the models Water can use."}
+            </p>
+          </div>
+          <div role="tablist" aria-label="Settings sections" className="inline-flex self-start rounded-full bg-neutral-100 p-1 sm:self-auto">
+            {([
+              ["models", "Models & keys"],
+              ["billing", "Billing"],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={section === id}
+                onClick={() => selectSection(id)}
+                className={cn(
+                  "h-9 rounded-full px-4 text-[13px] font-semibold transition-colors",
+                  section === id
+                    ? "bg-white text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                    : "text-neutral-500 hover:text-neutral-900"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </header>
 
-        <div className="inline-flex rounded-full border border-neutral-200 bg-white p-1">
-          {([
-            ["models", "Models"],
-            ["billing", "Billing"],
-          ] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setSection(id)}
-              className={cn(
-                "h-9 rounded-full px-4 text-sm font-medium transition-colors",
-                section === id ? "bg-neutral-900 text-white" : "text-neutral-500 hover:text-neutral-900"
+        <div className="mt-10 flex flex-col">
+          {section === "billing" ? (
+            <BillingSection />
+          ) : (
+            <>
+              {error && <ErrorBanner message={error} />}
+              {loading ? (
+                <div className="app-panel flex items-center justify-center gap-2 py-16 text-sm text-neutral-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading settings…
+                </div>
+              ) : (
+                <>
+                  <SettingsSection
+                    first
+                    title="Provider keys"
+                    description="Bring your own keys for Water. Only the last four characters are ever shown again."
+                  >
+                    <div className="app-panel divide-y divide-neutral-200/70 overflow-hidden">
+                      {(connectors.length ? connectors : FALLBACK_CONNECTORS).map((p) => (
+                        <ApiKeyCard
+                          key={p.id}
+                          connector={p}
+                          meta={keys.find((k) => (k.provider === "gemini" ? "google" : k.provider) === p.id)}
+                          shared={sharedKeys.find((k) => (k.provider === "gemini" ? "google" : k.provider) === p.id)}
+                          onChanged={load}
+                        />
+                      ))}
+                    </div>
+                  </SettingsSection>
+
+                  <SettingsSection title="Models" description="Choose which models show up in the Water engine picker.">
+                    <WaterModelSlots
+                      keys={keys}
+                      sharedKeys={sharedKeys}
+                      connectors={connectors.length ? connectors : FALLBACK_CONNECTORS}
+                      defaultCodeModel={(migrateCodeModelId(prefs?.defaultCodeModel) as ModelId) || null}
+                      serverEnabled={prefs?.enabledCodeModels}
+                      onDefaultSaved={async (id) => {
+                        const tokenGetter = async () => (await getToken()) ?? null;
+                        const next = await saveUserModelPrefs(
+                          { defaultCodeModel: migrateCodeModelId(id) || id },
+                          tokenGetter
+                        );
+                        setPrefs(next);
+                      }}
+                      onEnabledSaved={async (ids) => {
+                        const tokenGetter = async () => (await getToken()) ?? null;
+                        try {
+                          const next = await saveUserModelPrefs({ enabledCodeModels: ids }, tokenGetter);
+                          setPrefs(next);
+                        } catch {
+                          // localStorage already updated; SQL 008 may not be applied yet
+                        }
+                      }}
+                    />
+                  </SettingsSection>
+
+                  <SettingsSection title="Limits & credits" description="What each engine costs and where its limits come from.">
+                    <LimitsCard />
+                  </SettingsSection>
+                </>
               )}
-            >
-              {label}
-            </button>
-          ))}
+            </>
+          )}
         </div>
-
-        {section === "billing" ? (
-          <BillingSection />
-        ) : (
-          <>
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <Card>
-            <CardContent className="flex items-center justify-center gap-2 py-12 text-sm text-neutral-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading…
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <section className="space-y-3">
-              <div className="flex items-end justify-between gap-3 px-0.5">
-                <h2 className="text-sm font-semibold text-neutral-900">API keys</h2>
-                <Link
-                  href="/app/studio"
-                  className="text-xs font-medium text-neutral-500 hover:text-neutral-900"
-                >
-                  Back to Studio
-                </Link>
-              </div>
-              {(connectors.length ? connectors : FALLBACK_CONNECTORS).map((p) => (
-                <ApiKeyCard
-                  key={p.id}
-                  connector={p}
-                  meta={keys.find((k) => (k.provider === "gemini" ? "google" : k.provider) === p.id)}
-                  shared={sharedKeys.find((k) => (k.provider === "gemini" ? "google" : k.provider) === p.id)}
-                  onChanged={load}
-                />
-              ))}
-            </section>
-
-            <WaterModelSlots
-              keys={keys}
-              sharedKeys={sharedKeys}
-              connectors={connectors.length ? connectors : FALLBACK_CONNECTORS}
-              defaultCodeModel={(migrateCodeModelId(prefs?.defaultCodeModel) as ModelId) || null}
-              serverEnabled={prefs?.enabledCodeModels}
-              onDefaultSaved={async (id) => {
-                const tokenGetter = async () => (await getToken()) ?? null;
-                const next = await saveUserModelPrefs(
-                  { defaultCodeModel: migrateCodeModelId(id) || id },
-                  tokenGetter
-                );
-                setPrefs(next);
-              }}
-              onEnabledSaved={async (ids) => {
-                const tokenGetter = async () => (await getToken()) ?? null;
-                try {
-                  const next = await saveUserModelPrefs({ enabledCodeModels: ids }, tokenGetter);
-                  setPrefs(next);
-                } catch {
-                  // localStorage already updated; SQL 008 may not be applied yet
-                }
-              }}
-            />
-
-            <LimitsCard />
-          </>
-        )}
-        </>
-        )}
       </div>
     </div>
+  );
+}
+
+/** Settings row: heading + description on the left, content on the right (stacked on phones). */
+function SettingsSection({
+  title,
+  description,
+  children,
+  first = false,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  first?: boolean;
+}) {
+  return (
+    <section
+      className={cn(
+        "grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12",
+        !first && "mt-10 border-t border-neutral-200/70 pt-10"
+      )}
+    >
+      <div className="min-w-0">
+        <h2 className="text-[19px] leading-tight text-neutral-900">{title}</h2>
+        {description && <p className="mt-1.5 text-[14px] leading-relaxed text-neutral-500">{description}</p>}
+      </div>
+      <div className="min-w-0 space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="mb-8 flex items-start gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+      {message}
+    </div>
+  );
+}
+
+const TH = "border-b border-neutral-200 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400";
+const TD = "border-b border-neutral-200/60 px-4 py-3 align-middle text-[13px] text-neutral-700";
+const TABLE = "w-full min-w-[520px] table-fixed border-separate border-spacing-0 text-left [&_tbody_tr:last-child_td]:border-b-0";
+
+function Pill({ tone, children }: { tone: "green" | "red" | "amber" | "neutral" | "sky"; children: React.ReactNode }) {
+  const tones = {
+    green: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    red: "bg-red-500/10 text-red-600 dark:text-red-400",
+    amber: "bg-amber-500/12 text-amber-700 dark:text-amber-400",
+    neutral: "bg-neutral-200/70 text-neutral-600",
+    sky: "bg-[var(--hyd-100)] text-neutral-800",
+  } as const;
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold", tones[tone])}>
+      {children}
+    </span>
   );
 }
 
@@ -473,53 +530,153 @@ function BillingSection() {
   const currentPlanMeta = getCurrentPlanDetails(canonicalPlan);
   const upgradeOptions = getUpgradeOptions(canonicalPlan);
 
-  return (
-    <div className="space-y-4">
-      <SlotHours getToken={getToken} active={plan === "slot" || plan === "slot_pro"} />
+  const planBadge = isTrial
+    ? { tone: "amber" as const, label: cancelAtPeriodEnd ? "Trial ending" : "14-day free trial" }
+    : plan && cancelAtPeriodEnd
+      ? { tone: "amber" as const, label: "Ending" }
+      : { tone: "sky" as const, label: "Current plan" };
 
-      <Card>
-        <CardHeader className="px-5 pt-5 pb-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-400">Payment history</p>
-        </CardHeader>
-        <CardContent className="px-5 pb-5 pt-3">
-          {error && (
-            <p className="mb-3 text-sm text-red-700">{error}</p>
-          )}
+  const planStatusText =
+    isTrial && cancelAtPeriodEnd
+      ? `Your free trial ends on ${accessLabel || "the end of the trial period"}. You won't be charged.`
+      : isTrial
+        ? `You're on a 14-day free trial. Billing of ${currentPlanMeta.priceLabel} starts ${renewLabel || "when the trial ends"}. Cancel anytime before then at no charge.`
+        : plan && cancelAtPeriodEnd
+          ? `You keep ${planDisplayLabel(plan)} until ${accessLabel || "the end of this period"}. It won't renew.`
+          : !plan && pastPlan
+            ? `Your previous ${planDisplayLabel(pastPlan)} plan ended. You're on the Free plan with 100 monthly credits.`
+            : currentPlanMeta.description;
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+  return (
+    <>
+      {error && <ErrorBanner message={error} />}
+
+      <SettingsSection first title="Current plan" description="What you're on today and when it renews.">
+        {loading ? (
+          <div className="app-panel space-y-3 p-6">
+            <div className="studio-skeleton h-7 w-40 rounded-full" />
+            <div className="studio-skeleton h-4 w-72 max-w-full rounded-full" />
+          </div>
+        ) : (
+          <div className="app-panel p-5 sm:p-6">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h3 className="community-display text-[26px] leading-tight text-neutral-900">{currentPlanMeta.name}</h3>
+              <Pill tone={planBadge.tone}>{planBadge.label}</Pill>
+              <span className="ml-auto text-[15px] font-semibold tabular-nums text-neutral-900">{currentPlanMeta.priceLabel}</span>
+            </div>
+            <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-neutral-600">{planStatusText}</p>
+
+            <div className="mt-5 flex flex-col gap-1 rounded-2xl bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <p className="text-[14px] font-semibold text-neutral-900">{currentPlanMeta.quotaTitle}</p>
+              <p className="text-[12px] text-neutral-500">
+                {plan && !cancelAtPeriodEnd && renewLabel
+                  ? `Renews ${renewLabel}`
+                  : plan && cancelAtPeriodEnd && accessLabel
+                    ? `Active until ${accessLabel}`
+                    : "Resets monthly"}
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <Link
+                href="/app/usage"
+                className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-5 text-[13px] font-semibold text-white transition-colors hover:bg-neutral-700"
+              >
+                View usage
+              </Link>
+              {plan && !cancelAtPeriodEnd ? (
+                <button
+                  type="button"
+                  onClick={() => void cancelRenewal()}
+                  disabled={cancelling}
+                  className="inline-flex h-10 items-center rounded-full border border-neutral-200 bg-white px-5 text-[13px] font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-red-600 disabled:opacity-50"
+                >
+                  {cancelling ? "Cancelling…" : isTrial ? "Cancel free trial" : "Cancel renewal"}
+                </button>
+              ) : !plan ? (
+                <Link
+                  href="/app/pricing"
+                  className="inline-flex h-10 items-center rounded-full border border-neutral-200 bg-white px-5 text-[13px] font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  Compare plans
+                </Link>
+              ) : (
+                <Pill tone="amber">Cancellation scheduled</Pill>
+              )}
+            </div>
+          </div>
+        )}
+        <SlotHours getToken={getToken} active={plan === "slot" || plan === "slot_pro"} />
+      </SettingsSection>
+
+      {!loading && upgradeOptions.length > 0 && (
+        <SettingsSection title="Change plan" description="More generations, plugins or a different daily window.">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {upgradeOptions.map((option) => (
+              <div key={option.id} className="app-panel flex flex-col p-5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="community-display text-[19px] text-neutral-900">{option.name}</h3>
+                  <span className="text-[13px] font-semibold tabular-nums text-neutral-500">{option.priceLabel}</span>
+                </div>
+                <p className="mt-2 flex-1 text-[13px] leading-relaxed text-neutral-500">{option.description}</p>
+                <Link
+                  href={option.href}
+                  className="mt-5 inline-flex h-9 items-center justify-center self-start rounded-full bg-neutral-900 px-4 text-[13px] font-semibold text-white transition-colors hover:bg-neutral-700"
+                >
+                  {option.cta}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </SettingsSection>
+      )}
+
+      <SettingsSection title="Payment history" description="Receipts for every charge on this account.">
+        <div className="app-panel overflow-hidden">
           {loading ? (
-            <div className="flex items-center gap-2 py-6 text-sm text-neutral-500">
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-neutral-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading payments…
             </div>
           ) : payments.length === 0 ? (
-            <p className="py-6 text-sm text-neutral-500">No payments on this account yet.</p>
+            <p className="py-12 text-center text-sm text-neutral-500">No payments on this account yet.</p>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-neutral-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-400">
+            <div className="overflow-x-auto p-2 sm:p-3">
+              <table className={TABLE}>
+                <colgroup>
+                  <col className="w-[26%]" />
+                  <col className="w-[34%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
+                <thead>
                   <tr>
-                    <th className="px-3 py-2 font-semibold">Date</th>
-                    <th className="px-3 py-2 font-semibold">Plan</th>
-                    <th className="px-3 py-2 font-semibold">Amount</th>
-                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className={TH}>Date</th>
+                    <th className={TH}>Plan</th>
+                    <th className={TH}>Status</th>
+                    <th className={cn(TH, "text-right")}>Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100 text-neutral-700">
+                <tbody>
                   {payments.map((payment) => (
                     <tr key={payment.id}>
-                      <td className="px-3 py-2.5">
-                        {new Date(payment.createdAt).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
+                      <td className={cn(TD, "whitespace-nowrap tabular-nums text-neutral-500")}>{fmtDate(payment.createdAt)}</td>
+                      <td className={TD}>
+                        <p className="font-medium text-neutral-900">{receiptPlan(payment.plan)}</p>
+                        <p className="mt-0.5 truncate font-mono text-[11px] text-neutral-400" title={payment.paymentId}>
+                          {payment.paymentId}
+                        </p>
                       </td>
-                      <td className="px-3 py-2.5 font-medium text-neutral-900">{receiptPlan(payment.plan)}</td>
-                      <td className="px-3 py-2.5 tabular-nums">{formatCharge(payment.amount, payment.currency)}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={cn(payment.status === "failed" ? "text-red-700" : "text-neutral-700")}>
+                      <td className={TD}>
+                        <Pill tone={payment.status === "succeeded" ? "green" : payment.status === "failed" ? "red" : "amber"}>
                           {receiptStatus(payment.status)}
-                        </span>
-                        <p className="mt-0.5 text-[11px] text-neutral-400">{payment.paymentId}</p>
+                        </Pill>
+                      </td>
+                      <td className={cn(TD, "text-right font-semibold tabular-nums text-neutral-900")}>
+                        {formatCharge(payment.amount, payment.currency)}
                       </td>
                     </tr>
                   ))}
@@ -527,50 +684,45 @@ function BillingSection() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
 
-      <Card>
-        <CardHeader className="px-5 pt-5 pb-0">
-          <h2 className="text-[15px] font-semibold tracking-tight text-neutral-900">Rewards & grants</h2>
-        </CardHeader>
-        <CardContent className="px-5 pb-5 pt-3">
+      <SettingsSection title="Rewards & grants" description="Bonus credits from reward links and the Hydrilla team.">
+        <div className="app-panel overflow-hidden">
           {loading ? (
-            <div className="flex items-center gap-2 py-6 text-sm text-neutral-500">
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-neutral-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading rewards…
             </div>
           ) : rewards.length === 0 ? (
-            <p className="py-6 text-sm text-neutral-500">No claimed rewards yet.</p>
+            <p className="py-12 text-center text-sm text-neutral-500">No claimed rewards yet.</p>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-neutral-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-400">
+            <div className="overflow-x-auto p-2 sm:p-3">
+              <table className={TABLE}>
+                <colgroup>
+                  <col className="w-[26%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[36%]" />
+                  <col className="w-[18%]" />
+                </colgroup>
+                <thead>
                   <tr>
-                    <th className="px-3 py-2 font-semibold">Date</th>
-                    <th className="px-3 py-2 font-semibold">Type</th>
-                    <th className="px-3 py-2 font-semibold">Reason</th>
-                    <th className="px-3 py-2 font-semibold">Credits</th>
+                    <th className={TH}>Date</th>
+                    <th className={TH}>Source</th>
+                    <th className={TH}>Reason</th>
+                    <th className={cn(TH, "text-right")}>Credits</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100 text-neutral-700">
+                <tbody>
                   {rewards.map((reward) => (
                     <tr key={reward.id}>
-                      <td className="px-3 py-2.5">
-                        {new Date(reward.createdAt).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </td>
-                      <td className="px-3 py-2.5 font-medium text-neutral-900">
-                        {rewardSourceLabel(reward.source)}
-                      </td>
-                      <td className="px-3 py-2.5 text-neutral-600">
+                      <td className={cn(TD, "whitespace-nowrap tabular-nums text-neutral-500")}>{fmtDate(reward.createdAt)}</td>
+                      <td className={cn(TD, "font-medium text-neutral-900")}>{rewardSourceLabel(reward.source)}</td>
+                      <td className={cn(TD, "truncate text-neutral-600")} title={reward.reason || undefined}>
                         {reward.reason || "—"}
                       </td>
-                      <td className="px-3 py-2.5 tabular-nums font-medium text-emerald-700">
-                        +{reward.amount}
+                      <td className={cn(TD, "text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400")}>
+                        +{reward.amount.toLocaleString()}
                       </td>
                     </tr>
                   ))}
@@ -578,180 +730,50 @@ function BillingSection() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Compact plan & upgrade cards at the end of billing */}
-      {!loading && (
-        <section className="space-y-3 pt-1" aria-label="Plan options">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {upgradeOptions.map((option) => (
-              <div
-                key={option.id}
-                className="flex flex-col justify-between rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
-              >
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-neutral-900">
-                      {option.name}
-                    </h3>
-                    <span className="text-[13px] font-medium text-neutral-400 tabular-nums">
-                      {option.priceLabel}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-neutral-500">
-                    {option.description}
-                  </p>
-                </div>
-                <div className="mt-4">
-                  <Link
-                    href={option.href}
-                    className="inline-flex h-8 items-center rounded-lg bg-neutral-900 px-3.5 text-[12px] font-medium text-white transition-colors hover:bg-neutral-800"
-                  >
-                    {option.cta}
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] sm:grid-cols-2 sm:items-stretch">
-            <div className="flex flex-col justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-neutral-900">
-                    {currentPlanMeta.name}
-                  </h3>
-                  <span
-                    className={cn(
-                      "rounded-md px-2 py-0.5 text-[11px] font-medium",
-                      isTrial
-                        ? "bg-amber-500/10 text-amber-700 border border-amber-500/20"
-                        : plan && cancelAtPeriodEnd
-                        ? "bg-amber-50 text-amber-700 border border-amber-200"
-                        : "bg-neutral-100 text-neutral-600"
-                    )}
-                  >
-                    {isTrial ? (cancelAtPeriodEnd ? "Trial Ending" : "14-Day Free Trial") : plan && cancelAtPeriodEnd ? "Ending" : "Current"}
-                  </span>
-                  <span className="text-[13px] font-medium text-neutral-400 tabular-nums">
-                    {currentPlanMeta.priceLabel}
-                  </span>
-                </div>
-                <p className="mt-2 text-[13px] leading-relaxed text-neutral-500">
-                  {isTrial && cancelAtPeriodEnd
-                    ? `Your 14-day free trial will end on ${accessLabel || "the end of the trial period"}. You will not be charged.`
-                    : isTrial
-                    ? `You are currently on a 14-day free trial. Your first billing of ${currentPlanMeta.priceLabel} begins on ${renewLabel || "the end of the trial period"}. Cancel anytime before then at no charge.`
-                    : plan && cancelAtPeriodEnd
-                    ? `You keep ${planDisplayLabel(plan)} until ${accessLabel || "the end of this period"}. It will not renew.`
-                    : !plan && pastPlan
-                    ? `Your previous ${planDisplayLabel(pastPlan)} plan ended. You are currently on the Free plan with 100 monthly credits.`
-                    : currentPlanMeta.description}
-                </p>
-              </div>
-
-              <div className="mt-6 pt-1">
-                {plan && !cancelAtPeriodEnd ? (
-                  <button
-                    type="button"
-                    onClick={() => void cancelRenewal()}
-                    disabled={cancelling}
-                    className="inline-flex h-8 items-center rounded-lg border border-neutral-200 bg-white px-3 text-[12px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-50"
-                  >
-                    {cancelling ? "Cancelling…" : isTrial ? "Cancel Free Trial" : "Adjust Plan"}
-                  </button>
-                ) : !plan ? (
-                  <Link
-                    href="/app/pricing"
-                    className="inline-flex h-8 items-center rounded-lg border border-neutral-200 bg-white px-3 text-[12px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-neutral-900"
-                  >
-                    Adjust Plan
-                  </Link>
-                ) : (
-                  <span className="inline-flex h-8 items-center rounded-lg border border-amber-200 bg-amber-50/70 px-3 text-[12px] font-medium text-amber-800">
-                    Cancellation scheduled
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-between rounded-xl border border-neutral-200/70 bg-neutral-50/70 p-4">
-              <div>
-                <p className="text-[14px] font-semibold tracking-[-0.01em] text-neutral-900">
-                  {currentPlanMeta.quotaTitle}
-                </p>
-                <div
-                  aria-hidden
-                  className="my-2.5 border-b border-dotted border-neutral-300"
-                />
-                <p className="text-[12px] leading-relaxed text-neutral-500">
-                  {plan && !cancelAtPeriodEnd && renewLabel
-                    ? `Renews ${renewLabel} · View your credit breakdown and Water BYOK usage`
-                    : plan && cancelAtPeriodEnd && accessLabel
-                    ? `Active until ${accessLabel} · Will not renew`
-                    : "Go beyond or monitor your plan's included quota in the usage dashboard"}
-                </p>
-              </div>
-              <div className="mt-4">
-                <Link
-                  href="/app/usage"
-                  className="inline-flex h-8 items-center rounded-lg bg-neutral-900 px-3.5 text-[12px] font-medium text-white transition-colors hover:bg-neutral-800"
-                >
-                  View Usage
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-    </div>
+        </div>
+      </SettingsSection>
+    </>
   );
 }
 
 function LimitsCard() {
+  const rows = [
+    ["Hydrilla cloud", "2–10 Hydrilla credits", "Your plan balance"],
+    ["Water", "0 Hydrilla credits", "Your provider key"],
+    ["OpenRouter free", "$0 · your key", "~50/day · ~20/min"],
+  ];
   return (
-    <Card>
-      <CardHeader className="px-5 pt-5 pb-0">
-        <h2 className="text-[15px] font-semibold tracking-tight text-neutral-900">
-          Limits & credits
-        </h2>
-      </CardHeader>
-      <CardContent className="px-5 pb-5 pt-3">
-        <div className="overflow-hidden rounded-xl border border-neutral-200">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-400">
-              <tr>
-                <th className="px-3 py-2 font-semibold">Engine</th>
-                <th className="px-3 py-2 font-semibold">Cost</th>
-                <th className="px-3 py-2 font-semibold">Limit</th>
+    <div className="app-panel overflow-hidden">
+      <div className="overflow-x-auto p-2 sm:p-3">
+        <table className={TABLE}>
+          <colgroup>
+            <col className="w-[34%]" />
+            <col className="w-[33%]" />
+            <col className="w-[33%]" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className={TH}>Engine</th>
+              <th className={TH}>Cost</th>
+              <th className={TH}>Limit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([engine, cost, limit]) => (
+              <tr key={engine}>
+                <td className={cn(TD, "font-medium text-neutral-900")}>{engine}</td>
+                <td className={TD}>{cost}</td>
+                <td className={TD}>{limit}</td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100 text-neutral-700">
-              <tr>
-                <td className="px-3 py-2.5 font-medium text-neutral-900">Hydrilla cloud</td>
-                <td className="px-3 py-2.5">2–10 Hydrilla credits</td>
-                <td className="px-3 py-2.5">Your plan balance</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2.5 font-medium text-neutral-900">Water</td>
-                <td className="px-3 py-2.5">0 Hydrilla credits</td>
-                <td className="px-3 py-2.5">Your provider key</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2.5 font-medium text-neutral-900">OpenRouter free</td>
-                <td className="px-3 py-2.5">$0 · your key</td>
-                <td className="px-3 py-2.5">~50/day · ~20/min</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-3 text-[12px] text-neutral-500 leading-relaxed">
-          One Water build uses 2 provider requests (up to 4 if a quality gate retries).
-          After a one-time $10 OpenRouter credit purchase, free-model daily limit rises to ~1,000.
-        </p>
-      </CardContent>
-    </Card>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="border-t border-neutral-200/70 px-5 py-4 text-[12px] leading-relaxed text-neutral-500">
+        One Water build uses 2 provider requests (up to 4 if a quality gate retries). After a one-time $10 OpenRouter
+        credit purchase, the free-model daily limit rises to ~1,000.
+      </p>
+    </div>
   );
 }
 
@@ -824,12 +846,11 @@ function ApiKeyCard({
   };
 
   return (
-    <Card>
-      <CardContent className="p-5 space-y-4">
+    <div className="space-y-3.5 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-[15px] font-semibold tracking-tight text-neutral-900">
+              <h3 className="text-[15px] font-semibold text-neutral-900">
                 {connector.name}
               </h3>
               {docs && (
@@ -861,7 +882,7 @@ function ApiKeyCard({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={configured ? `••••••••${meta?.last4 || ""}` : placeholder}
-              className="h-10 rounded-xl pr-10"
+              className="h-10 rounded-full bg-white pl-4 pr-10"
               autoComplete="off"
               onKeyDown={(e) => {
                 if (e.key === "Enter") void handleSave();
@@ -880,7 +901,7 @@ function ApiKeyCard({
             type="button"
             onClick={() => void handleSave()}
             disabled={!value.trim() || busy !== null}
-            className="h-10 rounded-xl px-4"
+            className="h-10 min-w-[76px] rounded-full px-5"
           >
             {busy === "save" ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -937,8 +958,7 @@ function ApiKeyCard({
             , ensure billing/credits are active, then Save and Verify.
           </p>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 
@@ -951,32 +971,10 @@ function StatusPill({
   status: string;
   last4?: string | null;
 }) {
-  if (!configured) {
-    return (
-      <span className="rounded-md bg-neutral-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-        Not set
-      </span>
-    );
-  }
-  if (status === "valid") {
-    return (
-      <span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-        Valid{last4 ? ` · ${last4}` : ""}
-      </span>
-    );
-  }
-  if (status === "invalid") {
-    return (
-      <span className="rounded-md bg-red-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
-        Invalid
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-md bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-      Unchecked
-    </span>
-  );
+  if (!configured) return <Pill tone="neutral">Not set</Pill>;
+  if (status === "valid") return <Pill tone="green">Valid{last4 ? ` · ${last4}` : ""}</Pill>;
+  if (status === "invalid") return <Pill tone="red">Invalid</Pill>;
+  return <Pill tone="amber">Unchecked</Pill>;
 }
 
 function WaterModelSlots({
@@ -1031,11 +1029,9 @@ function WaterModelSlots({
 
   if (!hasAccess && !groups.length && !syncing) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 text-[15px] text-neutral-500">
-          Save a key above. Models for that provider will show up here.
-        </CardContent>
-      </Card>
+      <div className="rounded-[24px] border border-dashed border-neutral-300 p-6 text-[14px] text-neutral-500">
+        Save a provider key above and its models will show up here.
+      </div>
     );
   }
 
@@ -1053,69 +1049,62 @@ function WaterModelSlots({
   };
 
   return (
-    <section className="space-y-3">
-      <h2 className="px-0.5 text-sm font-semibold text-neutral-900">Models</h2>
-      <Card className="overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-3">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Add or search model"
-              className="h-12 rounded-xl border-neutral-200 pl-10 text-[15px]"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => void loadModels()}
-            disabled={syncing}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
-            aria-label="Refresh models"
-          >
-            <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
-          </button>
+    <div className="app-panel overflow-hidden">
+      <div className="flex items-center gap-2 p-3">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search models"
+            className="h-10 rounded-full border-neutral-200 bg-white pl-10 text-[14px]"
+          />
         </div>
+        <button
+          type="button"
+          onClick={() => void loadModels()}
+          disabled={syncing}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+          aria-label="Refresh models"
+        >
+          <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+        </button>
+      </div>
 
-        {loadError && (
-          <p className="border-b border-amber-100 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">{loadError}</p>
-        )}
+      {loadError && <p className="mx-3 mb-3 rounded-2xl bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700">{loadError}</p>}
 
-        <div className="max-h-[min(28rem,60vh)] overflow-y-auto">
-          {groups.map((g) => {
-            const models = filterModelsByQuery(g.models, query);
-            if (!models.length) return null;
-            return (
-              <div key={g.provider}>
-                <div className="sticky top-0 z-[1] bg-neutral-50 px-4 py-2 text-[13px] font-medium text-neutral-500">
-                  {g.name}
-                </div>
-                {models.map((m) => {
-                  const on = enabled.includes(m.id);
-                  const pinned = isPinnedModel(m.id, enabled, groups);
-                  return (
-                    <div
-                      key={m.id}
-                      className="flex min-h-[3.5rem] items-center justify-between gap-4 border-t border-neutral-100 px-4 py-3"
-                    >
-                      <span className="min-w-0 truncate text-[16px] font-medium leading-snug text-neutral-900">
-                        {m.name}
-                      </span>
-                      <Switch
-                        checked={on}
-                        disabled={pinned && on}
-                        onCheckedChange={(next) => toggle(m.id, next)}
-                        className="h-6 w-11 shrink-0 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-neutral-200 [&>span]:h-5 [&>span]:w-5 data-[state=checked]:[&>span]:translate-x-5"
-                        aria-label={`Show ${m.name} in Engine`}
-                      />
-                    </div>
-                  );
-                })}
+      <div className="max-h-[min(28rem,60vh)] overflow-y-auto">
+        {groups.map((g) => {
+          const models = filterModelsByQuery(g.models, query);
+          if (!models.length) return null;
+          return (
+            <div key={g.provider}>
+              <div className="sticky top-0 z-[1] bg-neutral-50 px-5 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400">
+                {g.name}
               </div>
-            );
-          })}
-        </div>
-      </Card>
-    </section>
+              {models.map((m) => {
+                const on = enabled.includes(m.id);
+                const pinned = isPinnedModel(m.id, enabled, groups);
+                return (
+                  <div
+                    key={m.id}
+                    className="flex min-h-[52px] items-center justify-between gap-4 border-t border-neutral-200/60 px-5 py-2.5"
+                  >
+                    <span className="min-w-0 truncate text-[14px] font-medium text-neutral-900">{m.name}</span>
+                    <Switch
+                      checked={on}
+                      disabled={pinned && on}
+                      onCheckedChange={(next) => toggle(m.id, next)}
+                      className="h-6 w-11 shrink-0 data-[state=checked]:bg-[var(--hyd-400)] data-[state=unchecked]:bg-neutral-300 [&>span]:h-5 [&>span]:w-5 [&>span]:bg-[#fff] data-[state=checked]:[&>span]:translate-x-5"
+                      aria-label={`Show ${m.name} in Engine`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

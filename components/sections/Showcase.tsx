@@ -438,7 +438,7 @@ export default function Showcase() {
   }, [isMobile]);
 
   return (
-    <section className="relative w-full bg-neutral-50 py-16 sm:py-20 md:py-24 pb-24 sm:pb-28 md:pb-32">
+    <section className="relative w-full bg-white py-16 sm:py-20 md:py-24 pb-24 sm:pb-28 md:pb-32">
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
         {/* Section heading */}
         <div className="text-center mb-10 sm:mb-12 md:mb-14">
@@ -502,6 +502,7 @@ export default function Showcase() {
                             src="/hallowhydrilla_001.jpg"
                             alt={item.name}
                             fill
+                            sizes="(max-width: 640px) 85vw, 380px"
                             className="object-cover"
                             priority={index === 0}
                             loading={index === 0 ? "eager" : "lazy"}
@@ -569,6 +570,7 @@ export default function Showcase() {
                         src={item.images[imageLoopIndex]}
                         alt={item.name}
                         fill
+                        sizes="(max-width: 640px) 85vw, 380px"
                         className="object-cover"
                         priority={index === 0}
                         loading={index === 0 ? "eager" : "lazy"}
@@ -582,6 +584,7 @@ export default function Showcase() {
                         src={item.image}
                         alt={item.name}
                         fill
+                        sizes="(max-width: 640px) 85vw, 380px"
                         className="object-cover"
                         priority={index === 0}
                         loading={index === 0 ? "eager" : "lazy"}

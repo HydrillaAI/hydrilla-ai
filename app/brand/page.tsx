@@ -1,257 +1,111 @@
+"use client";
+
 import Image from "next/image";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { getKitJsonLd } from "@/lib/kit-schema";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
-import { BRAND_SENTENCE, CONTACT_EMAIL, MODEL_NAME, RESEARCH_LAB, SITE_URL } from "@/lib/brand";
-import { TEAM_MEMBERS } from "@/lib/team";
+import { PickleActions } from "@/components/layout/PicklePage";
 
-const SITELINKS = [
-  {
-    title: "Pricing",
-    url: `${SITE_URL}/pricing`,
-    lines: "Free plan. No credit card needed. Starter from $5/mo.",
-  },
-  {
-    title: "BlueFox 3D",
-    url: `${SITE_URL}/bluefox3d`,
-    lines: "Text and image to production meshes. PBR, GLB, FBX, OBJ, USDZ.",
-  },
-  {
-    title: "Features",
-    url: `${SITE_URL}/features`,
-    lines: "Generate, preview, and export into Unity, Unreal, and Blender.",
-  },
-  {
-    title: "Docs",
-    url: `${SITE_URL}/docs`,
-    lines: "First prompt to a production export. Workspaces and credits.",
-  },
-  {
-    title: "Use cases",
-    url: `${SITE_URL}/usecase`,
-    lines: "Games, film, architecture, XR, and product visualization.",
-  },
-  {
-    title: "API",
-    url: `${SITE_URL}/api`,
-    lines: "Same BlueFox 1 model, programmatic for studio pipelines.",
-  },
-  {
-    title: "About",
-    url: `${SITE_URL}/about`,
-    lines: "Hydrilla and Hawan Research Labs. The team behind BlueFox.",
-  },
-  {
-    title: "Contact",
-    url: `${SITE_URL}/contact`,
-    lines: "Talk to the founders. Book a demo.",
-  },
-];
+const NAMING =
+  'Hydrilla AI is the product and company; Hawan Research Labs is its research lab. Names: Hydrilla AI, Hawan Research Labs (Hydrilla AI\'s research lab), BlueFox ("BlueFox 1" only in specs), and Water Agent, always in full.';
+const BOILERPLATE =
+  "Hydrilla AI is an AI 3D workspace for studio and artist pipelines. BlueFox is its 3D model.";
 
-const BRAND_ASSETS = [
-  {
-    name: "Hydrilla Symbol",
-    file: "/hyd01.png",
-    dark: false,
-    type: "symbol",
-  },
-  {
-    name: "Hydrilla Symbol (Dark)",
-    file: "/hyd01.png",
-    dark: true,
-    type: "symbol",
-  },
-  {
-    name: "Hydrilla Wordmark",
-    file: "/logo-hydrilla/hydsvgblack.svg",
-    dark: false,
-    type: "wordmark",
-  },
-  {
-    name: "Hydrilla Wordmark (Light)",
-    file: "/logo-hydrilla/hydsvg.svg",
-    dark: true,
-    type: "wordmark",
-  },
-];
+const MARKS = [
+  { label: "Wordmark, light", file: "/logo-hydrilla/hydsvgblack.svg", dark: false },
+  { label: "Wordmark, dark", file: "/logo-hydrilla/hydsvg.svg", dark: true },
+  { label: "Symbol", file: "/hyd01.png", dark: false },
+] as const;
+
+const FOUNDERS = [
+  ["Tharak Nagaveti", "Co-Founder"],
+  ["Dharani Kumar", "Co-Founder and CTO"],
+  ["Tejesh Varma", "Co-Founder and CGO"],
+] as const;
 
 export default function BrandPage() {
-  const founders = TEAM_MEMBERS.filter((member) =>
-    member.role.toLowerCase().includes("founder")
-  );
-
   return (
     <>
-      <div className="pickle-research-page">
-        {/* Hero matching pickle press-kit-D3fhMOfk.css */}
-        <header className="pickle-research-hero">
-          <h1 className="pickle-research-title">Press kit</h1>
-          <p className="pickle-research-description">
-            Official marks, canonical naming, boilerplate, and reference links for{" "}
-            {RESEARCH_LAB}, Hydrilla, and {MODEL_NAME}.
-          </p>
-          <div className="mt-10 flex flex-wrap items-center gap-6">
-            <a href="/hyd01.png" download className="pickle-pill-solid">
-              Download Brand Mark
-            </a>
-            <p className="text-[17px] text-black">
-              Press inquiries:{" "}
-              <a
-                href={`mailto:${CONTACT_EMAIL}`}
-                className="text-black/60 underline underline-offset-4 hover:text-black"
-              >
-                {CONTACT_EMAIL}
-              </a>
+      <JsonLd data={getKitJsonLd("/brand")} />
+      <article className="pickle-article">
+        <header className="pickle-article-header">
+          <h1 className="pickle-article-title">Press kit</h1>
+          <div className="pickle-lead">
+            <p>
+              Logos, names, and boilerplate for press covering Hydrilla AI. <Link href="/contact">Contact us</Link>
             </p>
           </div>
         </header>
+        <div className="pickle-article-column">
+          <div className="pickle-intro">
+            <p>
+              Please <strong>use the names and marks exactly as shown here</strong>. Consistent naming helps readers tell Hydrilla AI, its research lab, and its products apart, and keeps coverage accurate.
+            </p>
+          </div>
 
-        {/* Brand Marks 4-column grid matching _brandGrid_1o42w_142 */}
-        <section className="pickle-research-container" style={{ marginTop: "80px" }}>
-          <h2 className="pickle-h2" style={{ width: "100%", marginBottom: "36px" }}>
-            Brand marks
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {BRAND_ASSETS.map((asset) => (
-              <div key={asset.name} className="flex flex-col gap-3.5">
-                <div
-                  className={`flex aspect-[248/200] items-center justify-center overflow-hidden rounded-[20px] p-8 ${
-                    asset.dark ? "bg-[#1d1d1f]" : "bg-[#f5f5f7]"
-                  }`}
-                >
-                  <img
-                    src={asset.file}
-                    alt={asset.name}
-                    className={
-                      asset.type === "symbol"
-                        ? "h-20 w-20 object-contain"
-                        : "h-10 w-auto max-w-[82%] object-contain"
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="m-0 text-[16px] font-medium text-black">
-                    {asset.name}
-                  </p>
-                  <a
-                    href={asset.file}
-                    download
-                    className="text-[14px] font-medium text-[#0066cc] no-underline hover:underline"
-                  >
-                    Download
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">Brand marks</h2>
+            </div>
+            <ul className="pickle-cards" style={{ "--cols": 3 } as React.CSSProperties}>
+              {MARKS.map((mark) => (
+                <li key={mark.label}>
+                  <a href={mark.file} download className="group block">
+                    <span className="pickle-swatch" data-tone={mark.dark ? "dark" : undefined}>
+                      <Image src={mark.file} alt={`Hydrilla ${mark.label.toLowerCase()}`} width={180} height={48} className="h-10 w-auto transition-transform duration-300 group-hover:scale-105" />
+                    </span>
+                    <span className="pickle-media-label">
+                      <strong>{mark.label}</strong>Download
+                    </span>
                   </a>
-                </div>
+                </li>
+              ))}
+            </ul>
+            <PickleActions primary={{ label: "Download the brand mark", href: "/hyd01.png", download: true }} />
+          </section>
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">Naming and boilerplate</h2>
+            <div className="pickle-text">
+              <p>{NAMING}</p>
+              <p>{BOILERPLATE}</p>
+            </div>
+            <div className="pickle-actions" data-align="start">
+              <button type="button" className="pickle-pill-ghost" onClick={() => navigator.clipboard.writeText(NAMING)}>
+                Copy naming
+              </button>
+              <button type="button" className="pickle-pill-ghost" onClick={() => navigator.clipboard.writeText(BOILERPLATE)}>
+                Copy boilerplate
+              </button>
+            </div>
+          </section>
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">Founders</h2>
+            </div>
+            <figure className="pickle-figure">
+              <div className="pickle-card-surface">
+                <table className="pickle-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Role</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {FOUNDERS.map(([name, role]) => (
+                      <tr key={name}>
+                        <th>{name}</th>
+                        <td>{role}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Canonical Names & Boilerplate */}
-        <section className="pickle-research-container" style={{ marginTop: "80px" }}>
-          <h2 className="pickle-h2" style={{ width: "100%", marginBottom: "28px" }}>
-            Canonical naming &amp; boilerplate
-          </h2>
-          <div className="pickle-card-surface">
-            <table className="pickle-table">
-              <thead>
-                <tr>
-                  <th>Entity</th>
-                  <th>Role</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th>{RESEARCH_LAB}</th>
-                  <td>Research Lab</td>
-                  <td>The research lab that builds the generative 3D models behind Hydrilla.</td>
-                </tr>
-                <tr>
-                  <th>Hydrilla</th>
-                  <td>Product &amp; Studio</td>
-                  <td>{BRAND_SENTENCE}</td>
-                </tr>
-                <tr>
-                  <th>{MODEL_NAME}</th>
-                  <td>Current 3D Model</td>
-                  <td>First model in the BlueFox 3D family. Generates segmented meshes with PBR maps.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Founders */}
-        <section className="pickle-research-container" style={{ marginTop: "80px" }}>
-          <h2 className="pickle-h2" style={{ width: "100%", marginBottom: "28px" }}>
-            Founders
-          </h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            {founders.map((person) => (
-              <div
-                key={person.id}
-                className="flex items-center gap-4 rounded-[20px] bg-[#f5f5f7] p-5"
-              >
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-black/10">
-                  <Image
-                    src={person.image}
-                    alt={person.name}
-                    fill
-                    sizes="56px"
-                    className="object-cover"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="m-0 text-[17px] font-medium text-black">
-                    {person.name}
-                  </p>
-                  <p className="m-0 text-[14px] text-black/55">{person.role}</p>
-                  {person.connect ? (
-                    <a
-                      href={person.connect}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-block text-[13px] font-medium text-[#0066cc] no-underline hover:underline"
-                    >
-                      LinkedIn →
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Sitelinks */}
-        <section className="pickle-research-container" style={{ marginTop: "80px" }}>
-          <h2 className="pickle-h2" style={{ width: "100%", marginBottom: "16px" }}>
-            Canonical directory &amp; sitelinks
-          </h2>
-          <p className="pickle-research-description" style={{ marginBottom: "36px" }}>
-            Official URLs and descriptions for press citations and campaign sitelinks.
-          </p>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {SITELINKS.map((link) => (
-              <Link
-                key={link.title}
-                href={link.url.replace(SITE_URL, "") || "/"}
-                className="flex flex-col justify-between rounded-[24px] bg-[#f5f5f7] p-7 no-underline transition-colors hover:bg-[#ededf0]"
-              >
-                <div>
-                  <h3 className="m-0 text-[22px] font-medium tracking-[-0.22px] text-black">
-                    {link.title}
-                  </h3>
-                  <p className="mt-2 mb-0 text-[16px] leading-[1.45] text-black/60">
-                    {link.lines}
-                  </p>
-                </div>
-                <p className="mt-4 mb-0 text-[13px] font-mono text-black/40">
-                  {link.url}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
+            </figure>
+          </section>
+        </div>
+      </article>
       <Footer />
     </>
   );

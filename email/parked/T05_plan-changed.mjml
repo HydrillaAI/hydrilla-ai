@@ -1,0 +1,20 @@
+<!--
+id: T05
+name: Plan changed
+layout: base
+sender: hi
+category: billing
+topic: none
+trigger: subscription_plan_changed
+phase: 1
+subject: Your plan changed to {{ trigger.plan_name | default: "Pro" }}
+preheader: Your new plan and credits are in effect.
+footer_reason: You're receiving this because the plan on your Hydrilla account changed.
+optional: false
+facts: confirm when a change takes effect (immediately or next renewal) for upgrades and downgrades
+data: plan_name, credits_total, effective_on
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>Your plan is now {{ trigger.plan_name | default: "updated" }}, with {{ trigger.credits_total | default: 0 }} credits per billing period. The change applies from {{ trigger.effective_on | default: "today" }}.</mj-text>
+<mj-button href="https://hydrilla.ai/app/studio">Open Studio</mj-button>
+<mj-text css-class="muted" font-size="14px">If you didn't make this change, reply to this email and we'll look into it.</mj-text>

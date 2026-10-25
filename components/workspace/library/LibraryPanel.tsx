@@ -100,7 +100,9 @@ export const LibraryPanel = memo(function LibraryPanel({
                   "h-7 flex-1 rounded-full text-[12px] font-medium",
                   EASE,
                   FOCUS,
-                  filter === id ? "bg-white text-neutral-950 shadow-[0_1px_3px_rgba(0,0,0,0.12)]" : "text-neutral-500 hover:text-neutral-900"
+                  filter === id
+                    ? "bg-white text-neutral-950 shadow-[0_1px_3px_rgba(0,0,0,0.12)] dark:bg-neutral-200"
+                    : "text-neutral-500 hover:text-neutral-900"
                 )}
               >
                 {label}
@@ -193,17 +195,17 @@ export const LibraryPanel = memo(function LibraryPanel({
                   )}
 
                   {isRunning ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-                      <div className="h-5 w-5 rounded-full border-2 border-white/50 border-t-white animate-spin" aria-label="In progress" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-scrim/35">
+                      <div className="h-5 w-5 rounded-full border-2 border-on-scrim/50 border-t-on-scrim animate-spin" aria-label="In progress" />
                     </div>
                   ) : null}
 
                   {isFailed ? (
-                    <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-label="Failed" />
+                    <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-on-scrim" aria-label="Failed" />
                   ) : null}
 
                   {type === "3d" ? (
-                    <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-semibold leading-[18px] text-white">
+                    <span className="absolute bottom-1.5 left-1.5 rounded-md bg-scrim/60 px-1.5 text-[10px] font-semibold leading-[18px] text-on-scrim backdrop-blur-sm">
                       {kindLabel}
                     </span>
                   ) : null}

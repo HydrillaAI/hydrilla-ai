@@ -101,7 +101,7 @@ export const LibraryRail = memo(function LibraryRail({
       <nav
         aria-label="Library"
         onContextMenu={openMenu}
-        className="library-rail pointer-events-auto flex w-[100px] flex-col items-center gap-2.5 rounded-[28px] border border-neutral-200 bg-white p-2.5 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_16px_36px_-20px_rgba(0,0,0,0.38)]"
+        className="library-rail studio-float pointer-events-auto flex w-[100px] flex-col items-center gap-2.5 rounded-[28px] border border-neutral-200 bg-white p-2.5 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_16px_36px_-20px_rgba(0,0,0,0.38)]"
       >
         {loading && items.length === 0
           ? Array.from({ length: 4 }).map((_, i) => (
@@ -181,7 +181,7 @@ export const LibraryRail = memo(function LibraryRail({
               role="menu"
               aria-label="Library"
               style={{ left: menu.x, top: menu.y }}
-              className="fixed z-[80] min-w-[168px] rounded-xl border border-neutral-200 bg-white p-1 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.22)]"
+              className="app-themed studio-float fixed z-[80] min-w-[168px] rounded-xl border border-neutral-200 bg-white p-1 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.22)]"
             >
               <button
                 type="button"

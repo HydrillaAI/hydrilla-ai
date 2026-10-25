@@ -15,6 +15,7 @@ import {
   type PartMaterial,
   type PartMaterialMap,
   type ResolvedViewerLook,
+  type ViewerCameraPreset,
   type ViewerCameraView,
   type ViewerLook,
   type ViewerMaterialType,
@@ -37,6 +38,8 @@ type Props = {
   selectedPart?: string | null;
   /** Part clicked in the canvas (null = empty space). */
   onPick?: (name: string | null) => void;
+  /** Mesh names hidden in the viewport. They still export; they just do not draw, cast shadows or pick. */
+  hiddenParts?: string[];
   /** Whether to show the corner model statistics overlay (faces, vertices, topology). Defaults to true. */
   showStats?: boolean;
   /** Corner position for the stats overlay. Defaults to "top-left". */
@@ -45,6 +48,10 @@ type Props = {
   statsBadge?: ModelBadge | null;
   /** Camera move from the inspector; a new `id` replays the same view. */
   viewRequest?: { view: ViewerCameraView; id: number } | null;
+  /** A new `id` saves a PNG of the current view (2×, transparent when the backdrop is off). */
+  captureRequest?: { id: number; filename: string } | null;
+  /** When set, a capture is handed back as a PNG data URL instead of downloading. */
+  onCapture?: (dataUrl: string) => void;
   /** Optional callback reporting the calculated model statistics. */
   onModelStats?: (stats: ModelMeshStats) => void;
   /** Extra classes for the floating stats pill, such as a top offset. */
@@ -121,6 +128,18 @@ function getToonGradientMap(): THREE.Texture {
 }
 
 const NO_PARTS: PartMaterialMap = {};
+const NO_HIDDEN: string[] = [];
+
+/** Hidden meshes move to a layer the camera and raycaster never see; `visible` would also drop them from exports. */
+const HIDDEN_LAYER = 31;
+
+function applyPartVisibility(root: THREE.Object3D, hidden: ReadonlySet<string>) {
+  root.traverse((child) => {
+    if (child instanceof THREE.Mesh) child.layers.set(hidden.has(child.name) ? HIDDEN_LAYER : 0);
+  });
+}
+
+const isShown = (mesh: THREE.Object3D) => mesh.layers.isEnabled(0);
 
 type ViewerCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 
@@ -164,6 +183,8 @@ function paintMeshLook(
   pbr: { roughness: number | null; metalness: number | null; reflections: number; clearcoat: number },
   wireframe: boolean,
   partMaterials: PartMaterialMap,
+  /** Push surfaces back a hair so overlay edges never z-fight with them. */
+  wireOverlay = false,
 ) {
   root.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
@@ -185,6 +206,9 @@ function paintMeshLook(
         mat.clearcoatRoughness = 0.12;
       }
       if ("wireframe" in mat) mat.wireframe = wireframe;
+      mat.polygonOffset = wireOverlay;
+      mat.polygonOffsetFactor = wireOverlay ? 1 : 0;
+      mat.polygonOffsetUnits = wireOverlay ? 1 : 0;
       mat.needsUpdate = true;
     }
   });
@@ -283,10 +307,18 @@ function highlightEdges(mesh: THREE.Mesh): THREE.EdgesGeometry | null {
   return edges;
 }
 
+/** Rig positions at 0° light rotation; the rotation yaws them around the model. */
+const LIGHT_BASE = {
+  key: new THREE.Vector3(5, 10, 5),
+  fill: new THREE.Vector3(-5, 5, -5),
+  rim: new THREE.Vector3(0, 3, -8),
+};
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
 const FRAME_PADDING = 1.2;
 // Models face −Z (OpenCV / BlueFox front), so Front sits on −Z looking at the subject.
 // Side (+X) is the right profile when facing Front; Reset is a ¾ from Front-right.
-const VIEW_DIRECTIONS: Record<ViewerCameraView, THREE.Vector3> = {
+const VIEW_DIRECTIONS: Record<ViewerCameraPreset, THREE.Vector3> = {
   front: new THREE.Vector3(0, 0, -1),
   side: new THREE.Vector3(1, 0, 0),
   top: new THREE.Vector3(0, 1, 0.0001).normalize(),
@@ -335,10 +367,13 @@ export function ThreeViewer({
   onParts,
   selectedPart = null,
   onPick,
+  hiddenParts = NO_HIDDEN,
   showStats = true,
   statsCorner = "top-left",
   statsBadge = null,
   viewRequest = null,
+  captureRequest = null,
+  onCapture,
   onModelStats,
   frameLift = 0,
   statsClassName,
@@ -359,11 +394,20 @@ export function ThreeViewer({
   const hemisphereLightRef = useRef<THREE.HemisphereLight | null>(null);
   const cameraRef = useRef<ViewerCamera | null>(null);
   const highlightGroupRef = useRef<THREE.Group | null>(null);
+  const wireGroupRef = useRef<THREE.Group | null>(null);
+  /** Backdrop color the render loop eases toward; null when the backdrop is transparent. */
+  const bgTargetRef = useRef<THREE.Color | null>(null);
+  const wireMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const highlightMatsRef = useRef<HighlightMaterials | null>(null);
   const resolvedRef = useRef(resolved);
   resolvedRef.current = resolved;
   const partMaterialsRef = useRef(partMaterials);
   partMaterialsRef.current = partMaterials;
+  const hiddenSet = useMemo(() => new Set(hiddenParts), [hiddenParts]);
+  const hiddenSetRef = useRef(hiddenSet);
+  hiddenSetRef.current = hiddenSet;
+  const selectedPartRef = useRef(selectedPart);
+  selectedPartRef.current = selectedPart;
   const onPartsRef = useRef(onParts);
   onPartsRef.current = onParts;
   const onPickRef = useRef(onPick);
@@ -398,7 +442,9 @@ export function ThreeViewer({
     model.updateMatrixWorld(true);
     const meshes: THREE.Mesh[] = [];
     model.traverse((child) => {
-      if (child instanceof THREE.Mesh && !(child instanceof THREE.SkinnedMesh) && child.name === name) meshes.push(child);
+      if (child instanceof THREE.Mesh && !(child instanceof THREE.SkinnedMesh) && child.name === name && isShown(child)) {
+        meshes.push(child);
+      }
     });
     for (const mesh of meshes) group.add(followMesh(new THREE.Mesh(mesh.geometry, mats.rim), mesh));
     // Rim shows this frame; crease outlines are O(triangles) so they follow a tick later.
@@ -414,19 +460,42 @@ export function ThreeViewer({
   const showHighlightRef = useRef(showHighlight);
   showHighlightRef.current = showHighlight;
 
+  /** Bounds of the visible meshes with this name, or null when none are shown. */
+  const partSphere = (name: string | null): THREE.Sphere | null => {
+    const model = modelRef.current;
+    if (!model || !name) return null;
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.name === name && isShown(child)) box.expandByObject(child);
+    });
+    if (box.isEmpty()) return null;
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    sphere.radius = Math.max(sphere.radius, frameRef.current.radius * 0.02);
+    return sphere;
+  };
+
   const moveCamera = (view: ViewerCameraView) => {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
-    const { center, radius } = frameRef.current;
+    const part = view === "selection" ? partSphere(selectedPartRef.current) : null;
+    // Selection keeps the current viewing angle; presets swing to their fixed direction.
+    const direction =
+      view === "selection"
+        ? camera.position.clone().sub(controls.target).normalize()
+        : VIEW_DIRECTIONS[view];
+    const center = part?.center ?? frameRef.current.center;
+    const radius = part?.radius ?? frameRef.current.radius;
     const ortho = camera instanceof THREE.OrthographicCamera;
     if (ortho) {
       camera.userData.halfHeight = radius * FRAME_PADDING;
       const el = containerRef.current;
       applyCameraProjection(camera, el?.clientWidth || 800, el?.clientHeight || 500, resolvedRef.current.camera, frameLiftRef.current);
     }
-    const distance = ortho ? radius * 4 : fitDistance(radius, camera.fov);
-    const toPos = center.clone().addScaledVector(VIEW_DIRECTIONS[view], distance);
+    // Ortho stays outside the whole model so near-plane clipping never cuts into it.
+    const distance = ortho ? frameRef.current.radius * 4 : fitDistance(radius, camera.fov);
+    const toPos = center.clone().addScaledVector(direction, distance);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       camera.position.copy(toPos);
       controls.target.copy(center);
@@ -466,6 +535,7 @@ export function ThreeViewer({
     const initial = resolvedRef.current;
     const scene = new THREE.Scene();
     scene.background = initial.background ? new THREE.Color(initial.background) : null;
+    bgTargetRef.current = scene.background ? (scene.background as THREE.Color).clone() : null;
     sceneRef.current = scene;
 
     const width = containerRef.current.clientWidth || 800;
@@ -496,6 +566,7 @@ export function ThreeViewer({
     const pmrem = new THREE.PMREMGenerator(renderer);
     const room = new RoomEnvironment();
     scene.environment = pmrem.fromScene(room, 0.04).texture;
+    scene.environmentRotation.y = initial.lightRotation;
     room.dispose();
     pmrem.dispose();
 
@@ -521,7 +592,7 @@ export function ThreeViewer({
     ambientLightRef.current = ambientLight;
 
     const keyLight = new THREE.DirectionalLight(0xffffff, initial.lights.key);
-    keyLight.position.set(5, 10, 5);
+    keyLight.position.copy(LIGHT_BASE.key).applyAxisAngle(Y_AXIS, initial.lightRotation);
     keyLight.castShadow = initial.shadow;
     keyLight.shadow.mapSize.set(2048, 2048);
     keyLight.shadow.bias = -0.0005;
@@ -529,12 +600,12 @@ export function ThreeViewer({
     keyLightRef.current = keyLight;
 
     const fillLight = new THREE.DirectionalLight(0xffffff, initial.lights.fill);
-    fillLight.position.set(-5, 5, -5);
+    fillLight.position.copy(LIGHT_BASE.fill).applyAxisAngle(Y_AXIS, initial.lightRotation);
     scene.add(fillLight);
     fillLightRef.current = fillLight;
 
     const rimLight = new THREE.DirectionalLight(0xffffff, initial.lights.rim);
-    rimLight.position.set(0, 3, -8);
+    rimLight.position.copy(LIGHT_BASE.rim).applyAxisAngle(Y_AXIS, initial.lightRotation);
     scene.add(rimLight);
     rimLightRef.current = rimLight;
 
@@ -543,13 +614,19 @@ export function ThreeViewer({
     scene.add(hemisphereLight);
     hemisphereLightRef.current = hemisphereLight;
 
-    const gridHelper = new THREE.GridHelper(10, 20, 0xd4d4d4, 0xe5e5e5);
+    // White lines tinted by the material, so one helper reads on light and dark backdrops.
+    const gridHelper = new THREE.GridHelper(10, 20, 0xffffff, 0xffffff);
+    const gridMat = gridHelper.material as THREE.LineBasicMaterial;
+    gridMat.transparent = true;
+    gridMat.depthWrite = false;
+    gridMat.color.set(initial.stage.gridColor);
+    gridMat.opacity = initial.stage.gridOpacity;
     gridHelper.position.y = -1;
     gridHelper.visible = initial.grid;
     gridHelperRef.current = gridHelper;
     scene.add(gridHelper);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: 0.16 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: initial.stage.shadowOpacity }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -1;
     ground.receiveShadow = true;
@@ -560,11 +637,32 @@ export function ThreeViewer({
     const highlight = new THREE.Group();
     scene.add(highlight);
     highlightGroupRef.current = highlight;
+    // Kept outside the model, like the highlight, so it never reaches stats or picking.
+    const wireGroup = new THREE.Group();
+    scene.add(wireGroup);
+    wireGroupRef.current = wireGroup;
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: initial.wireOverlay ?? "#18181b",
+      wireframe: true,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    wireMatRef.current = wireMat;
     const highlightMats = createHighlightMaterials();
     highlightMatsRef.current = highlightMats;
 
     renderer.setAnimationLoop((time) => {
       if (document.hidden) return;
+      // Ease the backdrop toward its target so theme and swatch changes glide instead of cutting.
+      const bgTarget = bgTargetRef.current;
+      if (bgTarget && scene.background instanceof THREE.Color && !scene.background.equals(bgTarget)) {
+        scene.background.lerp(bgTarget, 0.16);
+        if (Math.abs(scene.background.r - bgTarget.r) + Math.abs(scene.background.g - bgTarget.g) + Math.abs(scene.background.b - bgTarget.b) < 0.002) {
+          scene.background.copy(bgTarget);
+        }
+      }
       const fly = flyRef.current;
       const flyCam = cameraRef.current;
       if (fly && flyCam && controlsRef.current) {
@@ -580,7 +678,7 @@ export function ThreeViewer({
       }
       controlsRef.current?.update();
       highlightMats.rim.uniforms.uTime.value = time / 1000;
-      for (const overlay of highlight.children) {
+      for (const overlay of [...highlight.children, ...wireGroup.children]) {
         overlay.matrix.copy((overlay.userData.follow as THREE.Object3D).matrixWorld);
       }
       const cam = cameraRef.current;
@@ -606,6 +704,7 @@ export function ThreeViewer({
         -((ev.clientY - rect.top) / rect.height) * 2 + 1
       );
       raycaster.setFromCamera(pointer, cam);
+      // Hidden parts sit on another layer, so the raycaster already skips them.
       const hit = raycaster.intersectObject(model, true).find((h) => h.object instanceof THREE.Mesh);
       const name = hit?.object.name || null;
       // Highlight here, not after the parent re-renders with the new selection.
@@ -696,6 +795,7 @@ export function ThreeViewer({
                 authored[child.name] = readPartMaterial(first);
               }
             });
+            applyPartVisibility(model, hiddenSetRef.current);
             onPartsRef.current?.(authored);
 
             scene.add(model);
@@ -705,7 +805,8 @@ export function ThreeViewer({
             gridHelper.position.y = newBox.min.y;
             const sphere = newBox.getBoundingSphere(new THREE.Sphere());
             frameRef.current = { center: sphere.center.clone(), radius: Math.max(sphere.radius, 0.01) };
-            controls.minDistance = sphere.radius * 0.35;
+            // Low floor so framing a small part can get close.
+            controls.minDistance = sphere.radius * 0.02;
             controls.maxDistance = sphere.radius * 14;
             const cam = cameraRef.current ?? camera;
             controls.target.copy(sphere.center);
@@ -723,7 +824,7 @@ export function ThreeViewer({
             cam.lookAt(sphere.center);
             controls.update();
 
-            const stats = calculateMeshStats(model);
+            const stats = { ...calculateMeshStats(model), size: [size.x, size.y, size.z] as [number, number, number] };
             setModelStats(stats);
             onModelStatsRef.current?.(stats);
 
@@ -787,6 +888,10 @@ export function ThreeViewer({
       highlightMats.rim.dispose();
       highlightMats.edge.dispose();
       highlightGroupRef.current = null;
+      wireGroup.clear();
+      wireMat.dispose();
+      wireGroupRef.current = null;
+      wireMatRef.current = null;
       highlightMatsRef.current = null;
       if (containerEl) ro.unobserve(containerEl);
       window.removeEventListener("resize", handleResize);
@@ -868,11 +973,29 @@ export function ThreeViewer({
   }, [viewRequest]);
 
   useEffect(() => {
-    if (sceneRef.current) {
-      sceneRef.current.background = resolved.background ? new THREE.Color(resolved.background) : null;
+    const scene = sceneRef.current;
+    if (scene) {
+      if (!resolved.background) {
+        scene.background = null;
+        bgTargetRef.current = null;
+      } else {
+        const target = new THREE.Color(resolved.background);
+        bgTargetRef.current = target;
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        // From transparent (or with reduced motion) there is nothing to ease from.
+        if (!(scene.background instanceof THREE.Color) || reduced) scene.background = target.clone();
+      }
     }
-    if (gridHelperRef.current) gridHelperRef.current.visible = resolved.grid;
-    if (groundRef.current) groundRef.current.visible = resolved.shadow;
+    if (gridHelperRef.current) {
+      gridHelperRef.current.visible = resolved.grid;
+      const gridMat = gridHelperRef.current.material as THREE.LineBasicMaterial;
+      gridMat.color.set(resolved.stage.gridColor);
+      gridMat.opacity = resolved.stage.gridOpacity;
+    }
+    if (groundRef.current) {
+      groundRef.current.visible = resolved.shadow;
+      (groundRef.current.material as THREE.ShadowMaterial).opacity = resolved.stage.shadowOpacity;
+    }
     if (keyLightRef.current) {
       keyLightRef.current.castShadow = resolved.shadow;
       keyLightRef.current.intensity = resolved.lights.key;
@@ -882,6 +1005,10 @@ export function ThreeViewer({
     if (ambientLightRef.current) ambientLightRef.current.intensity = resolved.lights.ambient;
     if (fillLightRef.current) fillLightRef.current.intensity = resolved.lights.fill;
     if (rimLightRef.current) rimLightRef.current.intensity = resolved.lights.rim;
+    keyLightRef.current?.position.copy(LIGHT_BASE.key).applyAxisAngle(Y_AXIS, resolved.lightRotation);
+    fillLightRef.current?.position.copy(LIGHT_BASE.fill).applyAxisAngle(Y_AXIS, resolved.lightRotation);
+    rimLightRef.current?.position.copy(LIGHT_BASE.rim).applyAxisAngle(Y_AXIS, resolved.lightRotation);
+    if (sceneRef.current) sceneRef.current.environmentRotation.y = resolved.lightRotation;
     if (hemisphereLightRef.current) hemisphereLightRef.current.intensity = resolved.lights.hemi;
   }, [resolved]);
 
@@ -890,21 +1017,80 @@ export function ThreeViewer({
     const root = modelRef.current;
     if (!modelReady || !root) return;
     rebuildShading(root, resolved.materialType);
-    paintMeshLook(root, resolved.pbr, resolved.wireframe, partMaterialsRef.current);
+    paintMeshLook(root, resolved.pbr, resolved.wireframe, partMaterialsRef.current, resolved.wireOverlay !== null);
   }, [resolved.materialType, modelReady]);
 
   const { roughness: pbrRoughness, metalness: pbrMetalness, reflections, clearcoat } = resolved.pbr;
+  const wireOverlay = resolved.wireOverlay;
   useEffect(() => {
     const root = modelRef.current;
     if (!modelReady || !root) return;
-    paintMeshLook(root, { roughness: pbrRoughness, metalness: pbrMetalness, reflections, clearcoat }, resolved.wireframe, partMaterials);
-  }, [modelReady, partMaterials, resolved.wireframe, pbrRoughness, pbrMetalness, reflections, clearcoat]);
+    paintMeshLook(
+      root,
+      { roughness: pbrRoughness, metalness: pbrMetalness, reflections, clearcoat },
+      resolved.wireframe,
+      partMaterials,
+      wireOverlay !== null
+    );
+  }, [modelReady, partMaterials, resolved.wireframe, wireOverlay, pbrRoughness, pbrMetalness, reflections, clearcoat]);
 
   useEffect(() => {
     if (!modelReady) return;
     if (shownPartRef.current !== selectedPart) showHighlight(selectedPart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPart, modelReady]);
+
+  useEffect(() => {
+    const root = modelRef.current;
+    if (!modelReady || !root) return;
+    applyPartVisibility(root, hiddenSet);
+    // A hidden selection drops its outline; showing it again brings the outline back.
+    showHighlight(shownPartRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hiddenSet, modelReady]);
+
+  // Edges over the shaded surface; rebuilt when parts are hidden so they hide too.
+  useEffect(() => {
+    const root = modelRef.current;
+    const group = wireGroupRef.current;
+    const mat = wireMatRef.current;
+    if (!modelReady || !root || !group || !mat) return;
+    group.clear();
+    if (!wireOverlay) return;
+    mat.color.set(wireOverlay);
+    root.updateMatrixWorld(true);
+    root.traverse((child) => {
+      if (child instanceof THREE.Mesh && !(child instanceof THREE.SkinnedMesh) && isShown(child)) {
+        group.add(followMesh(new THREE.Mesh(child.geometry, mat), child));
+      }
+    });
+  }, [wireOverlay, hiddenSet, modelReady]);
+
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const highlight = highlightGroupRef.current;
+    if (!captureRequest || !modelReady || !renderer || !scene || !camera) return;
+    // Render once at 2× without the selection outline, read it back in the same task, then restore.
+    const ratio = renderer.getPixelRatio();
+    renderer.setPixelRatio(Math.max(2, ratio));
+    if (highlight) highlight.visible = false;
+    renderer.render(scene, camera);
+    const url = renderer.domElement.toDataURL("image/png");
+    if (highlight) highlight.visible = true;
+    renderer.setPixelRatio(ratio);
+    renderer.render(scene, camera);
+    if (onCapture) {
+      onCapture(url);
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = captureRequest.filename;
+    link.click();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureRequest]);
 
   return (
     <div className="@container relative h-full w-full isolate">

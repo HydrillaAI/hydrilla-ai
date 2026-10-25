@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { track } from "@/lib/analytics";
+import { PickleActions } from "@/components/layout/PicklePage";
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
 
@@ -127,83 +128,58 @@ function CheckoutSuccessContent() {
     }
   }, [subscriptionStatus, router]);
 
-  return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4">
-      <div className="max-w-md w-full text-center">
-        <div className="mb-8">
-          <span
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "DM Sans, sans-serif" }}
-          >
-            Hydrilla
-          </span>
-        </div>
+  const referenceId = paymentId
+    ? `Payment ID: ${paymentId}`
+    : subscriptionIdFromUrl
+      ? `Subscription ID: ${subscriptionIdFromUrl}`
+      : null;
 
-        <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
-          {subscriptionStatus === "checking" ? (
-            <>
-              <div className="w-16 h-16 mx-auto mb-6 rounded-full border-4 border-gray-100 border-t-black animate-spin" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Verifying your subscription…</h2>
-              <p className="text-sm text-gray-500">This takes just a moment.</p>
-            </>
-          ) : subscriptionStatus === "active" ? (
-            <>
-              <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-green-50 flex items-center justify-center">
-                <svg className="w-9 h-9 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">You&apos;re all set! 🎉</h2>
-              <p className="text-sm text-gray-600 mb-6">
-                Your subscription is active and your credits have been added. Redirecting you to Studio…
-              </p>
-              {(paymentId || subscriptionIdFromUrl) && (
-                <p className="text-xs text-gray-400 mb-4">
-                  {paymentId ? `Payment ID: ${paymentId}` : `Subscription ID: ${subscriptionIdFromUrl}`}
-                </p>
-              )}
-              <Link
-                href="/app/studio"
-                className="inline-flex items-center justify-center w-full py-3 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
-              >
-                Go to Studio
-              </Link>
-            </>
-          ) : (
-            <>
-              <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-yellow-50 flex items-center justify-center">
-                <svg className="w-9 h-9 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">We couldn&apos;t confirm this payment</h2>
-              <p className="text-sm text-gray-600 mb-6">
+  return (
+    <article className="pickle-article">
+      <header className="pickle-article-header">
+        <p className="pickle-article-kicker">Checkout</p>
+        {subscriptionStatus === "checking" ? (
+          <>
+            <h1 className="pickle-article-title">Verifying your subscription</h1>
+            <div className="pickle-lead">
+              <p>This takes just a moment.</p>
+            </div>
+            <div
+              role="status"
+              aria-label="Verifying"
+              className="mt-4 h-9 w-9 animate-spin rounded-full border-[3px] border-black/10 border-t-black"
+            />
+          </>
+        ) : subscriptionStatus === "active" ? (
+          <>
+            <h1 className="pickle-article-title">You&apos;re all set</h1>
+            <div className="pickle-lead">
+              <p>Your subscription is active and your credits have been added. Redirecting you to Studio…</p>
+            </div>
+            {referenceId && <p className="pickle-caption">{referenceId}</p>}
+            <PickleActions primary={{ label: "Go to Studio", href: "/app/studio" }} />
+          </>
+        ) : (
+          <>
+            <h1 className="pickle-article-title">We couldn&apos;t confirm this payment</h1>
+            <div className="pickle-lead">
+              <p>
                 Credits are added only after Dodo confirms the payment for this account. If you just paid, wait a moment and check again.
               </p>
-              {(paymentId || subscriptionIdFromUrl) && (
-                <p className="text-xs text-gray-400 mb-4">
-                  {paymentId ? `Payment ID: ${paymentId}` : `Subscription ID: ${subscriptionIdFromUrl}`}
-                </p>
-              )}
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={checkSubscription}
-                  className="w-full py-3 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  Check Again
-                </button>
-                <Link
-                  href="/app/studio"
-                  className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors text-center"
-                >
-                  Go to Studio Anyway
-                </Link>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+            </div>
+            {referenceId && <p className="pickle-caption">{referenceId}</p>}
+            <div className="pickle-actions">
+              <button type="button" onClick={checkSubscription} className="pickle-pill-solid">
+                Check Again
+              </button>
+              <Link href="/app/studio" className="pickle-pill-ghost">
+                Go to Studio Anyway
+              </Link>
+            </div>
+          </>
+        )}
+      </header>
+    </article>
   );
 }
 

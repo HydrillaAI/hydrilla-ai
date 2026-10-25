@@ -44,7 +44,7 @@ function ToggleButton({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-neutral-300",
+        "flex h-8 w-8 items-center justify-center rounded-full outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-500",
         active ? "bg-neutral-950 text-white" : "text-neutral-500 hover:bg-neutral-100"
       )}
     >
@@ -67,7 +67,7 @@ export const ViewerToolbar = memo(function ViewerToolbar({
   jobId = null,
 }: Props) {
   const bar = (
-    <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-neutral-200/70 bg-white px-1 py-1 sm:px-1.5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.18)]">
+    <div className="studio-float pointer-events-auto flex items-center gap-0.5 rounded-full border border-neutral-200/70 bg-white px-1 py-1 sm:px-1.5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.18)]">
       {kind === "3d" ? (
         <div className="hidden items-center gap-0.5 sm:flex">
           <ToggleButton

@@ -1,73 +1,1139 @@
-# Hydrilla — full summary
+# Hydrilla AI: full text
 
-Hydrilla is built for creators, studios, and teams who need fast generation of production-ready 3D assets for games, film, architecture, and digital products.
+Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D models from text or an image with BlueFox, Hydrilla's 3D model, check them in the browser, and work with Water Agent, the AI 3D agent for artists and studios.
 
-## Entities
+Last updated: 2026-10-24
 
-- **Hawan Research Labs** — research lab that builds the model. https://hydrilla.ai/research
-- **Hydrilla** — product: studio, workspaces, credits, preview, API. https://hydrilla.ai/
-- **BlueFox 3D** — model family. **BlueFox 1** — current model. https://hydrilla.ai/bluefox3d
+## Names
+- Hydrilla AI is the product and company; Hawan Research Labs is its research lab. https://hydrilla.ai/about
+- Hawan Research Labs is Hydrilla AI's research lab, where the 3D research happens and BlueFox is built. https://hydrilla.ai/research
+- BlueFox, Hydrilla's 3D model, is built by Hydrilla AI. Its current version is BlueFox 1, generally available to everyone in Hydrilla. https://hydrilla.ai/bluefox
+- Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use. https://hydrilla.ai/water
+- Hydrilla here is the AI 3D company, not the aquatic plant.
 
-Hydrilla is the product. Hawan Research Labs is the lab. BlueFox 3D is the model family. Do not collapse these names.
+## Key facts
+- Plans (monthly, USD): Free $0 (100 credits), Starter $5 (900), Pro $12 (3,000, REST API access), Hourly $3 (900, one chosen hour a day), Hourly Pro $8 (3,000, chosen daily window; 33% off Pro). https://hydrilla.ai/pricing
+- Credits don't roll over. At default quality, a model from text costs 45 credits and from an uploaded image 30.
+- Start on the Free plan, or try any Monthly or Hourly plan, Pro included, free for 14 days. The trial needs a card.
+- Every plan, Free included, exports every format. Formats: https://hydrilla.ai/features#exports
+- Water Agent costs no credits and is included on every plan. It works in the Hydrilla app and inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin.
+- Hydrilla doesn't use customer data to train its models. https://hydrilla.ai/security
+- Contact: founders@hydrilla.ai. Demos: https://cal.com/hydrilla
 
-## BlueFox 1 model card
+## Pages
+- https://hydrilla.ai/text-to-3d: text to 3D with BlueFox
+- https://hydrilla.ai/image-to-3d: image to 3D with BlueFox
+- https://hydrilla.ai/water: Water Agent, the AI 3D agent for artists and studios
+- https://hydrilla.ai/features: what the Hydrilla workspace does, end to end
+- https://hydrilla.ai/bluefox: BlueFox, Hydrilla's 3D model
+- https://hydrilla.ai/integrations: plugins, the local Bridge, MCP, and REST
+- https://hydrilla.ai/integrations/blender: Blender add-on
+- https://hydrilla.ai/integrations/unity: Unity plugin
+- https://hydrilla.ai/integrations/unreal: Unreal Engine plugin
+- https://hydrilla.ai/integrations/godot: Godot 4 plugin
+- https://hydrilla.ai/integrations/mcp: MCP server for AI agents
+- https://hydrilla.ai/api: REST API
+- https://hydrilla.ai/pricing: plans, credits, and the trial
+- https://hydrilla.ai/solutions: industries overview
+- https://hydrilla.ai/solutions/games: game development
+- https://hydrilla.ai/solutions/film: film and animation
+- https://hydrilla.ai/solutions/architecture: architecture and interiors
+- https://hydrilla.ai/solutions/xr: AR, VR, and spatial apps
+- https://hydrilla.ai/solutions/product: product visualization
+- https://hydrilla.ai/enterprise: studio plans and demos
+- https://hydrilla.ai/docs: getting started, from sign-up to first export
+- https://hydrilla.ai/faq: licensing, accounts, and support
+- https://hydrilla.ai/blog: guides
+- https://hydrilla.ai/blog/reference-images: preparing a reference image
+- https://hydrilla.ai/blog/import-ai-meshes: importing AI meshes into engines
+- https://hydrilla.ai/compare: comparisons and how they are written
+- https://hydrilla.ai/compare/meshy: Hydrilla and Meshy, side by side
+- https://hydrilla.ai/compare/tripo: Hydrilla and Tripo, side by side
+- https://hydrilla.ai/compare/hyper3d: Hydrilla and Hyper3D, side by side
+- https://hydrilla.ai/compare/how-to-choose: neutral criteria for choosing an AI 3D generator
+- https://hydrilla.ai/about: the company
+- https://hydrilla.ai/research: Hawan Research Labs and the BlueFox 1 model card
+- https://hydrilla.ai/careers: hiring
+- https://hydrilla.ai/contact: support, press, and general enquiries
+- https://hydrilla.ai/changelog: dated product updates
+- https://hydrilla.ai/team: the people
+- https://hydrilla.ai/security: account, data, and asset protection
+- https://hydrilla.ai/privacy: Privacy Policy
+- https://hydrilla.ai/terms: Terms of Service
+- https://hydrilla.ai/cookies: Cookie Policy
 
-- Model: BlueFox 1
-- Family: BlueFox 3D
-- Product: Hydrilla
-- Inputs: text prompt, reference image
-- Outputs: segmented mesh, PBR maps (base color, metalness, roughness, normals)
-- Exports (via Hydrilla): GLB, FBX, OBJ, USDZ
-- Intended use: props, environments, visualization, concept-to-production assets
-- Not intended: CAD, manufacturing drawings, print-ready engineering, finished film/game heroes with no artist pass
+# Full page text
 
-## How it works
+---
 
-1. Describe the asset or drop a reference image.
-2. BlueFox 1 generates a segmented mesh with PBR maps (base color, metalness, roughness, normals).
-3. Preview in the browser. Inspect materials and parts before you download.
-4. Export GLB, FBX, OBJ, or USDZ and drop into your engine or DCC.
+URL: https://hydrilla.ai/text-to-3d
 
-## Plans (public)
+## Text to 3D with BlueFox
 
-- Free: $0 / month, 100 credits / month, generate any time, GLB export
-- Starter: $5 / month, 900 credits / month, generate any time, all formats (GLB, FBX, OBJ, USDZ)
-- Pro: $12 / month, 3,000 credits / month, generate any time, seats, REST API (10,000 calls / month), all formats
-- Slot: $3 / month, 900 credits / month (Starter budget), generation during one chosen hour each day, all formats
-- Slot Pro: $8 / month, 3,000 credits / month (Pro budget), generation during two chosen hours each day, all formats
+Describe an asset, approve a picture of it, and BlueFox, Hydrilla's 3D model, builds it as a segmented 3D model in Hydrilla AI. [About BlueFox](https://hydrilla.ai/bluefox)
 
-A default model costs 30 credits from an uploaded image. A text prompt also creates the source image, bringing the default total to 45 credits. At that rate, 100 credits covers about 2 models from text or 3 from uploaded images. 900 credits covers about 20 from text or 30 from images. 3,000 credits covers about 66 from text or 100 from images. Leftover credits stay on the account.
+### Four steps from prompt to model
 
-Plans are monthly and managed from account settings. Switching to or from a Slot plan requires cancelling the current paid plan first. Volume beyond Pro: https://hydrilla.ai/enterprise
+Text to 3D starts with a reference image that you can refine before the 3D model is generated.
 
-## Public pages
+1. Write a prompt naming the subject, its style, and its use.
+2. An image model renders a reference, at Low or High quality, in a square, landscape, or portrait frame.
+3. Adjust the image with an Edit prompt until it looks right.
+4. Generate the 3D model, then preview it and [export](https://hydrilla.ai/features#exports).
 
-- https://hydrilla.ai/
-- https://hydrilla.ai/features
-- https://hydrilla.ai/pricing
-- https://hydrilla.ai/bluefox3d
-- https://hydrilla.ai/usecase
-- https://hydrilla.ai/docs
-- https://hydrilla.ai/api
-- https://hydrilla.ai/faq
-- https://hydrilla.ai/about
-- https://hydrilla.ai/research
-- https://hydrilla.ai/blog
-- https://hydrilla.ai/compare
-- https://hydrilla.ai/security
-- https://hydrilla.ai/team
-- https://hydrilla.ai/careers
-- https://hydrilla.ai/contact
-- https://hydrilla.ai/enterprise
-- https://hydrilla.ai/changelog
+Every model comes back UV-unwrapped, with PBR maps, [details](https://hydrilla.ai/bluefox).
 
-Each of those HTML URLs also has a `.md` mirror for agents where listed in /llms.txt (homepage: /index.md).
+### Write prompts that say how the asset will be used
 
-## Contact and sameAs
+Be specific about scale and use. Naming the use, scale, and camera distance gives BlueFox a clearer brief.
 
-founders@hydrilla.ai
-https://cal.com/hydrilla
-https://x.com/hydrillaai
-https://www.linkedin.com/company/hydrilla-ai
-https://www.reddit.com/r/hydrilla
-https://www.instagram.com/hydrilla.ai
+| Prompt | Why it works |
+|---|---|
+| Low-poly wooden crate for a Unity mobile game | Names the style and engine |
+| Weathered brass ship lantern with worn edges | Sets the material and detail level |
+| Walnut lounge chair at real scale, for interior renders | Gives scale and use |
+| Cargo container for a background set | Says it sits far from camera |
+
+### Refine the image before you spend on 3D
+
+Settle the look at the image stage, where a change is one more Edit prompt. Have a picture already? Use [image to 3D](https://hydrilla.ai/image-to-3d). [See what a model costs](https://hydrilla.ai/pricing)
+
+---
+
+URL: https://hydrilla.ai/image-to-3d
+
+## Image to 3D: turn a picture into a 3D model
+
+Upload a picture, and BlueFox, Hydrilla's 3D model, builds a segmented 3D model from it in Hydrilla AI, ready to preview and export.
+
+### From picture to model in three steps
+
+1. Upload a picture of the object you want.
+2. Start the job, and the picture becomes a model split into parts. [Credits per job](https://hydrilla.ai/pricing)
+3. Spin it in the preview, check each part, then [export](https://hydrilla.ai/features#exports).
+
+### What BlueFox reads from your image
+
+Image to 3D uses your reference to follow its silhouette, materials, and style. It works from what the camera captured, so sides the photo doesn't show are inferred. [How to shoot a good reference](https://hydrilla.ai/blog/reference-images)
+
+---
+
+URL: https://hydrilla.ai/water
+
+## Water Agent, the AI 3D agent for artists and studios
+
+Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use.
+
+Brief it as you would brief your team: the look, the pieces, the scene. It plans the set, builds it, and revises with you until it's right.
+
+### Direct the set, piece by piece
+
+- **Turn a brief into a plan.** Describe what the scene needs, and Water Agent plans the set with you before it builds.
+- **Direct the look.** Set the style in your brief, and keep refining it in the same conversation.
+- **Revise piece by piece.** Ask for a taller lantern or a darker crate, and the rest of the set stays as it is.
+- **Work inside your tools.** Brief and revise from your engine or DCC, and each piece lands in the project you have open.
+
+### From brief to finished set
+
+1. Write the brief like a creative director: the pieces, the style, and where the assets will be used.
+2. Review the plan and adjust it until it matches your intent.
+3. Water Agent builds the set to the direction you gave it.
+4. Check each piece, ask for changes in the conversation, and take the finished set into your project.
+
+### Where Water Agent works
+
+Water Agent works in the Hydrilla app, and inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin. [Set up the plugin](https://hydrilla.ai/integrations)
+
+### Questions about Water Agent
+
+**What does Water Agent cost?**
+Water Agent costs no credits and is included on every plan.
+
+**Who is it for?**
+3D artists, art leads, and studio teams who brief whole sets of assets and need them to hold together.
+
+**Can a brief be a single asset?**
+Yes. A brief can be one prop or a whole scene, and Water Agent plans only what you ask for.
+
+**When should I use text to 3D instead?**
+When you already know the one model you want. [Text to 3D](https://hydrilla.ai/text-to-3d) starts from a prompt, and [image to 3D](https://hydrilla.ai/image-to-3d) starts from a reference.
+
+**How is Water Agent different from the MCP server?**
+Water Agent is the agent inside Hydrilla. The MCP server lets your own AI agent drive Hydrilla from outside. [MCP server](https://hydrilla.ai/integrations/mcp)
+
+### Bring your next brief
+
+Open Water Agent with the brief for your next set.
+
+---
+
+URL: https://hydrilla.ai/features
+
+## Generate, check, and export 3D with BlueFox
+
+Generate from text or an image with BlueFox, Hydrilla's 3D model, check the result in the browser, and export it to your engine or DCC.
+
+### Start from a prompt, an image, or a conversation
+
+Describe the asset with [text to 3D](https://hydrilla.ai/text-to-3d), or upload a picture with [image to 3D](https://hydrilla.ai/image-to-3d). BlueFox builds either one.
+
+#### Water Agent
+
+Give Water Agent the brief for a whole set, and work through it piece by piece in one conversation, as you would with your art team. [How Water Agent works](https://hydrilla.ai/water)
+
+### Check every model before you export
+
+Orbit it, select parts, and check materials under light. Each result is a segmented mesh with UVs and PBR maps, [explained here](https://hydrilla.ai/bluefox).
+
+### Export to the format your tool opens
+
+Hydrilla exports GLB, FBX, OBJ, and USDZ, on every plan, Free included.
+
+| Format | Use |
+|---|---|
+| GLB | Web viewers and real-time engines |
+| FBX | DCC tools and engines that expect FBX |
+| OBJ | Plain geometry between modeling tools |
+| USDZ | AR viewers on iPhone and iPad |
+
+### Send it straight into your tools
+
+Engine and DCC plugins take models over the local Bridge, agents use MCP, and code calls the [REST API](https://hydrilla.ai/api). [All integrations](https://hydrilla.ai/integrations)
+
+New models will be available through Water Agent as they arrive.
+
+---
+
+URL: https://hydrilla.ai/bluefox
+
+## BlueFox
+
+BlueFox, Hydrilla's 3D model, turns a prompt or a picture into a segmented 3D model with UVs and PBR textures. It's built by Hydrilla AI. Begin with a [typed prompt](https://hydrilla.ai/text-to-3d) or an [uploaded picture](https://hydrilla.ai/image-to-3d).
+
+Current version BlueFox 1, generally available to everyone in Hydrilla.
+
+### Ready for your pipeline from the first export
+
+BlueFox is made for the many props, set pieces, and visualization assets a studio needs, and it delivers them in a shape your tools already read.
+
+#### UVs and textures included
+Every model arrives unwrapped, with PBR maps already attached, so it reacts to your scene's lights straight away.
+#### Parts split for you
+Handles, lids, and panels come back as separate pieces you can select, hide, or rework, with no fused mesh to cut apart first.
+#### Works with your tools
+Every Hydrilla plugin works with it, in your engine or DCC. [Integrations](https://hydrilla.ai/integrations)
+#### No training on your data
+Your prompts, pictures, and models stay out of our training sets. [How we handle data](https://hydrilla.ai/security)
+
+### Parts, UVs, and PBR textures
+
+BlueFox returns a mesh split into parts, with UVs and PBR texture maps. Select one part in Studio and leave the rest alone, or repaint the maps in your own tools.
+
+### BlueFox at a glance
+
+| Spec | BlueFox 1 |
+|---|---|
+| Version | BlueFox 1 |
+| Availability | Generally available to everyone in Hydrilla |
+| Inputs | Typed prompt or uploaded image |
+| Output | Mesh in parts, UV-unwrapped, with PBR maps |
+| Exports | [Hydrilla's export formats](https://hydrilla.ai/features#exports) |
+
+### Where BlueFox fits, and where it stops
+
+Use it for props, environment pieces, and visualization assets an artist will finish. BlueFox isn't built for CAD, manufacturing drawings, or finished hero assets that skip an artist pass. The full [model card](https://hydrilla.ai/research#model-card) lists intended use and inputs.
+
+---
+
+URL: https://hydrilla.ai/integrations
+
+## Integrations
+
+Hydrilla AI connects to the tools you already run: a Blender add-on, plugins for Unity, Unreal, and Godot, a local Bridge from Studio, and MCP and REST for custom pipelines.
+
+### From Studio to your open scene
+
+The local Bridge runs on your machine and sends meshes from Studio into Blender, Unity, Unreal, or Godot. Start it from a plugin, then use Send to DCC in Studio.
+
+#### [Blender](https://hydrilla.ai/integrations/blender)
+Generation in a sidebar tab, plus Studio sends.
+#### [Unity](https://hydrilla.ai/integrations/unity)
+Generation and GLB import inside the Unity Editor.
+#### [Unreal Engine](https://hydrilla.ai/integrations/unreal)
+A Python editor plugin for generation and import.
+#### [Godot](https://hydrilla.ai/integrations/godot)
+A Godot 4 editor dock that generates and receives.
+#### [MCP server](https://hydrilla.ai/integrations/mcp)
+Hydrilla generation for any MCP client.
+#### [REST API](https://hydrilla.ai/api)
+Generation jobs from your own code.
+
+### What each integration does
+
+| Tool | Generate in the tool | Receive from Studio | Sign-in |
+|---|---|---|---|
+| Blender | Yes | Bridge | Studio account or API key |
+| Unity | Yes | Bridge | API key |
+| Unreal Engine | Yes | Bridge | API key |
+| Godot 4 | Yes | Bridge | API key |
+| MCP server | Through your agent | No | API key |
+| REST API | From your code | No | API key |
+
+Sign-in (anchor #sign-in): The Blender add-on can use your Studio sign-in in the browser. Every plugin, and the MCP server, also accepts a hyd_live_ API key.
+
+---
+
+URL: https://hydrilla.ai/integrations/blender
+
+## Hydrilla for Blender
+
+The Hydrilla add-on for Blender generates from a prompt or image inside your scene. It also receives models that you send from Studio through the local Bridge.
+
+Available | Hydrilla Team
+
+### Install from disk
+
+1. Download hydrilla-blender.zip using the button on this page.
+2. In Blender, open Edit > Preferences > Add-ons.
+3. Open the menu at the top right and choose Install from Disk.
+4. Select hydrilla-blender.zip, then tick the box to enable the Hydrilla add-on.
+5. In the 3D Viewport, press N to open the sidebar, then click the Hydrilla tab.
+
+### Generate in the Hydrilla tab
+
+Click Run Bridge, then Sign in and finish the login in your browser. Choose Sync, keep the Connect tab open, and generate from a typed prompt or a picture, or use Send to DCC from Studio.
+
+### Troubleshooting
+
+**The add-on says I'm signed out.**
+Leave the Connect browser tab open while you work, then choose Sync again. An API key also works if you prefer keys to browser sign-in.
+
+**Nothing arrives when I send from Studio.**
+Check that Run Bridge is active in the Hydrilla panel and Blender is open on a scene, then send again. Formats other than GLB are covered on [exports](https://hydrilla.ai/features#exports).
+
+---
+
+URL: https://hydrilla.ai/integrations/unity
+
+## Hydrilla for Unity
+
+Generate and import 3D models without leaving the Unity Editor. The plugin adds an Editor window that generates with your API key, and it accepts Studio sends over the Bridge whenever the project is open.
+
+Available | Hydrilla Team
+
+### Install
+
+1. Download hydrilla-unity.zip from this page and unzip it.
+2. Copy the Hydrilla folder into your project's Assets folder.
+3. In the menu bar, open Window > Hydrilla > Generate 3D.
+4. Paste your hyd_live_ API key, or start the Bridge to receive models.
+
+### Generate from the editor
+
+Type a prompt or choose an image in the Hydrilla window and generate. Finished models download as GLB into Assets/Hydrilla, ready to drag into a scene.
+
+### Check the import
+
+Scale looks off? Check the [units table](https://hydrilla.ai/docs#scale). Axis or materials? Work through the [import checklist](https://hydrilla.ai/blog/import-ai-meshes).
+
+---
+
+URL: https://hydrilla.ai/integrations/unreal
+
+## Hydrilla for Unreal Engine
+
+Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from the toolbar, and it receives models you send from Studio over the Bridge.
+
+Available | Hydrilla Team
+
+### Install
+
+1. Enable the Python Editor Script Plugin in Unreal, then restart the editor.
+2. Unzip the download and place its Hydrilla folder in Content/Python or Plugins.
+3. Open the Hydrilla actions from the editor toolbar.
+4. Set your API key there, or switch on the Bridge listener.
+
+### Generate from the editor
+
+Run a job from the Hydrilla toolbar with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test.
+
+### Check the import
+
+Check scale with the [units table](https://hydrilla.ai/docs#scale), and axis and materials with the [import guide](https://hydrilla.ai/blog/import-ai-meshes).
+
+---
+
+URL: https://hydrilla.ai/integrations/godot
+
+## Hydrilla for Godot 4
+
+Bring Hydrilla GLB into Godot 4 projects. The editor plugin generates through the API with your key and listens on the Bridge for models sent from Studio, so both routes end in the same folder.
+
+Available | Hydrilla Team
+
+### Install
+
+1. Download the plugin and copy addons/hydrilla into your Godot project.
+2. Open Project Settings > Plugins and enable the Hydrilla plugin.
+3. Open the Hydrilla dock and add your hyd_live_ key.
+4. Generate from the dock, or listen on the Bridge for Studio sends.
+
+### Where models land
+
+Imported meshes land under res://hydrilla/, so every generated asset sits in one folder you can move or version. For scale, see the [units table](https://hydrilla.ai/docs#scale); for axis and materials, the [import guide](https://hydrilla.ai/blog/import-ai-meshes).
+
+---
+
+URL: https://hydrilla.ai/integrations/mcp
+
+## Hydrilla MCP server
+
+Let AI agents generate 3D through Hydrilla over MCP. Hydrilla's MCP server calls the [REST API](https://hydrilla.ai/api) on an agent's behalf, running locally over stdio for Cursor, Claude Code, and other MCP clients. Your agent describes the asset, and the server handles the job from submission to the finished files.
+
+### Install
+
+1. Download the MCP package, hydrilla-mcp.zip, from this page.
+2. Set HYDRILLA_API_KEY to your hyd_live_ key in the server's environment.
+3. Register the server in your MCP client, following the integration guide, then restart the client.
+
+the MCP server needs REST API access, included with Pro. [Plans](https://hydrilla.ai/pricing) Want an agent inside Hydrilla instead? [See Water Agent](https://hydrilla.ai/water)
+
+---
+
+URL: https://hydrilla.ai/api
+
+## Hydrilla REST API
+
+Run BlueFox, Hydrilla's 3D model, from your own code. The REST API uses the same AI 3D generation as the Hydrilla AI workspace, for asset pipelines, engines, and internal tools.
+
+### Submit, poll, download
+
+Submit a job, poll its status, then download the mesh and maps. Each job moves from queued to processing and ends completed or failed, so your pipeline can retry.
+
+### What you can send and get back
+
+**You send**
+- A text prompt describing the asset and its use
+- Or a reference image to follow
+- Your API key with every request
+
+**You get back**
+- A job ID and its current status
+- A mesh in parts, with UVs and texture maps
+- Files in any of Hydrilla's [export formats](https://hydrilla.ai/features#exports)
+
+### Access and authentication
+
+Create a key in your account; keep it server-side. Plan access is on [pricing](https://hydrilla.ai/pricing), and volume through [Enterprise](https://hydrilla.ai/enterprise). Building for an AI agent? Use the [MCP server](https://hydrilla.ai/integrations/mcp).
+
+---
+
+URL: https://hydrilla.ai/pricing
+
+## Pricing
+
+Start free. Pay monthly, or pay less to generate in a set daily window.
+
+Monthly view
+
+**Free** · $0 a month
+For trying Hydrilla on your own projects.
+- 100 credits a month
+- Generate any time
+- Water Agent, no credits
+
+**Starter** · $5 a month
+For artists who generate every week.
+- 900 credits a month
+- Generate any time
+- Water Agent, no credits
+
+**Pro** · $12 a month
+For heavy use and API pipelines.
+- 3,000 credits a month
+- Generate any time
+- REST API access
+- Water Agent, no credits
+
+Hourly view
+
+**Hourly** · $3 a month
+For artists who work in the same hour each day.
+- Starter's 900 credits a month
+- One chosen hour a day
+- Water Agent, no credits
+
+**Hourly Pro** · $8 a month · Badge: 33% off
+For heavy use on a daily schedule.
+- Pro's 3,000 credits a month
+- A chosen daily window
+- Water Agent, no credits
+
+### Compare plans
+
+| | Free | Starter | Pro | Hourly | Hourly Pro |
+|---|---|---|---|---|---|
+| Credits a month | 100 | 900 | 3,000 | 900 | 3,000 |
+| When you generate | Any time | Any time | Any time | 1 hour a day | Chosen daily window |
+| [Water Agent](https://hydrilla.ai/water) | Included, no credits | Included, no credits | Included, no credits | Included, no credits | Included, no credits |
+
+### Pricing questions
+
+**What does a model cost?**
+A model from text costs 45 credits and a model from an uploaded image costs 30, at default quality.
+
+**Do unused credits carry over?**
+No. Allowances reset each billing month.
+
+**How does the 14-day trial work?**
+Start on the Free plan, or try any Monthly or Hourly plan, Pro included, free for 14 days. The trial needs a card.
+
+**How do Hourly plans save?**
+Hourly Pro gives Pro's 3,000 credits for 33% less, $8 instead of $12, in a chosen daily window. Hourly gives Starter's 900 credits for $3 instead of $5, in one chosen hour a day.
+
+**Which plan includes the API?**
+Pro includes REST API access. [API](https://hydrilla.ai/api)
+
+### Start with the Free plan
+
+Need more than Pro? [Enterprise](https://hydrilla.ai/enterprise)
+
+---
+
+URL: https://hydrilla.ai/solutions
+
+## Hydrilla AI 3D by industry
+
+Five ways teams put BlueFox, Hydrilla's 3D model, to work in Hydrilla AI, each with its fit, limits, and tools.
+
+#### [Game development](https://hydrilla.ai/solutions/games)
+Level dressing and prop sets for your game engine.
+#### [Film and animation](https://hydrilla.ai/solutions/film)
+Set pieces and props for previs, layout, and background dressing.
+#### [Architecture and interiors](https://hydrilla.ai/solutions/architecture)
+Furniture and fixtures that dress rooms for presentations and reviews.
+#### [AR, VR, and XR](https://hydrilla.ai/solutions/xr)
+Objects for headsets and spatial apps, checked against a frame budget.
+#### [Product visualization](https://hydrilla.ai/solutions/product)
+Product photos turned into 3D for web viewers, campaigns, and AR.
+
+Rolling out across a studio? [See Enterprise](https://hydrilla.ai/enterprise)
+
+---
+
+URL: https://hydrilla.ai/solutions/games
+
+## 3D props and environment fill for game teams
+
+Hydrilla AI gives game teams props and environment pieces for your game engine, generated with BlueFox, Hydrilla's 3D model, from typed briefs or uploaded pictures.
+
+### From greybox to a filled level
+
+Swap greybox blocks for generated crates, barrels, and debris while the layout is still changing, then keep the pieces that work. Working from a full level brief? [See Water Agent](https://hydrilla.ai/water)
+
+### What you still do
+
+- Retopology wherever the polygon budget is tight
+- LODs for anything seen from several distances
+- Collision shapes for anything the player touches
+- A material check under your engine's own lighting and post-processing
+
+### Straight into your engine
+
+The [Unity](https://hydrilla.ai/integrations/unity), [Unreal Engine](https://hydrilla.ai/integrations/unreal), and [Godot](https://hydrilla.ai/integrations/godot) plugins put generated models into your project. Review scale and pivots before you build on them. Importing by hand? Use the [import guide](https://hydrilla.ai/blog/import-ai-meshes).
+
+Fill the level now, and polish the pieces players will notice.
+
+---
+
+URL: https://hydrilla.ai/solutions/film
+
+## 3D props and sets for previs and layout
+
+Props and environments for animation and VFX often start as stand-ins. Hydrilla AI fills previs and layout scenes with set pieces generated from a [written prompt](https://hydrilla.ai/text-to-3d) or a still.
+
+### Where generated assets fit
+
+#### Previs
+Block a sequence with generated props, so camera and timing work starts early. Bring them in through [Blender](https://hydrilla.ai/integrations/blender) or [Unreal Engine](https://hydrilla.ai/integrations/unreal).
+#### Background set dressing
+Fill shelves, streets, and rooms far from camera, where silhouette and material read count more than fine detail.
+#### Lookdev bases
+Begin a material study from a generated model and its PBR maps, then hand it to an artist to refine.
+
+### Background first, hero by hand
+
+Assets close to camera still need an artist's pass. Use generated models as a starting point for hero work, and check [the limits of BlueFox, Hydrilla's 3D model](https://hydrilla.ai/bluefox#limits).
+
+Generate what the camera passes by, and save artist hours for what it lingers on.
+
+---
+
+URL: https://hydrilla.ai/solutions/architecture
+
+## 3D furniture and fixtures for visualization
+
+Furnish rooms for presentations and design reviews with furniture and fixtures generated in Hydrilla AI from a [photo](https://hydrilla.ai/image-to-3d) or a prompt.
+
+### Good fits and poor fits
+
+| Fit | Example |
+|---|---|
+| Good fit | Generic chairs, lamps, plants, and decor that fill a room |
+| Good fit | Placeholder furnishings for an early design review |
+| Poor fit | An exact catalogue piece the client intends to buy |
+| Poor fit | Fixtures that need manufacturer dimensions ([limits](https://hydrilla.ai/bluefox#limits)) |
+
+### Into your visualization tool
+
+Check scale on import with the [units table](https://hydrilla.ai/docs#scale). Use the [Blender add-on](https://hydrilla.ai/integrations/blender), or pick the [format](https://hydrilla.ai/features#exports) your renderer prefers. Look over the PBR maps under your scene lighting before the review, since materials read differently in every renderer.
+
+Dress the room with generated pieces, and keep the specified products exact.
+
+---
+
+URL: https://hydrilla.ai/solutions/xr
+
+## 3D assets for AR, VR, and spatial apps
+
+VR, AR, and spatial apps need many small, believable objects. BlueFox, Hydrilla's 3D model, generates them in Hydrilla AI, so you can check each against a headset's limits.
+
+### Check the headset budget
+
+Standalone headsets have tight limits on triangles, draw calls, and texture memory. Measure each asset against your target before it ships, and reduce or bake anything that exceeds it.
+
+- Triangle count per asset
+- Texture resolution per map
+- Draw calls per material
+- Collision and grab volumes for objects users can pick up
+
+### Check it before the headset build
+
+Preview each object in the browser first, then route headset builds through the [Unity](https://hydrilla.ai/integrations/unity) or [Unreal](https://hydrilla.ai/integrations/unreal) plugin. [Which file suits each platform](https://hydrilla.ai/features#exports)
+
+Prototype the space with generated objects, then budget each one for the headset.
+
+---
+
+URL: https://hydrilla.ai/solutions/product
+
+## 3D product models from product photos
+
+Upload a product photo with [image to 3D](https://hydrilla.ai/image-to-3d), and BlueFox, Hydrilla's 3D model, builds a model in Hydrilla AI you can spin and light for storefronts and AR.
+
+### A likeness, not a CAD file
+
+A generated model follows what the photo shows, so treat it as a likeness rather than an engineering replica; for exact dimensions, start from your CAD source ([limits](https://hydrilla.ai/bluefox#limits)). For better results, follow the [reference guide](https://hydrilla.ai/blog/reference-images).
+
+### For web viewers and AR
+
+Check file size before you embed, since storefront pages load on phones too. [Which file suits web and AR](https://hydrilla.ai/features#exports)
+
+Show the product in 3D, and keep the spec sheet as the source of truth.
+
+---
+
+URL: https://hydrilla.ai/enterprise
+
+## Bring AI 3D to your whole studio
+
+Hydrilla AI for whole studios: BlueFox, Hydrilla's 3D model, and Water Agent across your team, in one shared workspace.
+
+### What Enterprise adds for your studio
+
+Enterprise adds seats, API concurrency, custom plans, and pipeline support.
+
+#### Seats
+Art, lookdev, and pipeline staff work together in one shared workspace.
+#### API concurrency
+Jobs from your own backend, sized to your volume.
+#### Custom plans
+Credit pools and queue priority set around your monthly volume.
+#### Pipeline support
+Help connecting the Bridge and plugins to your pipeline.
+
+### How this differs from Pro
+
+| | Pro | Enterprise |
+|---|---|---|
+| How you buy | Self-serve and monthly, on [pricing](https://hydrilla.ai/pricing) | An agreement shaped around your studio |
+| Plans | Monthly credits on a set plan | Custom plans and credit pools |
+
+### Answers for procurement
+
+**How is our data handled?**
+Your data isn't used to train our models, on any plan. Generated assets are kept to your own workspace, and the [security page](https://hydrilla.ai/security) explains both.
+
+**Can we send a security questionnaire?**
+Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm.
+
+### How to start
+
+Tell us your studio size, engine, and expected monthly volume, and whether you already generate on Pro.
+
+---
+
+URL: https://hydrilla.ai/docs
+
+## Get started with Hydrilla
+
+This guide takes a new Hydrilla AI account to its first AI 3D export, step by step, in the browser.
+
+### Your first export
+
+1. Sign up, then open Studio.
+2. Create a workspace so a project's generations stay together.
+3. Generate: write a prompt in [text to 3D](https://hydrilla.ai/text-to-3d), or drop a photo into [image to 3D](https://hydrilla.ai/image-to-3d).
+4. Preview the model: orbit it and check parts and materials.
+5. Choose a format in the export menu and export.
+6. Import the file into Blender, Unity, Unreal, or Godot, or send it with a [plugin](https://hydrilla.ai/integrations).
+
+### Preview and export
+
+The preview shows the model under light, so shape and material problems appear before you download. The export menu lists every format; [which suits which tool](https://hydrilla.ai/features#exports).
+
+### Workspaces and credits
+
+A workspace keeps a project's generations and versions in one place. Each generation spends plan credits, and your account shows what is left. [Cost per model](https://hydrilla.ai/pricing)
+
+### Get the scale right on import
+
+Every tool assumes its own unit and up axis. A mesh in meters arrives a hundred times too small in a tool expecting centimeters, unless the importer converts it.
+
+| Tool | Unit | Up axis | What to watch |
+|---|---|---|---|
+| Blender | Meters | Z up | Apply scale before you export again |
+| Unreal Engine | Centimeters | Z up | Check the import scale field |
+| Unity | Meters | Y up | Compare against a default cube |
+| glTF 2.0 (GLB) | Meters | Y up | Importers read this as the source |
+| Godot 4 | Meters | Y up | Compare against a one-meter box |
+
+### Water Agent
+
+Open Water Agent in the Hydrilla app, or through the Hydrilla plugin inside Blender, Unity, Unreal, or Godot. Describe your brief, review the plan, and revise piece by piece until the set is right. [What Water Agent does](https://hydrilla.ai/water)
+
+Running jobs from code? See the [REST API](https://hydrilla.ai/api). Account questions are in the [FAQ](https://hydrilla.ai/faq).
+
+---
+
+URL: https://hydrilla.ai/faq
+
+## Frequently asked questions
+
+Straight answers on owning what you make in Hydrilla AI, running your account, and getting help.
+
+### Licensing and ownership
+
+**Do I own the 3D models I generate?**
+Hydrilla's Terms of Service cover ownership of the 3D assets you generate. The [ownership section of the Terms](https://hydrilla.ai/terms#ownership) has the exact wording.
+
+**Can I upload reference images I didn't create?**
+Only upload images you have the right to use. The [Terms](https://hydrilla.ai/terms) apply to everything you upload.
+
+### Accounts and data
+
+**How do I sign in?**
+You sign in to Studio with your Hydrilla account. How each plugin signs in is listed on [integrations](https://hydrilla.ai/integrations#sign-in). [Sign-in security](https://hydrilla.ai/security)
+
+**Can I delete my work or my account?**
+To close your account or ask for its data to be deleted, write to founders@hydrilla.ai from your account email.
+
+**Where can I read how my data is handled?**
+The [Privacy Policy](https://hydrilla.ai/privacy) covers personal data. The [security page](https://hydrilla.ai/security) covers model training, accounts, stored assets, and exports for studio reviewers.
+
+### Support
+
+**How do I get help?**
+Email founders@hydrilla.ai or use the [contact form](https://hydrilla.ai/contact). For a generation problem, include your account email, the workspace, and a screenshot.
+
+**Where should I start if I'm new?**
+Follow the steps in the [docs](https://hydrilla.ai/docs), from sign-up to a first import in your own tools.
+
+---
+
+URL: https://hydrilla.ai/blog
+
+## Blog
+
+Practical guides from the Hydrilla team on working with AI 3D output. Each guide answers one question, from choosing a reference image to bringing an exported mesh into your game engine at the right scale.
+
+#### [How do you import an AI-generated mesh into a game engine?](https://hydrilla.ai/blog/import-ai-meshes)
+Units, up axis, and material checks for Unity, Unreal, and Godot, with a short checklist.
+publish date (set at publish)
+
+#### [What makes a good reference image for image to 3D?](https://hydrilla.ai/blog/reference-images)
+Framing, light, and hidden sides, plus what to check before you upload a photo.
+publish date (set at publish)
+
+---
+
+URL: https://hydrilla.ai/blog/reference-images
+
+## What makes a good reference image for image to 3D?
+
+publish date | Hydrilla Team
+
+A good reference shows one subject, whole and in focus, against a plain background in soft, even light, from a slight angle rather than flat on. The clearer its outline, the less guessing [image to 3D](https://hydrilla.ai/image-to-3d) in Hydrilla AI does.
+
+### Subject, framing, and light
+
+Let the object fill most of the frame, with a small margin on every side. A three-quarter angle shows two faces and a sense of depth. Avoid hard shadows and strong reflections, which can read as shape. A sharp phone photo is enough.
+
+Good example caption: One chair, three-quarter view, plain wall, soft daylight, nothing cropped.
+Poor example caption: The same chair cut off at the legs, in a busy room, under hard window light.
+
+### The sides the camera can't see
+
+A single image can't show the back of an object, so the model has to infer it. When the hidden side matters, pick the angle that shows the faces you care about most.
+
+### Before you upload
+
+- One subject, with nothing touching it
+- Sharp at full size, without blur or heavy compression
+- The whole object in frame, with every edge visible
+- A plain background that contrasts with the subject
+- Even light, without blown highlights or colored casts
+
+---
+
+URL: https://hydrilla.ai/blog/import-ai-meshes
+
+## How do you import an AI-generated mesh into a game engine?
+
+publish date | Hydrilla Team
+
+[Export a GLB or FBX](https://hydrilla.ai/features#exports), then check the up axis and materials on import. Most problems come from tools disagreeing about orientation and texture setup, not from the mesh itself.
+
+### Why does the model arrive on its side?
+
+Tools disagree on the up axis: Blender and Unreal use Z up, while Unity, Godot, and glTF use Y up, so a model can arrive lying on its side. Units and scale are covered in the [docs](https://hydrilla.ai/docs#scale).
+
+### How do you keep the materials?
+
+GLB packs its textures inside the file, so materials usually arrive assigned. Other formats often point to separate texture files, so keep the maps beside the mesh and check the UVs came through. Base color is sRGB; roughness, metalness, and normal maps are linear.
+
+### Import checklist
+
+1. Pick the format your importer prefers: GLB or FBX.
+2. Fix the up axis in import settings, not by rotating the object.
+3. Open each material and confirm every texture slot has a map.
+4. If bumps look inverted, flip the normal map's green channel (Unreal uses DirectX style).
+5. Save the import settings as a preset, so every later asset arrives the same way.
+
+### Prefer a plugin?
+
+Plugins for the three engines, [Unity](https://hydrilla.ai/integrations/unity), [Unreal Engine](https://hydrilla.ai/integrations/unreal), and [Godot](https://hydrilla.ai/integrations/godot), place GLB files in a fixed project folder for you.
+
+---
+
+URL: https://hydrilla.ai/compare
+
+## Compare Hydrilla with other AI 3D tools
+
+How Hydrilla AI and BlueFox, Hydrilla's 3D model, differ from other generators, plus a neutral buying guide.
+
+#### [Hydrilla vs Meshy](https://hydrilla.ai/compare/meshy)
+Inputs, formats, plugins, API, and agents, row by row.
+Checked 24 Oct 2026
+
+#### [Hydrilla vs Tripo](https://hydrilla.ai/compare/tripo)
+Model, outputs, engine bridges, and pricing approach, row by row.
+Checked 24 Oct 2026
+
+#### [Hydrilla vs Hyper3D](https://hydrilla.ai/compare/hyper3d)
+BlueFox next to Rodin on inputs, formats, and developer access.
+Checked 24 Oct 2026
+
+#### [How to choose an AI 3D generator](https://hydrilla.ai/compare/how-to-choose)
+Ten criteria and a bake-off method for any tool you are weighing.
+
+### How we compare
+
+Every row comes from each company's public pages, dated when we checked. We give no scores, imply no relationship, and ask you to confirm details on each product's own site.
+
+---
+
+URL: https://hydrilla.ai/compare/meshy
+
+## How does Hydrilla compare to Meshy?
+
+Hydrilla AI and Meshy are separate products, each with its own models. Hydrilla runs BlueFox, Hydrilla's 3D model, in an AI 3D workspace, while Meshy runs its own models and adds tools such as texturing and print export.
+
+### Side by side
+
+| | Hydrilla | Meshy (confirm on meshy.ai) |
+|---|---|---|
+| Model | [BlueFox 1](https://hydrilla.ai/bluefox), Hydrilla's own model | Meshy's own models; its pricing page names Meshy 6 |
+| Inputs | A text prompt or one reference image | Text, image, and multi-image, per its API page |
+| Output | Segmented mesh with PBR maps | Textured models, with separate texturing, rigging, and animation tools |
+| Export formats | Four formats ([list](https://hydrilla.ai/features#exports)) | FBX, OBJ, USDZ, GLB, STL, and BLEND, per its pricing FAQ |
+| Engine and DCC tools | A plugin for each of four tools, linked by a local Bridge ([integrations](https://hydrilla.ai/integrations)) | A DCC bridge listing Roblox, Blender, Godot, Unity, Unreal, Maya, and 3ds Max |
+| API and agents | REST API and an MCP server | Credit-billed API and an MCP server |
+| Pricing model | Monthly credit plans with a Free tier; costs per model on [pricing](https://hydrilla.ai/pricing) | Monthly credit plans with a Free tier and several paid levels |
+| Model card | Published, with intended use and limits | Confirm on meshy.ai |
+| AI 3D agent | [Water Agent](https://hydrilla.ai/water) builds and revises whole asset sets in conversation, on every plan, no credits | Confirm on meshy.ai |
+
+### When each one fits
+
+Hydrilla suits teams that want a flagship model with a published card and segmented parts, an AI agent that works through whole asset sets with your artists, and plugins for four engines and DCCs. Meshy suits teams that also need 3D printing formats, rigging, or animation inside the same product.
+
+### Check before you decide
+
+Meshy's prices, formats, and features change. Verify on their site, [meshy.ai](https://www.meshy.ai), before you rely on any row.
+
+Checked 24 Oct 2026 | Hydrilla Team
+
+---
+
+URL: https://hydrilla.ai/compare/tripo
+
+## How does Hydrilla compare to Tripo?
+
+Hydrilla AI and Tripo both turn text or images into 3D. They come from separate companies with separate models: BlueFox, Hydrilla's 3D model, on one side, Tripo's own model line on the other. Compare the table, then run a [bake-off](https://hydrilla.ai/compare/how-to-choose) in your own scene.
+
+### Side by side
+
+| | Hydrilla | Tripo (confirm on tripo3d.ai) |
+|---|---|---|
+| Generation model | [BlueFox 1](https://hydrilla.ai/bluefox) | Tripo's own model line |
+| Input types | A prompt, or a single reference image | Its API page lists multiview input alongside text and image |
+| What comes back | A mesh in parts, PBR maps included | Textured models; API services for segmentation, retopology, and rigging |
+| File formats | Four [export formats](https://hydrilla.ai/features#exports) | GLB, FBX, OBJ, USDZ, and more; STL and 3MF for printing |
+| Plugins | Four engine and DCC [plugins](https://hydrilla.ai/integrations), plus the local Bridge | A DCC bridge for Blender, 3ds Max, Unity, Unreal, Maya, Cocos, Godot, and ZBrush |
+| Developer access | Job-based REST API, plus MCP for AI agents | Credit-priced API with task completion notices |
+| Plans | Free, paid, and Hourly plans, all priced in credits ([plans](https://hydrilla.ai/pricing)) | Free, Pro, Max, and per-seat Team plans, priced in credits |
+| Public limits | Stated on the [BlueFox page](https://hydrilla.ai/bluefox#limits) and model card | Confirm on tripo3d.ai |
+| AI 3D agent | [Water Agent](https://hydrilla.ai/water) builds and revises whole asset sets in conversation, on every plan, no credits | Confirm on tripo3d.ai |
+
+### When each one fits
+
+Choose Hydrilla when you want segmented parts, a public model card, and an AI 3D agent that directs whole sets with you, from input to export. Tripo may fit better when the work also covers 3D printing, rigging, or a tool on its bridge list that Hydrilla doesn't support.
+
+### Check before you decide
+
+Plans and features change over time, so confirm every row on [tripo3d.ai](https://www.tripo3d.ai) before you choose.
+
+Checked 24 Oct 2026 | Hydrilla Team
+
+---
+
+URL: https://hydrilla.ai/compare/hyper3d
+
+## How does Hydrilla compare to Hyper3D?
+
+Hydrilla AI and Hyper3D build separate 3D models. Hydrilla uses BlueFox, Hydrilla's 3D model, and Hyper3D runs Rodin. Both accept text or images; their exports, plugins, and plans differ.
+
+### Side by side
+
+| | Hydrilla | Hyper3D (confirm on hyper3d.ai) |
+|---|---|---|
+| Model | [BlueFox 1](https://hydrilla.ai/bluefox) | Rodin; its site names Gen-2.5 |
+| Inputs | Text, or a reference image | Image, text, and multi-image |
+| Result | Segmented mesh carrying PBR maps | Textured mesh, with parts and low-poly options listed |
+| Exports | Four formats, listed on [exports](https://hydrilla.ai/features#exports) | STL, FBX, OBJ, GLB, glTF, and USDZ, per its FAQ |
+| Plugins | Plugins for four tools, through a [local Bridge](https://hydrilla.ai/integrations) | Blender, Unity, Unreal, Godot, Maya, 3ds Max, and ComfyUI |
+| API and MCP | REST jobs and an MCP server, see [API](https://hydrilla.ai/api) | API and MCP, both listed in its navigation |
+| Plans | Credits, a Free plan, and a published cost per model | Free, Creator, Business, and Enterprise tiers |
+| Team features | Seats and API concurrency through Enterprise | Multi-team management, shared workspace, and compliance, per its homepage |
+| AI 3D agent | [Water Agent](https://hydrilla.ai/water) builds and revises whole asset sets in conversation, on every plan, no credits | Confirm on hyper3d.ai |
+
+### When each one fits
+
+Hydrilla fits studios that want a documented flagship model, an agent that works through whole sets with your artists, and a local Bridge into their existing scene tools. Hyper3D fits teams that need printing formats, ComfyUI, or Maya and 3ds Max plugins today.
+
+### Check before you decide
+
+Rodin's tiers, formats, and plugins can change. Confirm each row on [hyper3d.ai](https://hyper3d.ai) first.
+
+Checked 24 Oct 2026 | Hydrilla Team
+
+---
+
+URL: https://hydrilla.ai/compare/how-to-choose
+
+## How do you choose an AI 3D generator?
+
+Start from the job, not the demo reel. Decide what the asset has to do in your engine or DCC, then test each tool against ten practical criteria and one shared brief in your own scene.
+
+### Ten criteria that decide fit
+
+| Criterion | Why it matters | How to check |
+|---|---|---|
+| Inputs | Text, one image, or several views change how much you can direct | Run the same prompt and photo in each tool |
+| Output type | A mesh, a point cloud, and a splat need different pipelines | Open the file and see what is inside |
+| Parts | Separate parts make material and edit work simpler | Count the objects after import |
+| PBR maps | The maps decide how an asset reacts to your lighting | List the texture maps that come with the file |
+| Formats | The file has to open where your team works | Export every format you need and import each one |
+| Engine and DCC path | Plugins and bridges remove manual import steps | Install the plugin and send one asset across |
+| API | Pipelines and internal tools need jobs run from code | Read the API reference and run a single job |
+| Licensing | Commercial use and ownership can differ by plan | Check the license wording for the plan you would buy |
+| Data and security | Studios need to know where inputs and outputs go | Ask for the security page and data-use terms |
+| Cost predictability | Published credit math sets the real cost per asset | Work out the cost of one finished model |
+
+### Run a fair bake-off
+
+Test any AI 3D generator on the same brief, in your own engine or DCC, before you commit. Keep the brief short and the scoring sheet fixed, so the comparison stays about the output and not the presentation.
+
+1. Write one brief with three assets taken from a real task.
+2. Generate each asset in every tool with identical inputs.
+3. Import the results into your scene, under your own lighting.
+4. Score each criterion, then log the cleanup time per asset.
+
+### Where Hydrilla fits
+
+Hydrilla AI runs BlueFox, Hydrilla's 3D model, which returns segmented meshes with PBR maps from a prompt or an image. Its [fit and limits](https://hydrilla.ai/bluefox#limits) are stated on the model page. Its [model](https://hydrilla.ai/bluefox), [exports](https://hydrilla.ai/features#exports), [security](https://hydrilla.ai/security), and [credit costs](https://hydrilla.ai/pricing) are all public.
+
+Checked 24 Oct 2026
+
+---
+
+URL: https://hydrilla.ai/about
+
+## About Hydrilla
+
+Hydrilla AI is an AI 3D workspace for studio and artist pipelines. We build the Hydrilla workspace and BlueFox, Hydrilla's 3D model. Despite the name, we're a software company, not the aquatic plant.
+
+### One company, its research lab, and its model
+
+Hydrilla AI is the product and company; Hawan Research Labs is its research lab. The lab builds BlueFox. Read about [Hawan Research Labs](https://hydrilla.ai/research), the [model](https://hydrilla.ai/bluefox), and the [workspace](https://hydrilla.ai/features).
+
+### Company facts
+
+| Fact | Detail |
+|---|---|
+| Company | Hydrilla AI |
+| Founders | Tharak Nagaveti, Dharani Kumar, and Tejesh Varma |
+
+Want to see who builds Hydrilla, or work with us? Meet the [team](https://hydrilla.ai/team), or see how we [hire](https://hydrilla.ai/careers).
+
+---
+
+URL: https://hydrilla.ai/research
+
+## Research
+
+Hawan Research Labs is Hydrilla AI's research lab. It's where we build BlueFox, Hydrilla's 3D model. Below is the model card. [About Hydrilla](https://hydrilla.ai/about)
+
+### What we work on
+
+Generating 3D from text and images: meshes split into usable parts, physically based materials, and assets that hold up in game, film, architecture, and XR scenes. [Meet the team](https://hydrilla.ai/team)
+
+### BlueFox 1 model card
+
+The card lists what the current model takes in, what it returns, and what it's for.
+
+| Field | Detail |
+|---|---|
+| Model | BlueFox 1, in the BlueFox family |
+| Built by | Hawan Research Labs, the research lab of Hydrilla AI |
+| Availability | Generally available to everyone in Hydrilla |
+| Inputs | Text prompt, reference image |
+| Outputs | Segmented mesh with UVs and textures (PBR maps) |
+| Exports | [Hydrilla's export formats](https://hydrilla.ai/features#exports) |
+| Intended use | Props, environments, visualization, and starting assets for an artist pass |
+| Not intended for | CAD or precision engineering |
+| Training data | Customer data isn't used ([security](https://hydrilla.ai/security)) |
+| Repository | [Hugging Face](https://huggingface.co/Hydrilla/BlueFox3D) |
+
+---
+
+URL: https://hydrilla.ai/careers
+
+## Careers at Hydrilla
+
+Hydrilla AI is a small team building an AI 3D workspace for artists and studios: meshes, materials, exports, and the software around them.
+
+### Who we hire
+
+| Team | What you work on |
+|---|---|
+| Engineering | Full-stack product, 3D runtime, and generation infrastructure. |
+| 3D and research | Model quality, mesh structure, materials, and evaluation for BlueFox, Hydrilla's 3D model. |
+
+### How to apply
+
+Email founders@hydrilla.ai with the subject "Careers / your name", links to your work, and your location, even if no role fits yet. Meet the [team](https://hydrilla.ai/team) or read [about Hydrilla](https://hydrilla.ai/about) first.
+
+---
+
+URL: https://hydrilla.ai/contact
+
+## Contact Hydrilla
+
+Reach the team behind Hydrilla AI about your account, a generation, or press. Pick the route that fits.
+
+### Choose a route
+
+| Route | How |
+|---|---|
+| Support | Account, billing, or a generation that went wrong: email founders@hydrilla.ai, or check the [FAQ](https://hydrilla.ai/faq) and [docs](https://hydrilla.ai/docs) first. |
+| Press | Interviews and logos: write to founders@hydrilla.ai with your outlet and deadline. |
+| Sales and demos | Seats, volume, or a walkthrough live on [Enterprise](https://hydrilla.ai/enterprise). |
+
+### Send a message
+
+Replies come from founders@hydrilla.ai.
+
+---
+
+URL: https://hydrilla.ai/changelog
+
+## Changelog
+
+Releases to Hydrilla AI and BlueFox, Hydrilla's 3D model, newest first.
+
+### 19 Aug 2026: BlueFox 1 in Studio
+
+BlueFox 1 now runs in Studio: text or image input, segmented meshes with PBR maps, and a browser preview. [About BlueFox](https://hydrilla.ai/bluefox)
+
+### 19 Aug 2026: REST API
+
+Job-based generation for pipelines: send a prompt or a reference, track the job, fetch the files. [REST API](https://hydrilla.ai/api)
+
+### 19 Aug 2026: Docs, FAQ, and pipeline notes
+
+Getting-started docs, a buyer FAQ, and the BlueFox 1 model card went public. [Docs](https://hydrilla.ai/docs)
+
+---
+
+URL: https://hydrilla.ai/team
+
+## Team
+
+The people at Hydrilla AI building BlueFox, Hydrilla's 3D model, and the AI 3D workspace. Each card links to that person's LinkedIn profile. [About Hydrilla](https://hydrilla.ai/about)
+
+- Tharak Nagaveti, Co-Founder
+- Dharani Kumar, Co-Founder and CTO
+- Tejesh Varma, Co-Founder and CGO
+- Aditya Sontena, Lead Developer
+- Rishik Kalyan, Creative Director
+- Hem Charan, Software Engineer
+- Krishna Manohar, Data Scientist
+- Kishan Kumar, Marketing Head
+
+We're hiring across engineering and research. [See open roles](https://hydrilla.ai/careers)
+
+---
+
+URL: https://hydrilla.ai/security
+
+## How Hydrilla protects your studio assets
+
+Hydrilla AI protects the keys to your account, keeps your work inside your AI 3D workspace, and hands files to your pipeline.
+
+Oct 1, 2026 | Hydrilla Team
+
+### Your data doesn't train our models
+
+We don't use your data to train our models. That holds for every account on every plan, including your prompts, the reference images you upload, and the models you generate.
+
+### Accounts and stored assets
+
+Sign-in runs through Clerk, and each session belongs to one user. Generated meshes stay scoped to your workspace. Your data is stored securely, and reaching it takes a signed-in account.
+
+- Signed-in pages are kept out of search engines
+- API keys are created and managed from your account
+
+### Exports and vendor reviews
+
+Once you download an export, the file lives in your own pipeline. For a questionnaire or vendor review, use Contact security below, or [talk to our team](https://hydrilla.ai/enterprise#contact). See also the [Privacy Policy](https://hydrilla.ai/privacy) and [Terms](https://hydrilla.ai/terms).

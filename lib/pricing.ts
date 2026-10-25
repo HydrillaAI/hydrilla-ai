@@ -159,15 +159,15 @@ export const PRICING_CATALOG: PricingCatalogRow[] = [
   },
 ];
 
-/** Hourly vs Starter: $3 vs $5 is 40% off. */
+/** Hourly Pro vs Pro: $8 vs $12 is 33% off. */
 export const SLOT_SAVE_PERCENT = Math.round(
-  (1 - SLOT_PRICING.slot.monthly / PRICING.starter.monthly) * 100
+  (1 - SLOT_PRICING.slot_pro.monthly / PRICING.pro.monthly) * 100
 );
 
 export const PRICING_PAGE = {
   title: "Pricing",
   subtitle:
-    "Monthly credits for 3D generation. Save 40% when you generate in a daily selected hour.",
+    `Monthly credits for 3D generation. Save ${SLOT_SAVE_PERCENT}% when you generate in a daily selected hour.`,
   toggleMonthly: "Monthly",
   toggleSlot: "Hourly",
   toggleSave: `${SLOT_SAVE_PERCENT}% off on Hourly`,
@@ -177,10 +177,10 @@ export const PRICING_PAGE = {
 
 export const PRICING_FAQ_QUESTIONS = [
   "Is there a free plan available?",
-  "How many 3D models can I generate each month?",
-  "What are Hourly and Hourly Pro?",
-  "Can I change or cancel my plan anytime?",
-  "What formats does Hydrilla export?",
+  "What does a model cost?",
+  "How does the 14-day trial work?",
+  "How do Hourly plans save?",
+  "Which plan includes the API?",
 ] as const;
 
 export const PRICING_META_DESCRIPTION =

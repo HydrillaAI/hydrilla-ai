@@ -1,19 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ArrowUp, Box, Coins, Droplets, Image as ImageIcon, PenLine, Sparkles, Type, Upload, X } from "lucide-react";
+import { ArrowUp, Box, Clock, Coins, Droplets, Image as ImageIcon, Paperclip, PenLine, Sparkles, Type, Upload, X } from "lucide-react";
 import { COMPOSER_SIZE } from "@/lib/composer-size";
 import type { PromptHistoryEntry } from "@/lib/prompt-history";
 import { cn } from "@/lib/utils";
 import { StudioOrb } from "../StudioOrb";
-import { ChatRefTile, EASE, FOCUS, MAX_PROMPT, PromptHistoryDropdown } from "../composer-parts";
+import { EASE, FOCUS, ICON_BUTTON, MAX_PROMPT, PromptHistoryDropdown } from "../composer-parts";
 import type { ComposerMode } from "../types";
+import { AttachmentCard, AttachmentDropzone } from "./ComposerAttachments";
 
 export type ComposerAttachment = {
   kind: "image" | "model";
   /** Thumbnail; null while a 3D upload is still rendering its snapshot. */
   preview: string | null;
   label: string;
+  /** Extra facts after the pixel size, e.g. "PNG · 1.2 MB" or "From library". */
+  detail?: string;
 };
 
 /** The input tile left of the prompt (image → 3D, image edit, model edit). */
@@ -56,63 +59,37 @@ const ACCEPT = {
   model: ".glb,.gltf,.obj,model/gltf-binary,model/gltf+json",
 } as const;
 
+/**
+ * One inset (`pad`) runs down the whole card: the mode bar, attachments, prompt text and footer all
+ * start on the same vertical line, so the composer reads as one aligned column.
+ */
 const METRICS = {
   small: {
     width: "max-w-[620px]",
-    radius: "rounded-[20px] sm:rounded-2xl",
+    radius: "rounded-[22px]",
+    pad: "px-2.5",
     segment: "sm" as const,
-    bar: "gap-1.5 px-2.5 pt-2",
-    dropWrap: "px-2.5 pt-2 pb-2",
-    drop: "h-14 sm:h-16 gap-1 rounded-xl px-3",
-    dropLabel: "text-[13px]",
-    dropHint: "text-[11px]",
-    prompt: "gap-2 px-3 pt-2 pb-1.5 sm:pb-2",
-    type: "py-1.5 text-[16px] sm:text-[14px] leading-5",
-    minWithSlot: "min-h-11 sm:min-h-10",
-    minAlone: "min-h-9 sm:min-h-8",
-    tile: "h-11 w-11 sm:h-12 sm:w-12",
-    foot: "px-2.5 pb-2 pt-1.5",
-    cost: "h-7 sm:h-7 px-2 text-[11px]",
-    submit: "h-9 w-9 sm:h-8 sm:w-8",
-    promptMax: 112,
+    type: "text-[16px] sm:text-[14px] leading-6",
+    minHeight: "min-h-12",
+    promptMax: 120,
   },
   medium: {
     width: "max-w-[680px]",
-    radius: "rounded-[20px] sm:rounded-2xl",
+    radius: "rounded-[26px]",
+    pad: "px-3",
     segment: "md" as const,
-    bar: "gap-1.5 sm:gap-2 px-2.5 sm:px-3 pt-2 sm:pt-2.5",
-    dropWrap: "px-2.5 sm:px-3 pt-2 sm:pt-2.5 pb-2 sm:pb-2.5",
-    drop: "h-16 sm:h-20 gap-1 rounded-xl px-3",
-    dropLabel: "text-[13px]",
-    dropHint: "text-[11px] sm:text-[12px]",
-    prompt: "gap-2 sm:gap-2.5 px-3 sm:px-3.5 pt-2 sm:pt-2.5 pb-2 sm:pb-2.5",
-    type: "py-1 sm:py-1.5 text-[16px] sm:text-[14px] leading-5",
-    minWithSlot: "min-h-11 sm:min-h-12",
-    minAlone: "min-h-9 sm:min-h-10",
-    tile: "h-12 w-12 sm:h-14 sm:w-14",
-    foot: "px-2.5 sm:px-3 pb-2 sm:pb-2.5 pt-1.5 sm:pt-2",
-    cost: "h-7 sm:h-8 px-2 sm:px-2.5 text-[11px] sm:text-[12px]",
-    submit: "h-9 w-9 sm:h-8 sm:w-8",
-    promptMax: 136,
+    type: "text-[16px] sm:text-[15px] leading-6",
+    minHeight: "min-h-11",
+    promptMax: 168,
   },
   large: {
     width: "max-w-[760px]",
-    radius: "rounded-[22px] sm:rounded-[24px]",
+    radius: "rounded-[28px]",
+    pad: "px-3.5",
     segment: "md" as const,
-    bar: "gap-1.5 sm:gap-2 px-2.5 sm:px-3 pt-2.5 sm:pt-3",
-    dropWrap: "px-2.5 sm:px-3 pt-2.5 sm:pt-3 pb-2 sm:pb-2.5",
-    drop: "h-16 sm:h-24 gap-1 sm:gap-1.5 rounded-xl sm:rounded-2xl px-3",
-    dropLabel: "text-[13px] sm:text-[14px]",
-    dropHint: "text-[11px] sm:text-[12px]",
-    prompt: "gap-2.5 sm:gap-3 px-3 sm:px-4 pt-2 sm:pt-3 pb-2",
-    type: "py-1.5 sm:py-2 text-[16px] sm:text-[15px] leading-6",
-    minWithSlot: "min-h-12 sm:min-h-16",
-    minAlone: "min-h-10 sm:min-h-12",
-    tile: "h-12 w-12 sm:h-16 sm:w-16",
-    foot: "px-2.5 sm:px-3 pb-2 sm:pb-3 pt-1.5 sm:pt-2",
-    cost: "h-7 sm:h-8 px-2 sm:px-2.5 text-[11px] sm:text-[12px]",
-    submit: "h-9 w-9",
-    promptMax: 160,
+    type: "text-[16px] leading-6",
+    minHeight: "min-h-14",
+    promptMax: 200,
   },
 } as const;
 
@@ -149,6 +126,8 @@ type Props = {
   canSubmit: boolean;
   /** Shown when the submit control is held, for example outside a booked hour. */
   blockedNote?: string | null;
+  /** Short form of `blockedNote` for the chip beside submit, e.g. "Opens in 9h 19m". */
+  blockedChip?: string | null;
   generating: boolean;
   onSubmit: () => void;
   error: string | null;
@@ -178,45 +157,38 @@ function Segmented<T extends string>({
   size: "md" | "sm";
 }) {
   return (
-    <div
-      className="flex shrink-0 items-center rounded-lg bg-neutral-100 p-0.5 ring-1 ring-inset ring-black/[0.06]"
-      role="radiogroup"
-      aria-label={label}
-    >
+    <div className="flex shrink-0 items-center rounded-full bg-neutral-100 p-[3px]" role="radiogroup" aria-label={label}>
       {items.map(({ id, label: itemLabel, icon: Icon }) => {
         const off = Boolean(disabled?.ids.includes(id));
+        const active = value === id;
         return (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={value === id}
-          aria-label={itemLabel}
-          aria-disabled={off || undefined}
-          title={off ? disabled?.reason : undefined}
-          onClick={() => {
-            if (!off) onChange(id);
-          }}
-          className={cn(
-            "relative inline-flex shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap font-medium sm:gap-1.5",
-            size === "md"
-              ? "h-8 rounded-md px-2 text-[12px] sm:px-2.5 sm:text-[13px]"
-              : "h-7 rounded-md px-1.5 text-[11px] sm:px-2 sm:text-[12px]",
-            EASE,
-            FOCUS,
-            value === id
-              ? "bg-white text-neutral-950 shadow-[0_1px_1px_rgba(0,0,0,0.06)] ring-1 ring-neutral-200"
-              : off
-                ? "cursor-not-allowed text-neutral-300"
-                : "text-neutral-500 hover:text-neutral-900"
-          )}
-        >
-          <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-          <span className={cn(value !== id && "max-[360px]:sr-only")}>{itemLabel}</span>
-          {attention?.id === id && value !== id && !off ? (
-            <span key={attention.key} aria-hidden className="segment-shine" />
-          ) : null}
-        </button>
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={itemLabel}
+            aria-disabled={off || undefined}
+            title={off ? disabled?.reason : undefined}
+            onClick={() => {
+              if (!off) onChange(id);
+            }}
+            className={cn(
+              "relative inline-flex shrink-0 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full font-medium tracking-[-0.01em]",
+              size === "md" ? "h-8 px-3 text-[13px]" : "h-7 px-2.5 text-[12px]",
+              EASE,
+              FOCUS,
+              active
+                ? "bg-white text-neutral-950 shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_0.5px_rgb(0_0_0/0.06)] dark:bg-neutral-200 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_1px_2px_rgb(0_0_0/0.4)]"
+                : off
+                  ? "cursor-not-allowed text-neutral-300"
+                  : "text-neutral-500 hover:text-neutral-900"
+            )}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+            <span className={cn(!active && "max-[380px]:sr-only")}>{itemLabel}</span>
+            {attention?.id === id && !active && !off ? <span key={attention.key} aria-hidden className="segment-shine" /> : null}
+          </button>
         );
       })}
     </div>
@@ -243,6 +215,7 @@ export function Composer({
   submitLabel,
   canSubmit,
   blockedNote = null,
+  blockedChip = null,
   generating,
   onSubmit,
   error,
@@ -256,7 +229,12 @@ export function Composer({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const onAttachFileRef = useRef(onAttachFile);
+  onAttachFileRef.current = onAttachFile;
   const metrics = METRICS[COMPOSER_SIZE];
+  const attachment = slot?.attachment ?? null;
+  // Without a slot, attaching still works: the page switches to the mode that takes the file.
+  const accept: readonly ("image" | "model")[] = slot ? slot.accept : mode === "3d" ? ["image", "model"] : ["image"];
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -265,27 +243,42 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight, metrics.promptMax)}px`;
   }, [value, textareaRef, showPrompt, metrics.promptMax]);
 
+  // Paste an image anywhere on the page (outside other fields) to attach it.
+  useEffect(() => {
+    if (!acceptFiles) return;
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      const file = event.clipboardData?.files?.[0];
+      if (!file) return;
+      event.preventDefault();
+      onAttachFileRef.current(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [acceptFiles]);
+
   const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (file) onAttachFile(file);
   };
-
-  const submitIfReady = () => {
-    if (canSubmit && !generating) onSubmit();
-  };
+  const openPicker = () => fileInputRef.current?.click();
 
   const ready = canSubmit && !generating;
+  const submitIfReady = () => {
+    if (ready) onSubmit();
+  };
 
   return (
     <div className={cn("relative mx-auto w-full", metrics.width, className)}>
       {suggestion && !generating ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-2.5">
+        <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-3">
           <button
             type="button"
             onClick={suggestion.onClick}
             className={cn(
-              "pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full border border-neutral-200/80 bg-white/95 px-3 text-[13px] font-medium text-neutral-800 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] backdrop-blur-xl hover:bg-neutral-50 active:scale-[0.98]",
+              "studio-float composer-attach-in pointer-events-auto inline-flex h-9 items-center gap-2 rounded-full border border-neutral-900/[0.08] bg-white/90 px-4 text-[13px] font-medium tracking-[-0.01em] text-neutral-800 shadow-[0_2px_8px_rgb(0_0_0/0.06)] backdrop-blur-xl hover:bg-white active:scale-[0.98]",
               EASE,
               FOCUS
             )}
@@ -301,30 +294,44 @@ export function Composer({
       ) : null}
 
       <div
-        className={cn(
-          "pointer-events-auto overflow-hidden border bg-white shadow-[0_1px_1px_rgba(0,0,0,0.04),0_10px_28px_-16px_rgba(0,0,0,0.28)]",
-          metrics.radius,
-          dragOver ? "border-neutral-900 ring-4 ring-neutral-900/5" : "border-neutral-200",
-          "transition-[border-color,box-shadow] duration-150"
-        )}
-        onDragOver={(e) => {
+        data-dragging={dragOver || undefined}
+        className={cn("studio-composer pointer-events-auto relative overflow-hidden", metrics.radius)}
+        onDragEnter={(e) => {
           if (!acceptFiles) return;
           e.preventDefault();
           setDragOver(true);
         }}
-        onDragLeave={() => setDragOver(false)}
+        onDragOver={(e) => {
+          if (!acceptFiles) return;
+          e.preventDefault();
+          if (!dragOver) setDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          // Moving between children fires leave/enter pairs; only clear when the pointer exits the card.
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+        }}
         onDrop={(e) => {
           setDragOver(false);
           onDropOnComposer(e);
         }}
       >
+        {dragOver ? (
+          <div className="pointer-events-none absolute inset-1.5 z-10 flex flex-col items-center justify-center gap-1.5 rounded-[20px] border border-dashed border-neutral-400 bg-white/90 text-neutral-900 backdrop-blur-sm composer-attach-in">
+            <Upload className="h-5 w-5" strokeWidth={1.85} />
+            <span className="text-[13px] font-medium tracking-[-0.01em]">Drop to attach</span>
+          </div>
+        ) : null}
+
         {error ? (
-          <div className="flex items-start gap-2 border-b border-red-100 bg-red-50/80 px-4 py-2.5 text-[13px] leading-5 text-red-700" role="alert">
+          <div
+            className="flex items-start gap-2 border-b border-red-100 bg-red-50/80 px-4 py-2.5 text-[13px] leading-5 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+            role="alert"
+          >
             <span className="min-w-0 flex-1">{error}</span>
             <button
               type="button"
               onClick={onDismissError}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-red-500 hover:bg-red-100 hover:text-red-700"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-red-500 hover:bg-red-100 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-500/20 dark:hover:text-red-200"
               aria-label="Dismiss error"
             >
               <X className="h-3.5 w-3.5" strokeWidth={2.2} />
@@ -332,23 +339,20 @@ export function Composer({
           </div>
         ) : null}
 
-        <div className={cn("flex items-center overflow-x-auto no-scrollbar", metrics.bar)}>
+        <div className={cn("no-scrollbar flex items-center gap-2 overflow-x-auto pt-3", metrics.pad)}>
           <Segmented label="Create" items={MODES} value={mode} onChange={onModeChange} size={metrics.segment} />
           {inputSwitch ? (
-            <>
-              <span className="h-4 w-px shrink-0 bg-neutral-300" aria-hidden />
-              <Segmented
-                label={inputSwitch.set === "3d" ? "Generate from" : "Image action"}
-                items={INPUTS[inputSwitch.set]}
-                value={inputSwitch.value}
-                onChange={inputSwitch.onChange}
-                disabled={inputSwitch.disabled}
-                attention={inputSwitch.attention}
-                size={COMPOSER_SIZE === "large" ? "sm" : metrics.segment}
-              />
-            </>
+            <Segmented
+              label={inputSwitch.set === "3d" ? "Generate from" : "Image action"}
+              items={INPUTS[inputSwitch.set]}
+              value={inputSwitch.value}
+              onChange={inputSwitch.onChange}
+              disabled={inputSwitch.disabled}
+              attention={inputSwitch.attention}
+              size="sm"
+            />
           ) : null}
-          <div className="ml-auto shrink-0 pl-1">
+          <div className="ml-auto shrink-0">
             {promptHistory.length > 0 && showPrompt ? (
               <PromptHistoryDropdown
                 promptHistory={promptHistory}
@@ -361,50 +365,25 @@ export function Composer({
           </div>
         </div>
 
-        {thread ? <div className="mt-2 sm:mt-2.5 border-t border-neutral-100">{thread}</div> : null}
+        {thread ? <div className="mt-3 border-t border-neutral-100">{thread}</div> : null}
 
-        {slot && !slot.attachment && !showPrompt ? (
-          <div className={metrics.dropWrap}>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className={cn(
-                "flex w-full flex-col items-center justify-center border border-dashed border-neutral-300 bg-neutral-50 text-center text-neutral-500 hover:border-neutral-900 hover:bg-white hover:text-neutral-900 active:scale-[0.99]",
-                metrics.drop,
-                dragOver && "border-neutral-900 bg-white",
-                EASE,
-                FOCUS
-              )}
-            >
-              <span className={cn("flex items-center gap-1.5 font-medium text-neutral-900", metrics.dropLabel)}>
-                <Upload className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                {slot.label}
-              </span>
-              {slot.hint ? (
-                <span className={cn("max-w-full truncate text-neutral-400 max-sm:hidden", metrics.dropHint)}>
-                  {slot.hint}
-                </span>
-              ) : null}
-              <span className={cn("text-neutral-400 sm:hidden", metrics.dropHint)}>
-                {slot.kind === "model" ? "Tap to upload a GLB file" : "Tap to choose an image"}
-              </span>
-            </button>
+        {slot && !showPrompt ? (
+          <div className={cn("pt-3", metrics.pad)}>
+            {attachment ? (
+              <AttachmentCard attachment={attachment} variant="hero" onRemove={onClearAttachment} onReplace={openPicker} />
+            ) : (
+              <AttachmentDropzone label={slot.label} hint={slot.hint} kind={slot.kind} onPick={openPicker} />
+            )}
           </div>
-        ) : (
-        <div className={cn("flex items-start", metrics.prompt, thread && "pt-2")}>
-          {slot ? (
-            <ChatRefTile
-              label={slot.attachment?.label ?? slot.label}
-              preview={slot.attachment?.preview ?? null}
-              kind={slot.attachment?.kind ?? slot.kind}
-              filled={Boolean(slot.attachment)}
-              onPick={() => fileInputRef.current?.click()}
-              onClear={onClearAttachment}
-              className={metrics.tile || undefined}
-            />
-          ) : null}
+        ) : null}
 
-          {showPrompt ? (
+        {showPrompt ? (
+          <div className={cn("flex flex-col gap-2 pt-3", metrics.pad)}>
+            {attachment ? (
+              <div className="flex">
+                <AttachmentCard attachment={attachment} variant="inline" onRemove={onClearAttachment} onReplace={openPicker} />
+              </div>
+            ) : null}
             <textarea
               ref={textareaRef}
               value={value}
@@ -427,60 +406,78 @@ export function Composer({
               aria-label="Prompt"
               placeholder={placeholder}
               className={cn(
-                "flex-1 resize-none bg-transparent text-neutral-900 outline-none placeholder:text-neutral-400",
+                // The card draws focus; the field itself never shows a border or ring.
+                "studio-composer-input studio-bare-field w-full resize-none border-0 bg-transparent px-1 py-1 tracking-[-0.01em] text-neutral-950 shadow-none outline-none placeholder:text-neutral-400",
                 metrics.type,
-                slot ? metrics.minWithSlot : metrics.minAlone
+                metrics.minHeight
               )}
             />
-          ) : null}
-        </div>
-        )}
-
-        {blockedNote ? (
-          <p className="px-3 pt-2 text-[12px] leading-5 text-neutral-600">{blockedNote}</p>
+          </div>
         ) : null}
-        <div className={cn("flex items-center gap-1.5 sm:gap-1 border-t border-neutral-200", metrics.foot)}>
-          <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto no-scrollbar">{settings}</div>
 
-          {cost != null ? (
+        <div className={cn("flex items-center gap-1.5 pb-3 pt-2", metrics.pad)}>
+          <div className="no-scrollbar -ml-1 flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">{settings}</div>
+
+          {blockedNote ? (
+            // The full sentence lives in the tooltip and label; the chip keeps the footer quiet.
             <span
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1 rounded-full bg-neutral-100 font-medium tabular-nums text-neutral-700",
-                metrics.cost
-              )}
-              title={`${cost} credits`}
+              role="status"
+              title={blockedNote}
+              aria-label={blockedNote}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-neutral-100 px-3 text-[12px] font-medium tabular-nums tracking-[-0.01em] text-neutral-600"
             >
-              <Coins className="h-3.5 w-3.5 shrink-0 text-neutral-400" strokeWidth={1.9} />
-              {cost}
+              <Clock className="h-3.5 w-3.5 text-neutral-400" strokeWidth={2} aria-hidden />
+              <span className="max-w-[180px] truncate">{blockedChip ?? blockedNote}</span>
             </span>
           ) : null}
+
+          {acceptFiles ? (
+            <button
+              type="button"
+              onClick={openPicker}
+              aria-label="Attach a file"
+              title={accept.includes("model") ? "Attach an image or GLB (or paste / drop)" : "Attach an image (or paste / drop)"}
+              className={cn(ICON_BUTTON, "rounded-full")}
+            >
+              <Paperclip className="h-4 w-4" strokeWidth={1.85} />
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={submitIfReady}
             disabled={!ready}
-            aria-label={blockedNote && !ready ? blockedNote : submitLabel}
+            aria-label={blockedNote && !ready ? blockedNote : cost != null ? `${submitLabel}, ${cost} credits` : submitLabel}
             title={blockedNote && !ready ? blockedNote : submitLabel}
             className={cn(
-              "ml-0.5 sm:ml-1 flex shrink-0 items-center justify-center rounded-full",
-              metrics.submit,
+              "flex h-9 shrink-0 items-center gap-1.5 rounded-full p-1",
+              cost != null && "pl-3",
               EASE,
               FOCUS,
-              ready ? "bg-neutral-950 text-white hover:bg-neutral-800 active:scale-[0.95]" : "cursor-not-allowed bg-neutral-100 text-neutral-400"
+              ready
+                ? "bg-neutral-950 text-white shadow-[0_1px_2px_rgb(0_0_0/0.12),0_6px_16px_-8px_rgb(0_0_0/0.4)] hover:bg-neutral-800 active:scale-[0.97]"
+                : "cursor-not-allowed bg-neutral-100 text-neutral-400"
             )}
           >
-            {generating ? <StudioOrb state="working" size={20} /> : <ArrowUp className="h-4 w-4" strokeWidth={2.4} />}
+            {cost != null ? (
+              <span className="flex items-center gap-1 text-[12px] font-semibold tabular-nums tracking-[-0.01em]">
+                <Coins className="h-3.5 w-3.5 opacity-70" strokeWidth={2} aria-hidden />
+                {cost}
+              </span>
+            ) : null}
+            <span className={cn("flex h-7 w-7 items-center justify-center rounded-full", ready ? "bg-white/15" : "bg-transparent")}>
+              {generating ? <StudioOrb state="working" size={20} /> : <ArrowUp className="h-4 w-4" strokeWidth={2.4} />}
+            </span>
           </button>
         </div>
 
-        {slot ? (
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={slot.accept.map((k) => ACCEPT[k]).join(",")}
-            className="hidden"
-            onChange={pickFile}
-          />
-        ) : null}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={accept.map((k) => ACCEPT[k]).join(",")}
+          className="hidden"
+          onChange={pickFile}
+        />
       </div>
     </div>
   );

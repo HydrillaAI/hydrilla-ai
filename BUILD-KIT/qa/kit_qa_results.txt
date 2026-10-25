@@ -1,0 +1,31 @@
+Kit QA: 28/28 checks pass
+[PASS] No [VERIFY] markers or plan jargon (OQ/S/D numbers, Headline options)
+[PASS] Banned marketing words
+[PASS] No "AI for 3D"
+[PASS] No "BlueFox 3D"/"BlueFox3D"/"Blue Fox" in visible text
+[PASS] No BYOK / own key / pick the model
+[PASS] No key wording within 200 chars of "Water Agent"
+[PASS] No SSO / SLA / early access / beta / waitlist
+[PASS] No partner/licensed/official wording
+[PASS] "Clerk" only on /security
+[PASS] llms-full: "Clerk" only inside the /security section
+[PASS] No "40%" / "up to"
+[PASS] "33%" only beside Hourly Pro
+[PASS] Competitors named only on /compare pages
+[PASS] llms-full: competitors only inside compare page sections
+[PASS] No em dashes or exclamation marks in copy
+[PASS] Brand line only on /about, /brand, llms, Organization schema
+[PASS] /about hero and meta carry the brand line
+[PASS] Export/format owner rule (formats and "export/send to Blender/Unity/Unreal" only on /features, /integrations*, /docs, import guide)
+[PASS] llms.txt has no format list (points to /features)
+[PASS] /pricing: no formats, no "no card needed", trial needs a card, credits 100/900/3,000, no rollover
+[PASS] First prose mention of BlueFox reads "BlueFox, Hydrilla's 3D model"
+[PASS] "BlueFox 1" only in spec/model-card/docs/changelog/compare-table spots
+[PASS] /water: definition verbatim, "no credits" once, plugin line present
+[PASS] Every page at or under 600 words
+[PASS] Redirects: 36 rules, single hop, no chains or loops
+[PASS] Redirect targets are all final indexable routes
+[PASS] /bluefox is a target only, and the live /bluefox -> /bluefox3d removal is noted
+[PASS] Internal links point at final routes (no redirect hops)
+
+Word counts (page copy): water 394, compare-how-to-choose 388, pricing 320, bluefox 309, docs 306, compare-meshy 303, compare-tripo 301, compare-hyper3d 261, integrations 245, text-to-3d 239, blog-import-ai-meshes 236, enterprise 230, blog-reference-images 221, faq 215, integrations-blender 212, features 209, solutions-film 177, security 165, compare 160, api 154, research 153, solutions-games 153, integrations-unreal 139, integrations-unity 137, solutions-xr 136, solutions-architecture 133, solutions 131, integrations-godot 126, image-to-3d 118, solutions-product 118, blog 115, integrations-mcp 113, about 108, careers 93, team 91, brand 90, changelog 87, contact 80, cookies 11, privacy 11, terms 11

@@ -25,7 +25,9 @@ function pickHeroVariant(slug: string): PickleThumbVariant {
 export async function generateStaticParams() {
   try {
     const { posts } = await fetchBlogPosts({ limit: 100 });
-    return posts.map((post) => ({ slug: post.slug }));
+    return posts
+      .filter((post) => post.slug !== "reference-images" && post.slug !== "import-ai-meshes")
+      .map((post) => ({ slug: post.slug }));
   } catch {
     return [];
   }

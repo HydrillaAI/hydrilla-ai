@@ -1,0 +1,19 @@
+<!--
+id: T07
+name: Refund issued
+layout: base
+sender: hi
+category: billing
+topic: none
+trigger: payment_refunded
+phase: 1
+subject: Your refund is on its way
+preheader: We've issued your refund.
+footer_reason: You're receiving this because a refund was issued on your Hydrilla account.
+optional: false
+facts: confirm the amount and currency come from the Dodo refund event; do not state timing
+data: amount, currency
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>We've issued a refund of {{ trigger.amount | default: "your payment" }} {{ trigger.currency | default: "" }}. How long it takes to appear depends on your bank or card provider.</mj-text>
+<mj-text>If you have questions about it, reply to this email.</mj-text>

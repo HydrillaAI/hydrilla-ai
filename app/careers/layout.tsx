@@ -1,27 +1,15 @@
 import type { ReactNode } from "react";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { createPageMetadata, getWebPageJsonLd } from "@/lib/seo";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Careers at Hydrilla — Engineering, Research, GTM",
+  title: "Careers: AI 3D Engineering and Research | Hydrilla AI",
   description:
-    "Join Hydrilla and Hawan Research Labs. Help build BlueFox and production 3D tools for games, film, architecture, and immersive media. Email founders@hydrilla.ai to apply.",
+    "Join Hydrilla AI, the team building BlueFox and the Hydrilla AI 3D workspace. See who we hire for engineering, research, and go to market.",
+  ogTitle: "Careers at Hydrilla",
   path: "/careers",
   absoluteTitle: true,
-  keywords: ["Hydrilla careers", "Hawan Research Labs jobs", "AI 3D jobs"],
 });
 
 export default function CareersLayout({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <JsonLd
-        data={getWebPageJsonLd({
-          name: "Careers at Hydrilla — Engineering, Research, GTM",
-          description: metadata.description as string,
-          path: "/careers",
-        })}
-      />
-      {children}
-    </>
-  );
+  return children;
 }

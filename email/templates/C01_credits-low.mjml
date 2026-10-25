@@ -1,0 +1,20 @@
+<!--
+id: C01
+name: Credits low
+layout: base
+kind: campaign
+sender: hi
+category: credits
+topic: credit-alerts
+trigger: event credits_low; at most once every 25 days per person
+phase: 2
+subject: You have {{ event.remaining | default: "a few" }} credits left
+preheader: A heads-up before you run out.
+footer_reason: You're receiving this because your Hydrilla credit balance is low.
+optional: true
+data: event.remaining, event.reset_on, event.pricing_url
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>You have {{ event.remaining | default: "a few" }} credits left in your current allowance.{% if event.reset_on %} Your credits reset on {{ event.reset_on | default: "" }}.{% endif %}</mj-text>
+<mj-text>If you need more before then, you can move to a plan with a larger allowance at any time.</mj-text>
+<mj-button href="{{ event.pricing_url | default: 'https://hydrilla.ai/app/pricing' }}">See plans</mj-button>

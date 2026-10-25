@@ -252,12 +252,6 @@ export default function IndustrySection() {
       >
         {/* Header */}
         <header className="flex flex-col items-center gap-4 px-2 text-center">
-          <p
-            className="m-0 text-xs font-medium uppercase"
-            style={{ color: INK_TERTIARY, letterSpacing: "0.1em", fontFamily: SANS_FONT }}
-          >
-            Industries
-          </p>
           <BlurReveal
             as="h2"
             id="industry-heading"

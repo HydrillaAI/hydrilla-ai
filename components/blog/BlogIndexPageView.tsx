@@ -30,20 +30,9 @@ function BlogListSkeleton() {
 
 export function BlogGridSkeleton() {
   return (
-    <>
-      <div className="pickle-research-page">
-        <header className="pickle-research-hero">
-          <h1 id="blog-heading" className="pickle-research-title">
-            Blog
-          </h1>
-          <p className="pickle-research-description">
-            Notes from the Hydrilla team on BlueFox 1, production exports, and 3D pipelines.
-          </p>
-        </header>
-        <BlogListSkeleton />
-      </div>
-      <Footer />
-    </>
+    <div className="pickle-research-page" aria-hidden>
+      <BlogListSkeleton />
+    </div>
   );
 }
 

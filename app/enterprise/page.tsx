@@ -1,146 +1,241 @@
-import Link from "next/link";
-import {
-  PickleArticlePage,
-  type PickleRelatedItem,
-} from "@/components/layout/PicklePage";
-import { CONTACT_EMAIL, DEMO_URL } from "@/lib/brand";
-import { WHY_HYDRILLA_MEDIA } from "@/lib/cloudinary";
+"use client";
 
-const RELATED: PickleRelatedItem[] = [
-  {
-    title: "Security & Trust",
-    subtitle: "How Hydrilla handles accounts, private workspaces, and exported files.",
-    href: "/security",
-    date: "Oct 1, 2026",
-    author: "Hydrilla Team",
-    thumbVariant: "privacy-enclave",
-  },
-  {
-    title: "Hydrilla REST API",
-    subtitle: "Programmatic BlueFox 1 generation for studio pipelines and internal tools.",
-    href: "/api",
-    date: "Aug 19, 2026",
-    author: "Hydrilla Team",
-    thumbVariant: "api-stream",
-  },
+import { getKitJsonLd } from "@/lib/kit-schema";
+import { JsonLd } from "@/components/seo/JsonLd";
+
+import { useState } from "react";
+import Link from "next/link";
+import Footer from "@/components/layout/Footer";
+import { PickleActions, PickleCards, PickleHeroVideo, PickleQA } from "@/components/layout/PicklePage";
+
+const BACKEND_URL = (
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app"
+).replace(/\/+$/, "");
+
+const FIELDS: {
+  name: "full_name" | "work_email" | "studio" | "studio_size" | "engine" | "volume";
+  label: string;
+  type?: string;
+  autoComplete?: string;
+}[] = [
+  { name: "full_name", label: "Full name", autoComplete: "name" },
+  { name: "work_email", label: "Work email", type: "email", autoComplete: "email" },
+  { name: "studio", label: "Studio", autoComplete: "organization" },
+  { name: "studio_size", label: "Studio size" },
+  { name: "engine", label: "Engine" },
+  { name: "volume", label: "Expected monthly volume" },
 ];
 
 export default function EnterprisePage() {
-  return (
-    <PickleArticlePage
-      kicker="Studios"
-      kickerHref="/about"
-      title="Hydrilla for Enterprise"
-      subtitle="BlueFox 1 at studio volume: seats, API concurrency, and files that land in Unreal, Unity, or a DCC stack you already run."
-      date="Oct 2026"
-      author="Hydrilla Team"
-      heroVideoSrc={WHY_HYDRILLA_MEDIA.bluefox.video}
-      heroPosterSrc={WHY_HYDRILLA_MEDIA.bluefox.poster}
-      ctaLabel="Book a demo"
-      ctaHref={DEMO_URL}
-      footnote={
-        <>
-          Prefer email? Write directly to{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> or review our{" "}
-          <Link href="/security">Security &amp; Trust</Link> overview.
-        </>
+  const [form, setForm] = useState({
+    full_name: "",
+    work_email: "",
+    studio: "",
+    studio_size: "",
+    engine: "",
+    volume: "",
+    message: "",
+  });
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: form.full_name,
+          work_email: form.work_email,
+          company: form.studio,
+          studio_size: form.studio_size,
+          use_case: form.engine,
+          message: `Expected monthly volume: ${form.volume}\n\n${form.message}`,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Something went wrong");
+        return;
       }
-      relatedItems={RELATED}
-    >
-      <div className="pickle-text">
-        <p>
-          Pro on the public site is the starting point: 3,000 credits a month,
-          seats, and REST API access. Enterprise is for teams that need higher
-          volume, a named engineering contact, and generation wired into an
-          existing production stack.
-        </p>
-      </div>
+      setSubmitted(true);
+    } catch {
+      setError("Failed to send message");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-      <section className="pickle-section">
-        <div className="pickle-head-block">
-          <h2 className="pickle-h2">What studios ask for</h2>
-          <div className="pickle-text">
-            <ul>
-              <li>Higher credit pools and queue priority for production sprints</li>
-              <li>Shared workspaces for art, lookdev, and production review</li>
-              <li>Programmatic jobs through the Hydrilla REST API and MCP server</li>
-              <li>GLB, FBX, OBJ, and USDZ that import cleanly into the engine or DCC tool</li>
-              <li>A direct security review path and a founder or engineer to email</li>
-            </ul>
+  return (
+    <>
+      <JsonLd data={getKitJsonLd("/enterprise")} />
+      <article className="pickle-article">
+        <header className="pickle-article-header">
+          <p className="pickle-article-kicker">Studios</p>
+          <h1 className="pickle-article-title" data-wide="true">
+            Bring AI 3D to your whole studio
+          </h1>
+          <div className="pickle-lead">
+            <p>Hydrilla AI for whole studios: BlueFox, Hydrilla&apos;s 3D model, and Water Agent across your team, in one shared workspace.</p>
           </div>
-        </div>
-
-        <figure className="pickle-figure">
-          <div className="pickle-card-surface">
-            <table className="pickle-table">
-              <thead>
-                <tr>
-                  <th>Capability</th>
-                  <th>Pro (Self-Serve)</th>
-                  <th>Enterprise (Studio)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th>Monthly credits</th>
-                  <td>3,000 credits / month</td>
-                  <td>Custom pooled studio volume</td>
-                </tr>
-                <tr>
-                  <th>Generation model</th>
-                  <td>BlueFox 1</td>
-                  <td>BlueFox 1 + priority queue</td>
-                </tr>
-                <tr>
-                  <th>Exports</th>
-                  <td>GLB, FBX, OBJ, USDZ</td>
-                  <td>GLB, FBX, OBJ, USDZ + Bridge</td>
-                </tr>
-                <tr>
-                  <th>API &amp; DCC plugins</th>
-                  <td>10,000 calls/mo + all plugins</td>
-                  <td>Custom concurrency + pipeline support</td>
-                </tr>
-                <tr>
-                  <th>Support &amp; reviews</th>
-                  <td>Standard support</td>
-                  <td>Named contact + vendor security review</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="pickle-actions">
+            <a href="https://cal.com/hydrilla" className="pickle-pill-solid">Book a demo</a>
+            <a href="#contact" className="pickle-pill-ghost">
+              Talk to our team
+            </a>
           </div>
-          <figcaption className="pickle-caption">
-            How self-serve Pro compares with custom Enterprise studio arrangements.
-          </figcaption>
-        </figure>
-      </section>
+        </header>
+        <div className="pickle-article-column">
+          <PickleHeroVideo />
 
-      <section className="pickle-head-block">
-        <h2 className="pickle-h2">How this differs from Pro</h2>
-        <div className="pickle-text">
-          <p>
-            Pro is self-serve. Enterprise is a direct conversation: expected
-            monthly volume, which engine you ship in, whether jobs should run
-            from your backend, and who owns the account. We do not publish a
-            fake SSO checklist.
-          </p>
-        </div>
-      </section>
+          <div className="pickle-intro">
+            <p>
+              When generation moves from one artist&apos;s experiment to <strong>a studio-wide tool</strong>, the questions change. Who has access, how much volume the pipeline needs, how jobs from your own systems are handled, and how your data is treated all need clear answers. Enterprise is where we work those out with you.
+            </p>
+          </div>
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">What Enterprise adds for your studio</h2>
+              <div className="pickle-text">
+                <p>Enterprise adds seats, API concurrency, custom plans, and pipeline support. Each is shaped around how your studio works rather than a fixed tier.</p>
+              </div>
+            </div>
+            <PickleCards
+              titleAs="p"
+              cards={[
+                {
+                  icon: "team",
+                  title: "Seats",
+                  body: "Art, lookdev, and pipeline staff work together in one shared workspace, so generations, reviews, and approved versions live in the same place.",
+                },
+                {
+                  icon: "api",
+                  title: "API concurrency",
+                  body: "Jobs from your own backend, sized to your volume, for asset libraries, build steps, and internal tools.",
+                },
+                {
+                  icon: "startup",
+                  title: "Custom plans",
+                  body: "Credit pools and queue priority set around your monthly volume, instead of individual allowances.",
+                },
+                {
+                  icon: "integrations",
+                  title: "Pipeline support",
+                  body: "Help connecting the Bridge and plugins to your pipeline, so artists get generation inside the tools they already use.",
+                },
+              ]}
+            />
+          </section>
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">How this differs from Pro</h2>
+              <div className="pickle-text">
+                <p>
+                  Pro is built for individuals and small teams who buy online. Enterprise is for studios that need an agreement around their volume and their tools.
+                </p>
+              </div>
+            </div>
+            <figure className="pickle-figure">
+              <div className="pickle-card-surface">
+                <table className="pickle-table">
+                  <thead>
+                    <tr>
+                      <th />
+                      <th>Pro</th>
+                      <th>Enterprise</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th>How you buy</th>
+                      <td>Self-serve and monthly, on <Link href="/pricing">pricing</Link></td>
+                      <td>An agreement shaped around your studio</td>
+                    </tr>
+                    <tr>
+                      <th>Plans</th>
+                      <td>Monthly credits on a set plan</td>
+                      <td>Custom plans and credit pools</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </figure>
+          </section>
+          <section className="pickle-section">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">Answers for procurement</h2>
+            </div>
+            <PickleQA
+              items={[
+                {
+                  q: "How is our data handled?",
+                  a: (
+                    <>
+                      Your data isn&apos;t used to train our models, on any plan. Generated assets are kept to your own workspace, and the{" "}
+                      <Link href="/security">security page</Link> explains both.
+                    </>
+                  ),
+                },
+                {
+                  q: "Can we send a security questionnaire?",
+                  a: "Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm.",
+                },
+              ]}
+            />
+          </section>
 
-      <section className="pickle-head-block">
-        <h2 className="pickle-h2">How to start</h2>
-        <div className="pickle-text">
-          <p>
-            <a href={DEMO_URL} target="_blank" rel="noopener noreferrer">
-              Book a demo
-            </a>{" "}
-            or email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>{" "}
-            with studio size, engine, and expected monthly volume. If you
-            already generate on the Pro plan, say so — that context is more
-            useful than a generic RFP.
-          </p>
+          <section id="contact" className="pickle-section scroll-mt-28">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">How to start</h2>
+              <div className="pickle-text">
+                <p>Tell us your studio size, engine, and expected monthly volume, and whether you already generate on Pro. The more we know about your pipeline, the more useful the first conversation will be. You can also book a demo directly.</p>
+              </div>
+              <PickleActions align="start" primary={{ label: "Book a demo", href: "https://cal.com/hydrilla" }} />
+            </div>
+            {submitted ? (
+              <div className="pickle-form-panel">
+                <p className="pickle-card-title">Message sent.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="pickle-form-panel">
+                <div className="pickle-form-grid">
+                  {FIELDS.map((field) => (
+                    <label key={field.name} className="pickle-field">
+                      <span>{field.label}</span>
+                      <input
+                        name={field.name}
+                        type={field.type ?? "text"}
+                        required
+                        value={form[field.name]}
+                        onChange={handleChange}
+                        autoComplete={field.autoComplete}
+                      />
+                    </label>
+                  ))}
+                  <label className="pickle-field" data-span="full">
+                    <span>Message</span>
+                    <textarea name="message" required rows={5} value={form.message} onChange={handleChange} />
+                  </label>
+                </div>
+                {error ? <p className="pickle-form-error">{error}</p> : null}
+                <button type="submit" disabled={submitting} className="pickle-pill-solid">
+                  {submitting ? "Sending…" : "Send message"}
+                </button>
+              </form>
+            )}
+          </section>
         </div>
-      </section>
-    </PickleArticlePage>
+      </article>
+      <Footer />
+    </>
   );
 }

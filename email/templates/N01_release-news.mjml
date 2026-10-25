@@ -1,0 +1,24 @@
+<!--
+id: N01
+name: Release news
+layout: base
+kind: broadcast
+sender: rishi
+category: news
+topic: news-and-tips
+trigger: API-triggered broadcast, sent by hand for real releases, at most 2 a month
+phase: 3
+subject: {{ trigger.headline | default: "What's new in Hydrilla" }}
+preheader: {{ trigger.summary | default: "A new release is live." }}
+heading: {{ trigger.headline | default: "What's new in Hydrilla" }}
+footer_reason: You're receiving this because you subscribed to Hydrilla product news.
+optional: true
+data: trigger.headline, trigger.summary, trigger.details_html, trigger.cta_label, trigger.cta_url
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>{{ trigger.summary | default: "" }}</mj-text>
+<mj-raw>{% if trigger.details_html %}</mj-raw>
+<mj-text>{{ trigger.details_html | default: "" }}</mj-text>
+<mj-raw>{% endif %}</mj-raw>
+<mj-button href="{{ trigger.cta_url | default: 'https://hydrilla.ai/changelog' }}">{{ trigger.cta_label | default: "See what's new" }}</mj-button>
+<mj-text css-class="muted" font-size="14px">Rishi, Creative Director</mj-text>

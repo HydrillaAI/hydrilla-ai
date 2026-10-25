@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import Footer from "@/components/layout/Footer";
+import { PickleCta } from "@/components/layout/PicklePage";
 
 const MONTHLY_CARDS = [
   {
     name: "Free",
-    price: "$0 a month",
+    price: "$0",
+    period: "a month",
     audience: "For trying Hydrilla on your own projects.",
     features: [
       "100 credits a month",
@@ -20,7 +23,8 @@ const MONTHLY_CARDS = [
   },
   {
     name: "Starter",
-    price: "$5 a month",
+    price: "$5",
+    period: "a month",
     audience: "For artists who generate every week.",
     features: [
       "900 credits a month",
@@ -33,7 +37,8 @@ const MONTHLY_CARDS = [
   },
   {
     name: "Pro",
-    price: "$12 a month",
+    price: "$12",
+    period: "a month",
     audience: "For heavy use and API pipelines.",
     features: [
       "3,000 credits a month",
@@ -50,7 +55,8 @@ const MONTHLY_CARDS = [
 const HOURLY_CARDS = [
   {
     name: "Hourly",
-    price: "$3 a month",
+    price: "$3",
+    period: "a month",
     audience: "For artists who work in the same hour each day.",
     features: [
       "Starter's 900 credits a month",
@@ -64,7 +70,8 @@ const HOURLY_CARDS = [
   },
   {
     name: "Hourly Pro",
-    price: "$8 a month",
+    price: "$8",
+    period: "a month",
     badge: "33% off",
     audience: "For heavy use on a daily schedule.",
     features: [
@@ -86,6 +93,7 @@ function PlanCardGrid({
   cards: readonly {
     name: string;
     price: string;
+    period: string;
     audience: string;
     features: readonly string[];
     ctaLabel: string;
@@ -95,30 +103,30 @@ function PlanCardGrid({
   count: "2" | "3";
 }) {
   return (
-    <div className="mob-pricing-grid" data-count={count}>
+    <div className="mob-pricing-grid" data-count={count} data-variant="page">
       {cards.map((card) => (
-        <div key={card.name} className="mob-pricing-card">
+        <article key={card.name} className="mob-pricing-card">
           <h2 className="mob-pricing-card-name">
-            <span>{card.name}</span>
-            <span>·</span>
-            <span>{card.price}</span>
-            {card.badge ? (
-              <>
-                <span>·</span>
-                <span className="mob-pricing-badge">{card.badge}</span>
-              </>
-            ) : null}
+            {card.name}
+            {card.badge ? <span className="mob-pricing-badge">{card.badge}</span> : null}
           </h2>
           <p className="mob-pricing-audience">{card.audience}</p>
-          <ul className="mob-pricing-features">
-            {card.features.map((feat) => (
-              <li key={feat}>{feat}</li>
-            ))}
-          </ul>
+          <p className="mob-pricing-price">
+            <span className="mob-pricing-price-value">{card.price}</span>
+            <span className="mob-pricing-price-period">{card.period}</span>
+          </p>
           <Link href={card.ctaHref} className="mob-pricing-cta">
             {card.ctaLabel}
           </Link>
-        </div>
+          <ul className="mob-pricing-features">
+            {card.features.map((feat) => (
+              <li key={feat}>
+                <Check size={16} strokeWidth={1.8} aria-hidden />
+                <span>{feat}</span>
+              </li>
+            ))}
+          </ul>
+        </article>
       ))}
     </div>
   );
@@ -135,6 +143,9 @@ export function PricingPageClient() {
             <h1 className="mob-pricing-title">Pricing</h1>
             <p className="mob-pricing-subtitle">
               Start free. Pay monthly, or pay less to generate in a set daily window.
+            </p>
+            <p className="mob-pricing-note">
+              Every plan runs on credits and includes Water Agent. Start on the Free plan, or try any Monthly or Hourly plan, Pro included, free for 14 days. The trial needs a card.
             </p>
 
             <div
@@ -210,7 +221,7 @@ export function PricingPageClient() {
                   </tr>
                   <tr>
                     <th>
-                      <Link href="/water">Water Agent →</Link>
+                      <Link href="/water">Water Agent</Link>
                     </th>
                     <td>Included, no credits</td>
                     <td>Included, no credits</td>
@@ -251,32 +262,24 @@ export function PricingPageClient() {
               <div>
                 <dt>Which plan includes the API?</dt>
                 <dd>
-                  Pro includes REST API access. <Link href="/api">API →</Link>
+                  Pro includes REST API access. <Link href="/api">API</Link>
                 </dd>
               </div>
             </dl>
           </section>
 
-          <section className="mob-pricing-foot" style={{ marginTop: "64px" }}>
-            <h2 className="pickle-h2" style={{ width: "100%", textAlign: "center" }}>
-              Start with the Free plan
-            </h2>
-            <p className="mt-3">
-              Need more than Pro? <Link href="/enterprise">Enterprise →</Link>
-            </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/app/studio" className="pickle-pill-solid">
-                Start generating
-              </Link>
-              <Link
-                href="/enterprise#contact"
-                className="pickle-glass-pill"
-                style={{ height: "48px", fontSize: "17px", padding: "0 22px" }}
-              >
-                Talk to our team
-              </Link>
-            </div>
-          </section>
+          <div style={{ marginTop: "64px" }}>
+            <PickleCta
+              title="Start with the Free plan"
+              line={
+                <>
+                  Need more than Pro for a whole studio? <Link href="/enterprise">Enterprise</Link>
+                </>
+              }
+              primary={{ label: "Start generating", href: "/app/studio" }}
+              secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            />
+          </div>
         </div>
       </section>
       <Footer />

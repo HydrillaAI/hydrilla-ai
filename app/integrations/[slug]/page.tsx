@@ -23,8 +23,12 @@ const THUMB_BY_SLUG: Record<string, PickleThumbVariant> = {
   api: "api-stream",
 };
 
+const DEDICATED_SLUGS = new Set(["blender", "unity", "unreal", "godot", "mcp"]);
+
 export function generateStaticParams() {
-  return INTEGRATIONS.map((item) => ({ slug: item.slug }));
+  return INTEGRATIONS.filter((item) => !DEDICATED_SLUGS.has(item.slug)).map((item) => ({
+    slug: item.slug,
+  }));
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -100,16 +104,14 @@ export default async function IntegrationDetailPage({ params }: Props) {
             {item.downloadPath ? (
               <Link
                 href={`/integrations/connect?app=${encodeURIComponent(item.bridgeTarget)}`}
-                className="pickle-glass-pill"
-                style={{ height: "48px", fontSize: "17px", padding: "0 22px" }}
+                className="pickle-pill-ghost"
               >
                 Sign in for plugins
               </Link>
             ) : (
               <Link
                 href="/app/api-keys"
-                className="pickle-glass-pill"
-                style={{ height: "48px", fontSize: "17px", padding: "0 22px" }}
+                className="pickle-pill-ghost"
               >
                 API keys
               </Link>

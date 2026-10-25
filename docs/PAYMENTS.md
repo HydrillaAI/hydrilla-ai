@@ -59,7 +59,7 @@ Checkout is refused before Dodo in two cases:
 | Another paid plan is already entitled, and the current plan or the new plan is Slot or Slot Pro | 409. Cancel the current plan first. Only one paid plan can be active. |
 | That same Slot or Slot Pro plan is already entitled | 409. This plan is already active. |
 
-Starter and Pro can still be checked out over each other. Free can start any plan.
+Starter and Pro can be checked out over each other. When the new subscription activates, any older active Starter or Pro subscription is set to stop at its next billing date, so there is no double billing. Checking out the plan you already have is refused with 409 unless its renewal is already cancelled. Free can start any plan.
 
 ## Credits
 
@@ -130,7 +130,7 @@ Image, image-to-3D, text-to-image, image edit, Water generate, and Water chat ar
 
 `POST /api/payments/webhook/dodo`. Signature is verified with `DODO_PAYMENT_WEBHOOK_SECRET`. `SKIP_WEBHOOK_VERIFICATION=true` is ignored in production.
 
-`webhook_events.webhook_id` makes a replay a no-op. The handler runs before the 200 response. A handler error is logged and still returns 200, so Dodo does not retry that delivery.
+`webhook_events.webhook_id` makes a replay a no-op. The handler runs before the 200 response. A handler error is logged, the `webhook_events` row is deleted, and the response is 500, so Dodo retries the delivery and it is processed again.
 
 | Event | Effect |
 | --- | --- |
@@ -157,7 +157,7 @@ Free plan accounts (`plan: null` or free tier) receive 100 credits every month.
 
 All paid plans (`starter`, `pro`, `slot`, and `slot_pro`) include a **14-day free trial**.
 - **Dodo Products**: All 4 recurring products in Dodo Payments are configured with `trial_period_days: 14`, `trial_type: "free"`, and `trial_payment_method_optional: false` (card details collected with $0 charge upfront).
-- **Anti-Abuse Gating**: Free trials are limited to **1 per account**. `checkUserTrialUsed(userId, email)` inspects `users.has_used_trial` and previous subscription history. If a user has already consumed a trial, `create-checkout` passes `subscription_data: { trial_period_days: 0 }`, charging them immediately and preventing repeat trial loops.
+- **Anti-Abuse Gating**: Free trials are limited to **1 per account**. `checkUserTrialUsed(userId, email)` inspects `users.has_used_trial`, previous subscriptions for that user id (`user_subscriptions` has no email column), and succeeded payments. If a user has already consumed a trial, `create-checkout` passes `subscription_data: { trial_period_days: 0 }`, charging them immediately and preventing repeat trial loops.
 - **Credit Grant on Trial**: On `subscription.active`, the full plan allotment (900 credits for Starter/Slot, 3,000 credits for Pro/Slot Pro) is granted for the 14 days, with `reset_at` aligned to `current_period_end` (day 14).
 - **Trial to Paid Conversion**: When day 14 ends, Dodo automatically charges the card and emits `subscription.renewed`. The renewal handler transitions `is_trial` to `false` and grants the fresh allotment for the first paid monthly cycle.
 - **Cancellation During Trial**: If cancelled during the 14 days, access continues until trial end (`trial_ends_at`). When expired, `endPaidAccess` smoothly reverts the account to Free (100 credits) and releases any booked slot hour.
@@ -196,5 +196,6 @@ Seat counts are code: `config.slot.seats` is 2, `config.slot.proSeats` is 4. The
 
 - A failed subscription read skips the Slot hour check for that request.
 - `on_hold` and `failed` clear the plan label and the hour, and leave the credit total until cancel or expiry. Starter and Pro do the same with the credit total.
-- Starter and Pro can replace each other at checkout. Slot cannot replace another paid plan, and another paid plan cannot replace Slot, until the current one is cancelled.
+- Starter and Pro can replace each other at checkout. The older one stops renewing but stays active until its period ends. Slot cannot replace another paid plan, and another paid plan cannot replace Slot, until the current one is cancelled.
+- If Dodo rejects the stop on the older subscription, the error is logged (`Could not stop replaced subscription`) and the customer can be billed twice until it is cancelled by hand.
 - The success page is what grants credits on localhost. A webhook to production does not update a local database.

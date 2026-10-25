@@ -44,7 +44,7 @@ export const WorkspaceLibraryBar = memo(function WorkspaceLibraryBar({
       className={cn(
         "flex shrink-0 items-center bg-white",
         floating
-          ? "pointer-events-auto h-10 w-[138px] gap-0.5 rounded-full border border-neutral-200/80 px-1 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.18)] sm:w-[220px]"
+          ? "studio-float pointer-events-auto h-10 w-[138px] gap-0.5 rounded-full border border-neutral-200/80 px-1 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.18)] sm:w-[220px]"
           : "h-12 gap-1 border-b border-neutral-200/80 px-2"
       )}
     >
@@ -83,7 +83,7 @@ export const WorkspaceLibraryBar = memo(function WorkspaceLibraryBar({
           placeholder="Untitled"
           aria-label="Workspace name"
           className={cn(
-            "h-8 min-w-0 flex-1 truncate rounded-lg bg-transparent px-1 font-semibold text-neutral-900 outline-none placeholder:text-neutral-400 hover:bg-neutral-50 focus:bg-neutral-100 sm:px-1.5",
+            "studio-bare-field h-8 min-w-0 flex-1 truncate rounded-lg bg-transparent px-1 font-semibold text-neutral-900 outline-none placeholder:text-neutral-400 hover:bg-neutral-50 focus:bg-neutral-100 sm:px-1.5",
             floating ? "text-[13px]" : "text-[14px]"
           )}
         />

@@ -1,0 +1,33 @@
+<!--
+id: W01
+name: Weekly recap
+layout: base
+kind: campaign
+sender: rishi
+category: weekly
+topic: weekly-recap
+trigger: event weekly_recap_ready (Mondays); wait until 10:00 in the person's time zone
+phase: 3
+subject: Your week in Hydrilla: {{ event.models_count | default: "your" }} models
+preheader: What you made this week, your credits, and one tip.
+footer_reason: You're receiving this weekly recap because you made models on Hydrilla this week.
+optional: true
+data: event.models_count, event.thumb_1, event.thumb_2, event.thumb_3, event.credits_left, event.reset_on, event.tip_title, event.tip_body, event.tip_url; snippet weekly_news (edited in admin)
+-->
+<mj-text font-size="40px" font-weight="700" line-height="1.1" padding="0 0 4px">{{ event.models_count | default: 0 }}</mj-text>
+<mj-text css-class="muted" padding="0 0 18px">{% if event.models_count == 1 %}model{% else %}models{% endif %} made this week</mj-text>
+<mj-raw>{% if event.thumb_1 %}</mj-raw>
+<mj-text padding="0 0 18px"><img src="{{ event.thumb_1 | default: '' }}" width="160" alt="" style="border-radius:8px;margin:0 6px 6px 0;max-width:31%;height:auto" />{% if event.thumb_2 %}<img src="{{ event.thumb_2 | default: '' }}" width="160" alt="" style="border-radius:8px;margin:0 6px 6px 0;max-width:31%;height:auto" />{% endif %}{% if event.thumb_3 %}<img src="{{ event.thumb_3 | default: '' }}" width="160" alt="" style="border-radius:8px;margin:0 0 6px 0;max-width:31%;height:auto" />{% endif %}</mj-text>
+<mj-raw>{% endif %}{% if event.credits_left %}</mj-raw>
+<mj-text>You have {{ event.credits_left | default: 0 }} credits left{% if event.reset_on %}, and they reset on {{ event.reset_on | default: "" }}{% endif %}.</mj-text>
+<mj-raw>{% endif %}</mj-raw>
+<mj-divider border-width="1px" border-color="#d6e5fa" padding="8px 0 18px" />
+<mj-text font-size="13px" font-weight="700" css-class="muted" padding="0 0 6px">TIP OF THE WEEK</mj-text>
+<mj-text><strong>{{ event.tip_title | default: "Make the most of Studio" }}</strong><br />{{ event.tip_body | default: "" }} <a href="{{ event.tip_url | default: 'https://hydrilla.ai/app/studio' }}">Learn more</a></mj-text>
+<mj-raw>{% if snippets.weekly_news_json != "[]" %}</mj-raw>
+<mj-divider border-width="1px" border-color="#d6e5fa" padding="8px 0 18px" />
+<mj-text font-size="13px" font-weight="700" css-class="muted" padding="0 0 6px">THIS WEEK AT HYDRILLA</mj-text>
+<mj-text>{{snippets.weekly_news}}</mj-text>
+<mj-raw>{% endif %}</mj-raw>
+<mj-button href="https://hydrilla.ai/app/studio">Open Studio</mj-button>
+<mj-text css-class="muted" font-size="14px">Rishi, Creative Director</mj-text>

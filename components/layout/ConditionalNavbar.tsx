@@ -13,7 +13,12 @@ export function ConditionalNavbar() {
     pathname?.startsWith("/app") ||
     pathname === "/generate" ||
     pathname?.startsWith("/workspace") ||
-    pathname === "/generations"
+    pathname === "/generations" ||
+    // Community pages render their own theme-aware header (components/community/CommunityHeader).
+    pathname === "/discover" ||
+    pathname?.startsWith("/posts/") ||
+    pathname?.startsWith("/u/") ||
+    pathname?.startsWith("/@")
   ) {
     return null;
   }
@@ -34,6 +39,7 @@ export function ConditionalNavbar() {
     pathname?.startsWith("/blog/") ||
     pathname === "/integrations" ||
     pathname?.startsWith("/integrations/") ||
+    pathname === "/community-guidelines" ||
     pathname?.startsWith("/sign-in") ||
     pathname?.startsWith("/sign-up")
       ? "default"

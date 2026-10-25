@@ -1,150 +1,93 @@
+import { getKitJsonLd } from "@/lib/kit-schema";
+import { JsonLd } from "@/components/seo/JsonLd";
 import Link from "next/link";
-import {
-  PickleArticlePage,
-  PickleVisualThumb,
-  type PickleRelatedItem,
-} from "@/components/layout/PicklePage";
-import { CONTACT_EMAIL } from "@/lib/brand";
-
-const RELATED: PickleRelatedItem[] = [
-  {
-    title: "Enterprise",
-    subtitle: "BlueFox 1 at studio volume: seats, API concurrency, and custom pipelines.",
-    href: "/enterprise",
-    date: "Oct 2026",
-    author: "Hydrilla Team",
-    thumbVariant: "critter-rig",
-  },
-  {
-    title: "Privacy Policy",
-    subtitle: "How Hydrilla collects, uses, and protects account and service data.",
-    href: "/privacy-policy",
-    date: "Jul 14, 2026",
-    author: "Hydrilla Legal",
-    thumbVariant: "docs-flow",
-  },
-];
+import Footer from "@/components/layout/Footer";
+import { PickleCta, PickleFlow } from "@/components/layout/PicklePage";
 
 export default function SecurityPage() {
   return (
-    <PickleArticlePage
-      kicker="Trust"
-      kickerHref="/about"
-      title="How Hydrilla protects your studio assets"
-      subtitle="The keys to your account, how generated meshes stay scoped to your workspace, and how files enter your pipeline."
-      date="Oct 1, 2026"
-      author="Hydrilla Team"
-      heroThumbVariant="privacy-enclave"
-      ctaLabel="Contact Security"
-      ctaHref={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Security Review / Hydrilla")}`}
-      footnote={
-        <>
-          Need a vendor security review or questionnaire completed? Email{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> or read our{" "}
-          <Link href="/privacy-policy">Privacy Policy</Link>.
-        </>
-      }
-      relatedItems={RELATED}
-    >
-      <div className="pickle-text">
-        <p>
-          Hydrilla is a web studio. You sign in, generate with BlueFox 1, and
-          download files you own under the{" "}
-          <Link href="/terms-and-conditions">Terms of Service</Link>. This page
-          is the public trust and architecture summary for creators and studios.
-        </p>
-      </div>
-
-      <section className="pickle-head-block">
-        <h2 className="pickle-h2">Accounts &amp; session isolation</h2>
-        <div className="pickle-text">
-          <p>
-            Authentication is handled by Clerk. Every session is user-specific
-            and scoped by short-lived cryptographic tokens. Workspace,
-            generation, and library routes are authenticated and never indexed
-            by search engines.
-          </p>
-          <p>
-            When you connect a local DCC plugin (Blender, Unity, Unreal, or
-            Godot) via the Studio Bridge, tokens are pushed locally over{" "}
-            <code>127.0.0.1:7345</code> or authenticated via a revocable{" "}
-            <code>hyd_live_</code> API key that you control in Settings.
-          </p>
-        </div>
-      </section>
-
-      <section className="pickle-section">
-        <div className="pickle-head-block">
-          <h2 className="pickle-h2">Generated assets &amp; storage</h2>
-          <div className="pickle-text">
+    <>
+      <JsonLd data={getKitJsonLd("/security")} />
+      <article className="pickle-article">
+        <header className="pickle-article-header">
+          <p className="pickle-article-kicker">Trust</p>
+          <h1 className="pickle-article-title" data-wide="true">
+            How Hydrilla protects your studio assets
+          </h1>
+          <div className="pickle-lead">
             <p>
-              Generated meshes and PBR maps are stored for your account so you
-              can preview, iterate, and export. Starter and Pro keep generated
-              assets and exports private to your account or workspace, as stated
-              on <Link href="/pricing">Pricing</Link>. We do not sell customer
-              assets as a dataset.
+              Hydrilla AI protects the keys to your account, keeps your work inside your AI 3D workspace, and hands files to your pipeline.
             </p>
           </div>
-        </div>
-
-        <figure className="pickle-figure">
-          <div className="pickle-card-surface">
-            <table className="pickle-table">
-              <thead>
-                <tr>
-                  <th>Layer</th>
-                  <th>Mechanism</th>
-                  <th>Guarantee</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th>Authentication</th>
-                  <td>Clerk JWT + revocable <code>hyd_live_</code> API keys</td>
-                  <td>No plaintext passwords or payment cards stored on Hydrilla servers</td>
-                </tr>
-                <tr>
-                  <th>Workspace storage</th>
-                  <td>Account-scoped cloud object storage</td>
-                  <td>Starter &amp; Pro assets remain private to your workspace</td>
-                </tr>
-                <tr>
-                  <th>Payments</th>
-                  <td>Merchant-of-record third-party processor</td>
-                  <td>PCI-compliant checkout; card details never touch Hydrilla</td>
-                </tr>
-                <tr>
-                  <th>Local DCC Bridge</th>
-                  <td>Loopback <code>127.0.0.1:7345</code></td>
-                  <td>Meshes transfer directly into your open Blender or engine session</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="pickle-article-meta">
+            <span>Oct 1, 2026</span>
+            <span className="pickle-meta-divider" aria-hidden="true" />
+            <span>Hydrilla Team</span>
           </div>
-          <figcaption className="pickle-caption">
-            How authentication, storage, billing, and DCC transfers are isolated across Hydrilla.
-          </figcaption>
-        </figure>
-      </section>
+        </header>
+        <div className="pickle-article-column">
+          <PickleFlow
+            label="Where your work lives: you sign in to your own workspace, generated meshes stay scoped to it, and exports move into your pipeline."
+            steps={[
+              { title: "Signed-in account", detail: "One session per user" },
+              { title: "Your workspace", detail: "Generated meshes stay scoped here" },
+              { title: "Your pipeline", detail: "Exports you download", emphasis: true },
+            ]}
+          />
 
-      <section className="pickle-head-block">
-        <h2 className="pickle-h2">Exports &amp; vendor reviews</h2>
-        <div className="pickle-text">
-          <p>
-            Downloads are standard GLB, FBX, OBJ, and USDZ files you take into
-            Unity, Unreal, Blender, or AR viewers. Once exported, those files
-            live entirely in your own pipeline and version control.
-          </p>
-          <p>
-            Studios that need a security questionnaire, vendor review, or a
-            named contact should email{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. We answer
-            from the architecture facts on this page and the{" "}
-            <Link href="/privacy-policy">Privacy Policy</Link> rather than a
-            generic marketing PDF.
-          </p>
+          <div className="pickle-intro">
+            <p>
+              Work made in a 3D workspace is often unreleased: concept images, briefs for unannounced projects, and the assets that come from them. This page sets out, in plain terms, <strong>how that work is handled</strong>. It is a summary for reviewers; the{" "}
+              <Link href="/privacy">Privacy Policy</Link> and <Link href="/terms">Terms</Link> are the binding documents.
+            </p>
+          </div>
+
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">Your data doesn&apos;t train our models</h2>
+            <div className="pickle-text">
+              <p>
+                We don&apos;t use your data to train our models. That holds for every account on every plan, including your prompts, the reference images you upload, and the models you generate.
+              </p>
+            </div>
+          </section>
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">Accounts and stored assets</h2>
+            <div className="pickle-text">
+              <p>
+                Sign-in runs through Clerk, and each session belongs to one user. Generated meshes stay scoped to your workspace. Your data is stored securely, and reaching it takes a signed-in account.
+              </p>
+              <ul>
+                <li>Signed-in pages are kept out of search engines</li>
+                <li>API keys are created and managed from your account</li>
+              </ul>
+              <p>
+                Treat API keys like passwords. Keep them on a server, never in a client app or a shared document, and manage them from your account if you think one has been exposed.
+              </p>
+            </div>
+          </section>
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">What happens after export</h2>
+            <div className="pickle-text">
+              <p>
+                Once you download an export, the file lives in your own pipeline, under your studio&apos;s own controls. Files sent to a plugin over the local Bridge travel on your machine to the tool you have open.
+              </p>
+            </div>
+          </section>
+
+          <PickleCta
+            title="Questionnaires and vendor reviews"
+            line={
+              <>
+                For a questionnaire or vendor review, use Contact security below, or{" "}
+                <Link href="/enterprise#contact">talk to our team</Link>. Tell us your studio, the review you are running, and when you need answers, and we will reply in writing with what we can confirm.
+              </>
+            }
+            primary={{ label: "Contact security", href: "mailto:founders@hydrilla.ai" }}
+            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+          />
         </div>
-      </section>
-    </PickleArticlePage>
+      </article>
+      <Footer />
+    </>
   );
 }

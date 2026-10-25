@@ -51,10 +51,10 @@ export function ModelStatsOverlay({ stats, badge, corner = "top-left", embedded 
         className
       )}
     >
-      <div className={cn("flex h-8 select-none items-center rounded-full border border-neutral-200/80 bg-white/90 pl-1 pr-1 text-[12px] text-neutral-600 shadow-[0_4px_16px_-8px_rgba(0,0,0,0.18)] backdrop-blur", embedded && "w-full")}>
+      <div className={cn("studio-float flex h-8 select-none items-center rounded-full border border-neutral-200/80 bg-white/90 pl-1 pr-1 text-[12px] text-neutral-600 shadow-[0_4px_16px_-8px_rgba(0,0,0,0.18)] backdrop-blur", embedded && "w-full")}>
         {badge && BadgeIcon ? (
           <span className={cn("inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-neutral-100 px-2 font-medium text-neutral-800", embedded && "max-w-[46%]")}>
-            <BadgeIcon className={cn("h-3.5 w-3.5 shrink-0", badge.icon === "water" ? "text-sky-600" : "text-neutral-500")} strokeWidth={2} />
+            <BadgeIcon className={cn("h-3.5 w-3.5 shrink-0", badge.icon === "water" ? "text-sky-600 dark:text-sky-400" : "text-neutral-500")} strokeWidth={2} />
             <span className="truncate">{badge.label}</span>
           </span>
         ) : null}
@@ -91,7 +91,7 @@ export function ModelStatsOverlay({ stats, badge, corner = "top-left", embedded 
       </div>
 
       {showDetails && hasStats && stats ? (
-        <dl className={cn("rounded-xl border border-neutral-200/80 bg-white/95 p-3 text-[12px] shadow-[0_12px_32px_-12px_rgba(0,0,0,0.2)] backdrop-blur", embedded ? "w-full" : "w-56")}>
+        <dl className={cn("studio-float rounded-xl border border-neutral-200/80 bg-white/95 p-3 text-[12px] shadow-[0_12px_32px_-12px_rgba(0,0,0,0.2)] backdrop-blur", embedded ? "w-full" : "w-56")}>
           {[
             ["Faces", stats.faces.toLocaleString()],
             ["Vertices", stats.vertices.toLocaleString()],

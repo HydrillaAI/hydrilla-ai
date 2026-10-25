@@ -1,7 +1,9 @@
+import { getKitJsonLd } from "@/lib/kit-schema";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
+import { PickleCta, PickleHeroVideo, PickleMedia, PickleMediaGrid } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { createPageMetadata, getWebPageJsonLd } from "@/lib/seo";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
   title: "AI 3D Workspace for Studios and Artists | Hydrilla AI",
@@ -31,60 +33,64 @@ const TOOL_LINKS = [
 export default function FeaturesPage() {
   return (
     <>
-      <JsonLd
-        data={getWebPageJsonLd({
-          name: "AI 3D Workspace for Studios and Artists",
-          description: metadata.description as string,
-          path: "/features",
-        })}
-      />
+      <JsonLd data={getKitJsonLd("/features")} />
       <article className="pickle-article">
         <header className="pickle-article-header">
           <p className="pickle-article-kicker">Product</p>
           <h1 className="pickle-article-title" data-wide="true">
             Generate, check, and export 3D with BlueFox
           </h1>
-          <p className="pickle-article-subtitle">
-            Generate from text or an image with BlueFox, Hydrilla&apos;s 3D model, check the result in the browser, and export it to your engine or DCC.
-          </p>
+          <div className="pickle-lead">
+            <p>
+              Generate from text or an image with BlueFox, Hydrilla&apos;s 3D model, check the result in the browser, and export it to your engine or DCC.
+            </p>
+          </div>
         </header>
 
         <div className="pickle-article-column">
-          {/* TODO(kit): visual – looping Studio capture (prompt or image in, segmented model orbiting, export menu open) */}
-          <figure className="pickle-figure">
-            <div
-              role="img"
-              aria-label="Hydrilla Studio screen showing a prompt field, a segmented 3D model turning in the preview, and the export menu open."
-              className="pickle-card-surface"
-            />
-          </figure>
+          <PickleHeroVideo />
+
+          <div className="pickle-intro">
+            <p>
+              Hydrilla keeps generation, review, and handoff in <strong>one browser workspace</strong>, so an artist can move from an idea to a file the pipeline accepts without changing tools. Each step below links to the page that covers it in depth.
+            </p>
+          </div>
 
           <section className="pickle-section">
             <div className="pickle-head-block">
               <h2 className="pickle-h2">Start from a prompt, an image, or a conversation</h2>
               <div className="pickle-text">
                 <p>
-                  Describe the asset with <Link href="/text-to-3d">text to 3D →</Link>, or upload a picture with{" "}
-                  <Link href="/image-to-3d">image to 3D →</Link>. BlueFox builds either one.
+                  Pick the input that matches what you already have. A written description works while the idea is still in your head, and a picture works once the look is decided.{" "}
+                  <Link href="/text-to-3d">Text to 3D</Link> and <Link href="/image-to-3d">image to 3D</Link> both run on BlueFox, so results arrive in the same structure whichever way you start.
                 </p>
               </div>
               <h3 className="pickle-h3">Water Agent</h3>
               <div className="pickle-text">
                 <p>
-                  Give Water Agent the brief for a whole set, and work through it piece by piece in one conversation, as you would with your art team.{" "}
-                  <Link href="/water">How Water Agent works →</Link>
+                  When the job is a whole set rather than one model, give Water Agent the brief and work through it piece by piece in one conversation, as you would with your art team.{" "}
+                  <Link href="/water">How Water Agent works</Link>
                 </p>
               </div>
             </div>
 
-            {/* TODO(kit): visual – three-up (prompt, reference image, Water Agent chat) */}
-            <figure className="pickle-figure">
-              <div
-                role="img"
-                aria-label="Three input panels in Hydrilla Studio: a typed prompt, an uploaded reference image, and a Water Agent chat thread."
-                className="pickle-card-surface"
-              />
-            </figure>
+            <PickleMediaGrid
+              ratio="4 / 3"
+              items={[
+                {
+                  src: "/workflow/describe.png",
+                  alt: "The 3D character generator panel in Hydrilla Studio with a typed prompt.",
+                  label: <><strong>Prompt</strong>Text to 3D</>,
+                  fit: "contain",
+                  tone: "white",
+                },
+                {
+                  src: "/new-features/3df1.png",
+                  alt: "A prompt and a reference photo of a fantasy helmet next to the generated 3D helmet.",
+                  label: <><strong>Image</strong>Image to 3D</>,
+                },
+              ]}
+            />
           </section>
 
           <section className="pickle-section">
@@ -92,29 +98,36 @@ export default function FeaturesPage() {
               <h2 className="pickle-h2">Check every model before you export</h2>
               <div className="pickle-text">
                 <p>
-                  Orbit it, select parts, and check materials under light. Each result is a segmented mesh with UVs and PBR maps,{" "}
-                  <Link href="/bluefox">explained here →</Link>.
+                  Every result opens in an in-browser preview, so you can judge it before it reaches your project. Orbit the model, select individual parts, and look at materials under light to catch shape or texture problems while they are still cheap to fix. Each result is a segmented mesh with UVs and PBR maps,{" "}
+                  <Link href="/bluefox">explained here</Link>.
                 </p>
               </div>
             </div>
 
-            {/* TODO(kit): visual – preview capture with parts highlighted */}
-            <figure className="pickle-figure">
-              <div
-                role="img"
-                aria-label="Browser preview of a generated model with one part selected and its material settings shown beside it."
-                className="pickle-card-surface"
-              />
-            </figure>
+            {/* TODO(kit): visual – replace with the preview capture with parts highlighted */}
+            <PickleMedia
+              ratio="4 / 3"
+              src="/new-features/3df3.png"
+              alt="A generated helmet split into labeled parts, with the part list shown beside it."
+            />
           </section>
 
           <section id="exports" className="pickle-section scroll-mt-28">
             <div className="pickle-head-block">
               <h2 className="pickle-h2">Export to the format your tool opens</h2>
               <div className="pickle-text">
-                <p>Hydrilla exports GLB, FBX, OBJ, and USDZ, on every plan, Free included.</p>
+                <p>
+                  Hydrilla exports GLB, FBX, OBJ, and USDZ, on every plan, Free included. Choose the format by where the asset goes next; the table is a quick guide, and the{" "}
+                  <Link href="/docs#scale">units table</Link> helps you check scale on import.
+                </p>
               </div>
             </div>
+
+            <PickleMedia
+              ratio="3 / 2"
+              src="/features/3d7.png"
+              alt="A generated model surrounded by GLB, FBX, OBJ, and USDZ export file icons."
+            />
 
             <figure className="pickle-figure">
               <div className="pickle-card-surface">
@@ -143,44 +156,27 @@ export default function FeaturesPage() {
               <h2 className="pickle-h2">Send it straight into your tools</h2>
               <div className="pickle-text">
                 <p>
-                  Engine and DCC plugins take models over the local Bridge, agents use MCP, and code calls the{" "}
-                  <Link href="/api">REST API →</Link>. <Link href="/integrations">All integrations →</Link>
+                  Plugins for Blender, Unity, Unreal, and Godot take models over the local Bridge, so a result can move from the preview into your open scene without a manual download. AI agents connect through MCP, and your own code calls the{" "}
+                  <Link href="/api">REST API</Link>. <Link href="/integrations">All integrations</Link>
                 </p>
               </div>
             </div>
 
-            <div
-              role="group"
-              aria-label="Logos for Blender, Unity, Unreal Engine, Godot, and MCP, with an API label."
-              className="pickle-card-surface flex flex-wrap items-center justify-center gap-4"
-            >
-              {TOOL_LINKS.map((tool, index) => (
-                <span key={tool.href} className="inline-flex items-center gap-4 text-[17px] font-medium">
-                  {index > 0 ? <span aria-hidden className="text-black/25">|</span> : null}
-                  <Link href={tool.href} className="text-black underline-offset-4 hover:underline">
-                    {tool.label}
-                  </Link>
-                </span>
+            <nav aria-label="Integrations" className="pickle-actions">
+              {TOOL_LINKS.map((tool) => (
+                <Link key={tool.href} href={tool.href} className="pickle-pill-ghost">
+                  {tool.label}
+                </Link>
               ))}
-            </div>
+            </nav>
           </section>
 
           {/* VERIFY: Keep the /features close line "New models will be available through Water Agent as they arrive."? (VERIFY-LIST #8) */}
-          <div className="pickle-closing">
-            <p className="pickle-text">New models will be available through Water Agent as they arrive.</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link href="/app/studio" className="pickle-pill-solid">
-                Start generating
-              </Link>
-              <Link
-                href="/pricing"
-                className="pickle-glass-pill"
-                style={{ height: "48px", fontSize: "17px", padding: "0 22px" }}
-              >
-                See pricing
-              </Link>
-            </div>
-          </div>
+          <PickleCta
+            line="New models will be available through Water Agent as they arrive."
+            primary={{ label: "Start generating", href: "/app/studio" }}
+            secondary={{ label: "See pricing", href: "/pricing" }}
+          />
         </div>
       </article>
       <Footer />

@@ -1,0 +1,24 @@
+<!--
+id: T03
+name: Generation failed
+layout: base
+kind: campaign
+sender: hi
+category: jobs
+topic: model-alerts
+trigger: event generation_failed, filter notify = true
+phase: 1
+subject: Your generation didn't finish
+preheader: Your credits for it were returned.
+footer_reason: You're receiving this because a generation on your Hydrilla account failed.
+optional: true
+facts: confirmed in services/jobSync.ts: every failure path refunds the job's credits before this event is tracked
+data: event.kind, event.credits_refunded, event.retry_url
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>Your {{ event.kind | default: "3D" }} generation didn't finish, so there is no model to open.</mj-text>
+<mj-raw>{% if event.credits_refunded > 0 %}</mj-raw>
+<mj-text>The {{ event.credits_refunded | default: 0 }} credits for this job were returned to your balance.</mj-text>
+<mj-raw>{% endif %}</mj-raw>
+<mj-text>You can try again from Studio. If it fails again, reply to this email and we'll look into it.</mj-text>
+<mj-button href="{{ event.retry_url | default: 'https://hydrilla.ai/app/studio' }}">Open Studio</mj-button>

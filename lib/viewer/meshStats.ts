@@ -7,6 +7,8 @@ export type ModelMeshStats = {
   isWatertight: boolean;
   meshCount: number;
   edgeCount?: number;
+  /** Bounding-box size (x, y, z) in the model's own units, before the viewer normalizes it. */
+  size?: [number, number, number];
 };
 
 export function calculateMeshStats(root: THREE.Object3D): ModelMeshStats {

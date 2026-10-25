@@ -4,6 +4,9 @@ import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Footer from "./Footer";
+import { NavIcon } from "./NavIcons";
+import type { NavIconName } from "@/lib/nav";
+import { WHY_HYDRILLA_MEDIA } from "@/lib/cloudinary";
 
 export type PickleRelatedItem = {
   title: string;
@@ -137,7 +140,7 @@ export function PickleVisualThumb({
       },
       "about-lab": {
         badge: "Hawan Research Labs",
-        rigName: "BlueFox 3D Model Family",
+        rigName: "BlueFox Model Family",
         channels: "Geometry · Segmentation · PBR",
         fps: "Hydrilla Studio Runtime",
       },
@@ -952,7 +955,7 @@ export function PickleResearchPage({
   footer = true,
 }: {
   title: string;
-  description: string;
+  description: string | string[];
   items?: PickleRelatedItem[];
   children?: ReactNode;
   footer?: boolean;
@@ -962,7 +965,11 @@ export function PickleResearchPage({
       <div className="pickle-research-page">
         <header className="pickle-research-hero">
           <h1 className="pickle-research-title">{title}</h1>
-          <p className="pickle-research-description">{description}</p>
+          {(Array.isArray(description) ? description : [description]).map((line) => (
+            <p key={line} className="pickle-research-description">
+              {line}
+            </p>
+          ))}
         </header>
 
         {items && items.length > 0 ? (
@@ -1119,5 +1126,389 @@ export function PickleArticlePage({
       </article>
       {footer ? <Footer /> : null}
     </>
+  );
+}
+
+/**
+ * Rounded media frame for real product imagery. `hero` gets the larger radius
+ * and lifted shadow used directly under a page header.
+ */
+export function PickleMedia({
+  src,
+  alt,
+  caption,
+  ratio = "16 / 10",
+  fit = "cover",
+  tone,
+  hero = false,
+  videoSrc,
+}: {
+  src: string;
+  alt: string;
+  caption?: ReactNode;
+  ratio?: string;
+  fit?: "cover" | "contain";
+  tone?: "white" | "dark";
+  hero?: boolean;
+  videoSrc?: string;
+}) {
+  return (
+    <figure className="pickle-figure" style={hero ? undefined : { maxWidth: 760, marginInline: "auto" }}>
+      <div
+        className="pickle-media"
+        data-hero={hero ? "true" : undefined}
+        data-fit={fit}
+        data-tone={tone}
+        style={{ aspectRatio: ratio }}
+      >
+        {videoSrc ? (
+          <video
+            src={videoSrc}
+            poster={src}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-label={alt}
+            className="absolute inset-0 h-full w-full"
+          />
+        ) : (
+          <Image
+            src={src}
+            alt={alt}
+            fill
+            sizes="(max-width: 700px) 100vw, 980px"
+            loading={hero ? "eager" : "lazy"}
+            fetchPriority={hero ? "high" : undefined}
+          />
+        )}
+      </div>
+      {caption ? <figcaption className="pickle-caption">{caption}</figcaption> : null}
+    </figure>
+  );
+}
+
+export type PickleMediaItem = {
+  src: string;
+  alt: string;
+  label?: ReactNode;
+  fit?: "cover" | "contain";
+  tone?: "white" | "dark";
+};
+
+/** Two- or three-up row of media frames, each with an optional label under it. */
+export function PickleMediaGrid({
+  items,
+  ratio = "4 / 3",
+}: {
+  items: PickleMediaItem[];
+  ratio?: string;
+}) {
+  return (
+    <figure
+      className="pickle-media-grid"
+      style={{ "--cols": items.length } as React.CSSProperties}
+    >
+      {items.map((item) => (
+        <div key={item.src}>
+          <div
+            className="pickle-media"
+            data-fit={item.fit ?? "cover"}
+            data-tone={item.tone}
+            style={{ aspectRatio: ratio }}
+          >
+            <Image
+              src={item.src}
+              alt={item.alt}
+              fill
+              sizes={`(max-width: 700px) 100vw, ${Math.round(980 / items.length)}px`}
+            />
+          </div>
+          {item.label ? <p className="pickle-media-label">{item.label}</p> : null}
+        </div>
+      ))}
+    </figure>
+  );
+}
+
+export type PickleCardItem = {
+  title: ReactNode;
+  body: ReactNode;
+  icon?: NavIconName;
+  imageSrc?: string;
+  imageAlt?: string;
+};
+
+/** Soft grey feature cards. Title heading level follows the page outline via `titleAs`. */
+export function PickleCards({
+  cards,
+  columns = 2,
+  titleAs: TitleTag = "h3",
+}: {
+  cards: readonly PickleCardItem[];
+  columns?: 2 | 3;
+  titleAs?: "h3" | "p";
+}) {
+  return (
+    <ul className="pickle-cards" style={{ "--cols": columns } as React.CSSProperties}>
+      {cards.map((card, i) => (
+        <li key={i}>
+          <div className="pickle-card">
+            {card.imageSrc ? (
+              <div className="pickle-card-media">
+                <Image
+                  src={card.imageSrc}
+                  alt={card.imageAlt ?? ""}
+                  fill
+                  sizes={`(max-width: 700px) 100vw, ${Math.round(980 / columns)}px`}
+                />
+              </div>
+            ) : card.icon ? (
+              <span className="pickle-card-icon">
+                <NavIcon name={card.icon} className="h-11 w-11" />
+              </span>
+            ) : null}
+            <TitleTag className="pickle-card-title">{card.title}</TitleTag>
+            <div className="pickle-card-body">{card.body}</div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export type PickleLinkItem = {
+  title: string;
+  href: string;
+  line?: ReactNode;
+  imageSrc?: string;
+  imageAlt?: string;
+  imageFit?: "cover" | "contain";
+  imageTone?: "dark" | "white";
+  icon?: NavIconName;
+  /** Large type set inside the thumbnail when there is no image. */
+  tileLabel?: string;
+  tileDetail?: string;
+  external?: boolean;
+};
+
+/** Research-style link cards (16:10 thumbnail, title, one line) for hub pages. */
+export function PickleLinkCards({
+  items,
+  columns = 2,
+}: {
+  items: readonly PickleLinkItem[];
+  columns?: 2 | 3;
+}) {
+  return (
+    <ul className="pickle-link-cards" style={{ "--cols": columns } as React.CSSProperties}>
+      {items.map((item) => {
+        const inner = (
+          <>
+            <span
+              className="pickle-research-thumbnail"
+              data-fit={item.imageFit}
+              data-tone={item.imageTone}
+            >
+              {item.imageSrc ? (
+                <Image
+                  src={item.imageSrc}
+                  alt={item.imageAlt ?? ""}
+                  fill
+                  sizes={`(max-width: 700px) 100vw, ${Math.round(980 / columns)}px`}
+                />
+              ) : (
+                <span className="pickle-thumb-inner pickle-icon-tile">
+                  {item.tileLabel ? (
+                    <span className="pickle-tile-type">
+                      <span className="pickle-tile-label">{item.tileLabel}</span>
+                      {item.tileDetail ? (
+                        <span className="pickle-tile-detail">{item.tileDetail}</span>
+                      ) : null}
+                    </span>
+                  ) : item.icon ? (
+                    <NavIcon name={item.icon} className="h-[72px] w-[72px]" />
+                  ) : null}
+                </span>
+              )}
+            </span>
+            <span className="pickle-link-card-title">{item.title}</span>
+            {item.line ? <span className="pickle-link-card-line">{item.line}</span> : null}
+          </>
+        );
+        return (
+          <li key={item.href}>
+            {item.external ? (
+              <a href={item.href} className="pickle-research-card">
+                {inner}
+              </a>
+            ) : (
+              <Link href={item.href} className="pickle-research-card">
+                {inner}
+              </Link>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function FlowArrow() {
+  return (
+    <span className="pickle-flow-arrow" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path
+          d="M4 10h11m0 0-4.5-4.5M15 10l-4.5 4.5"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+export type PickleFlowStep = { title: string; detail?: string; emphasis?: boolean };
+
+/** Node-and-arrow diagram drawn in HTML, so its labels stay real text. */
+export function PickleFlow({
+  steps,
+  direction = "row",
+  label,
+}: {
+  steps: readonly PickleFlowStep[];
+  direction?: "row" | "column";
+  label: string;
+}) {
+  return (
+    <figure className="pickle-flow" data-direction={direction} role="img" aria-label={label}>
+      {steps.map((step, i) => (
+        <React.Fragment key={step.title}>
+          {i > 0 ? <FlowArrow /> : null}
+          <div className="pickle-flow-node" data-emphasis={step.emphasis ? "true" : undefined}>
+            <span className="pickle-flow-title">{step.title}</span>
+            {step.detail ? <span className="pickle-flow-detail">{step.detail}</span> : null}
+          </div>
+        </React.Fragment>
+      ))}
+    </figure>
+  );
+}
+
+/** Divided question-and-answer list. */
+export function PickleQA({ items }: { items: readonly { q: ReactNode; a: ReactNode }[] }) {
+  return (
+    <dl className="pickle-qa">
+      {items.map((item, i) => (
+        <div key={i} className="pickle-qa-item">
+          <dt>{item.q}</dt>
+          <dd>{item.a}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export type PickleAction = { label: string; href: string; download?: boolean };
+
+/** Solid primary + outlined secondary pill pair. Plain anchors for files and downloads. */
+export function PickleActions({
+  primary,
+  secondary,
+  align = "center",
+}: {
+  primary?: PickleAction;
+  secondary?: PickleAction;
+  align?: "center" | "start";
+}) {
+  const render = (action: PickleAction, className: string) =>
+    action.download || /^(https?:|mailto:|#)|\.zip$/.test(action.href) ? (
+      <a href={action.href} className={className} download={action.download || undefined}>
+        {action.label}
+      </a>
+    ) : (
+      <Link href={action.href} className={className}>
+        {action.label}
+      </Link>
+    );
+  return (
+    <div className="pickle-actions" data-align={align === "start" ? "start" : undefined}>
+      {primary ? render(primary, "pickle-pill-solid") : null}
+      {secondary ? render(secondary, "pickle-pill-ghost") : null}
+    </div>
+  );
+}
+
+/** Closing call-to-action panel at the end of a page column. */
+export function PickleCta({
+  title,
+  line,
+  primary,
+  secondary,
+  id,
+}: {
+  title?: ReactNode;
+  line?: ReactNode;
+  primary?: PickleAction;
+  secondary?: PickleAction;
+  id?: string;
+}) {
+  return (
+    <section id={id} className={`pickle-cta${id ? " scroll-mt-28" : ""}`}>
+      {title ? <h2 className="pickle-cta-title">{title}</h2> : null}
+      {line ? <p className="pickle-cta-line">{line}</p> : null}
+      {primary || secondary ? <PickleActions primary={primary} secondary={secondary} /> : null}
+    </section>
+  );
+}
+
+/** Dark code panel: one or more labelled panes (request, response). */
+export function PickleCode({
+  panes,
+  label,
+}: {
+  panes: readonly { title: string; code: string }[];
+  label: string;
+}) {
+  return (
+    <figure className="pickle-code" aria-label={label}>
+      {panes.map((pane) => (
+        <div key={pane.title} className="pickle-code-pane">
+          <div className="pickle-code-bar">
+            <span className="pickle-code-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            <span>{pane.title}</span>
+          </div>
+          <pre>
+            <code>{pane.code}</code>
+          </pre>
+        </div>
+      ))}
+    </figure>
+  );
+}
+
+/** Reserved slot for a capture that doesn't exist yet. `alt` is the kit's alt text. */
+export function PicklePlaceholder(_props: { alt: string; ratio?: string }) {
+  // Intentionally renders nothing until the real capture exists, so no empty box leaves a gap.
+  return null;
+}
+
+/** The BlueFox video in the original 16:9 Pickle player frame, used as the page hero. */
+export function PickleHeroVideo() {
+  return (
+    <div className="pickle-hero-group">
+      <PickleVideoPlayer
+        src={WHY_HYDRILLA_MEDIA.bluefox.video}
+        poster={WHY_HYDRILLA_MEDIA.bluefox.poster}
+        variant="hero"
+      />
+    </div>
   );
 }

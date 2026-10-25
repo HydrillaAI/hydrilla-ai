@@ -7,6 +7,7 @@ import { Check } from "lucide-react";
 
 import { track } from "@/lib/analytics";
 import { faqByQuestions } from "@/lib/faq";
+import { FaqAnswer } from "@/components/sections/FaqAnswer";
 import {
   checkoutHref,
   estimateMonthlyModels,
@@ -139,15 +140,15 @@ function PlanCta({ row, state }: { row: PricingCatalogRow; state: CtaState }) {
 function PlanCard({
   row,
   state,
-  trialEligible = true,
+  trialEligible = null,
 }: {
   row: PricingCatalogRow;
   state: CtaState;
-  trialEligible?: boolean;
+  trialEligible?: boolean | null;
 }) {
   const popular = row.id === "pro" || row.id === "slot_pro";
   const features = planFeatureLines(row);
-  const showTrialBadge = Boolean(row.trialDays && trialEligible && !state.current);
+  const showTrialBadge = Boolean(row.trialDays && trialEligible === true && !state.current);
 
   return (
     <article className="mob-pricing-card">
@@ -191,10 +192,11 @@ export default function PricingSection({
   compact?: boolean;
   pageHeading?: boolean;
 }) {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, isLoaded } = useAuth();
   const [userPlan, setUserPlan] = useState<UserPlan>(null);
   const [catalogPlan, setCatalogPlan] = useState<string | null>(null);
-  const [trialEligible, setTrialEligible] = useState(true);
+  // null until known, so the trial badge never shows and then disappears.
+  const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
   const [slotMode, setSlotMode] = useState(false);
   const [toggleTouched, setToggleTouched] = useState(false);
@@ -202,6 +204,7 @@ export default function PricingSection({
   const Heading = pageHeading ? "h1" : "h2";
 
   useEffect(() => {
+    if (!isLoaded) return;
     if (!isSignedIn) {
       setPlanLoading(false);
       setTrialEligible(true);
@@ -230,15 +233,17 @@ export default function PricingSection({
           const trialData = await trialRes.json();
           setTrialEligible(Boolean(trialData?.eligible));
         } else {
-          setTrialEligible(false);
+          // Checkout decides eligibility; a failed lookup must not hide the trial.
+          setTrialEligible(true);
         }
       } catch {
         // Pricing remains usable when subscription status cannot be loaded.
+        setTrialEligible(true);
       } finally {
         setPlanLoading(false);
       }
     })();
-  }, [getToken, isSignedIn]);
+  }, [getToken, isSignedIn, isLoaded]);
 
   useEffect(() => {
     if (toggleTouched) {
@@ -253,7 +258,7 @@ export default function PricingSection({
     () =>
       PRICING_CATALOG.map((row) => ({
         row,
-        state: getCtaState(row, userPlan, catalogPlan, planLoading, Boolean(isSignedIn), trialEligible),
+        state: getCtaState(row, userPlan, catalogPlan, planLoading, Boolean(isSignedIn), trialEligible !== false),
       })),
     [catalogPlan, isSignedIn, planLoading, trialEligible, userPlan]
   );
@@ -357,7 +362,9 @@ export default function PricingSection({
                 {faq.map((item) => (
                   <div key={item.question}>
                     <dt>{item.question}</dt>
-                    <dd>{item.answer}</dd>
+                    <dd>
+                      <FaqAnswer text={item.answer} />
+                    </dd>
                   </div>
                 ))}
               </dl>

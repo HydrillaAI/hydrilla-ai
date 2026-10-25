@@ -34,7 +34,7 @@ export function ToggleGroup<T extends string>({ label, value, options, onValueCh
           className={cn(
             "h-8 min-w-0 flex-1 rounded-md px-1.5 text-[12px] font-medium text-neutral-600 transition-colors",
             "hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/25",
-            "data-[pressed]:bg-white data-[pressed]:text-neutral-950 data-[pressed]:shadow-[0_1px_2px_rgba(0,0,0,0.08)]",
+            "data-[pressed]:bg-white data-[pressed]:text-neutral-950 data-[pressed]:shadow-[0_1px_2px_rgba(0,0,0,0.08)] dark:data-[pressed]:bg-neutral-200",
             wrap && "min-w-[30%]"
           )}
         >

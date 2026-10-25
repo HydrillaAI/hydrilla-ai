@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
+import { useTheme } from "next-themes";
 import { Plus } from "lucide-react";
 import { CreateEnginePicker } from "../../components/CreateEnginePicker";
 import { useWaterThread, WaterThreadPeek } from "../../components/water/WaterChat";
@@ -41,6 +42,7 @@ import { ViewerToolbar } from "../../components/workspace/canvas/ViewerToolbar";
 import { CompactGeneratedToast } from "../../components/workspace/shell/CompactOverlays";
 import { NewWorkspaceDialog } from "../../components/workspace/shell/NewWorkspaceDialog";
 import { renderGlbSnapshot, renderGlbMultiViewSnapshots, renderLibraryMeshSnapshot } from "../../lib/viewer/renderGlbSnapshot";
+import { readMeshThumbs, writeMeshThumb } from "../../lib/viewer/meshThumbs";
 import {
   GHOST,
   ImageOptionsDropdown,
@@ -51,6 +53,8 @@ import {
 import type { WaterViewerHandle } from "../../components/WaterViewer";
 import {
   applyLookPatch,
+  sanitizeStudioSetup,
+  studioSetupOf,
   DEFAULT_PART_MATERIAL,
   DEFAULT_VIEWER_LOOK,
   sanitizePartMaterials,
@@ -149,35 +153,6 @@ import {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app";
 const WATER_POLL_INTERVAL_MS = 2_000;
 const WATER_POLL_MAX_MS = 18 * 60 * 1000;
-const MESH_THUMB_STORAGE = "hydrilla.meshThumbs.front";
-const MESH_THUMB_LIMIT = 24;
-
-function readMeshThumbs(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.sessionStorage.getItem(MESH_THUMB_STORAGE);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
-    if (!parsed || typeof parsed !== "object") return {};
-    return parsed as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
-function writeMeshThumb(jobId: string, url: string) {
-  if (typeof window === "undefined" || !url) return;
-  try {
-    const map = readMeshThumbs();
-    map[jobId] = url;
-    const ids = Object.keys(map);
-    if (ids.length > MESH_THUMB_LIMIT) {
-      for (const id of ids.slice(0, ids.length - MESH_THUMB_LIMIT)) delete map[id];
-    }
-    window.sessionStorage.setItem(MESH_THUMB_STORAGE, JSON.stringify(map));
-  } catch {
-    /* quota — the in-memory cache still covers this session */
-  }
-}
 
 
 const sculptPassLabel = (pass?: string | null): string => waterPassLabel(pass);
@@ -271,6 +246,9 @@ interface GeneratingJob {
   startTime?: number;
   queueInfo?: QueueInfo;
 }
+
+// v2: the backdrop defaults to "auto" (follows the theme); v1 saved a literal white.
+const STUDIO_SETUP_STORAGE_KEY = "hydrilla_viewer_studio_v2";
 
 export default function WorkspacePageWrapper() {
   return (
@@ -773,6 +751,8 @@ function WorkspacePage() {
   const [authoredParts, setAuthoredParts] = useState<PartMaterialMap>({});
   /** Live edits this session; win over saved scene values. */
   const [partEdits, setPartEdits] = useState<PartMaterialMap>({});
+  /** Parts hidden in the viewport this session. Viewport only: exports keep every part. */
+  const [hiddenParts, setHiddenParts] = useState<string[]>([]);
   const waterViewerRef = useRef<WaterViewerHandle>(null);
   const waterPickerModels: CatalogModel[] = useMemo(
     () =>
@@ -846,6 +826,7 @@ function WorkspacePage() {
     setSelectedPart(null);
     setAuthoredParts({});
     setPartEdits({});
+    setHiddenParts([]);
   }, [viewerAssetKey]);
 
   // A failed mesh/GPU job must not remain as the active canvas when the user
@@ -967,6 +948,34 @@ function WorkspacePage() {
 
   const [look, setLook] = useState<ViewerLook>(DEFAULT_VIEWER_LOOK);
   const updateLook = useCallback((patch: Partial<ViewerLook>) => setLook((prev) => applyLookPatch(prev, patch)), []);
+
+  // Light, backdrop and lens follow the artist between sessions; surface choices stay per session.
+  const studioLoadedRef = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STUDIO_SETUP_STORAGE_KEY);
+      if (raw) setLook((prev) => ({ ...prev, ...sanitizeStudioSetup(JSON.parse(raw)) }));
+    } catch {
+      // Unreadable or blocked storage: keep the defaults.
+    }
+    studioLoadedRef.current = true;
+  }, []);
+  const studioSetupJson = JSON.stringify(studioSetupOf(look));
+  useEffect(() => {
+    if (!studioLoadedRef.current) return;
+    try {
+      window.localStorage.setItem(STUDIO_SETUP_STORAGE_KEY, studioSetupJson);
+    } catch {
+      // Storage full or blocked; the setup just won't carry over.
+    }
+  }, [studioSetupJson]);
+
+  // The viewer follows the app theme (an "auto" backdrop, grid and shadow); explicit backdrop colors still win.
+  const { resolvedTheme } = useTheme();
+  const viewerTheme = resolvedTheme === "dark" ? "dark" : "light";
+  const viewerLook = useMemo(() => ({ ...look, theme: viewerTheme }) satisfies ViewerLook, [look, viewerTheme]);
+
+  const [captureRequest, setCaptureRequest] = useState<{ id: number; filename: string } | null>(null);
   const [viewRequest, setViewRequest] = useState<{ view: ViewerCameraView; id: number } | null>(null);
   const [reportedStats, setReportedStats] = useState<{ id: string; stats: ModelMeshStats } | null>(null);
   const requestCameraView = useCallback(
@@ -1057,6 +1066,122 @@ function WorkspacePage() {
       savePartMaterial(`${activeWaterJobId}:${selectedPart}`, { jobId: activeWaterJobId, name: selectedPart, material: next });
     }
   };
+
+  const partNames = useMemo(() => Object.keys(authoredParts), [authoredParts]);
+
+  /** Current base color per part, for the layer swatches. */
+  const partColors = useMemo(
+    () => Object.fromEntries(partNames.map((name) => [name, (effectiveParts[name] ?? authoredParts[name]).color])),
+    [partNames, effectiveParts, authoredParts]
+  );
+
+  /** Parts whose current material differs from what the model was authored with. */
+  const editedParts = useMemo(
+    () =>
+      partNames.filter((name) => {
+        const current = effectiveParts[name];
+        const authored = authoredParts[name];
+        if (!current || !authored) return false;
+        return (
+          current.color.toLowerCase() !== authored.color.toLowerCase() ||
+          Math.abs(current.roughness - authored.roughness) > 0.005 ||
+          Math.abs(current.metalness - authored.metalness) > 0.005
+        );
+      }),
+    [partNames, effectiveParts, authoredParts]
+  );
+
+  /** Material copied from one part, ready to paste onto another. */
+  const [copiedMaterial, setCopiedMaterial] = useState<PartMaterial | null>(null);
+  const handleCopyPartMaterial = () => {
+    if (selectedPartMaterial) setCopiedMaterial(selectedPartMaterial);
+  };
+  const handlePastePartMaterial = () => {
+    if (copiedMaterial) handlePartMaterial(copiedMaterial);
+  };
+
+  const handleResetAllParts = () => {
+    const jobId = activeWaterJobId;
+    if (jobId) {
+      // Water persists overrides, so write each edited part's authored values back.
+      const restored: PartMaterialMap = {};
+      for (const name of editedParts) {
+        const authored = authoredParts[name];
+        if (!authored) continue;
+        restored[name] = authored;
+        savePartMaterial(`${jobId}:${name}`, { jobId, name, material: authored });
+      }
+      setPartEdits((prev) => ({ ...prev, ...restored }));
+      return;
+    }
+    setPartEdits({});
+  };
+
+  const handleCapture = () => {
+    if (centerView.type === "code") {
+      void waterViewerRef.current?.exportFormat("png");
+      return;
+    }
+    if (centerView.type !== "3d") return;
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    setCaptureRequest((prev) => ({ id: (prev?.id ?? 0) + 1, filename: `hydrilla-${centerView.jobId || "model"}-${stamp}.png` }));
+  };
+
+  const handleResetPart = () => {
+    if (!selectedPart) return;
+    const authored = authoredParts[selectedPart];
+    // Water scenes persist overrides and have no delete op, so write the authored values back.
+    if (activeWaterJobId && authored) {
+      setPartEdits((prev) => ({ ...prev, [selectedPart]: authored }));
+      savePartMaterial(`${activeWaterJobId}:${selectedPart}`, { jobId: activeWaterJobId, name: selectedPart, material: authored });
+      return;
+    }
+    setPartEdits((prev) => {
+      const next = { ...prev };
+      delete next[selectedPart];
+      return next;
+    });
+  };
+
+  const togglePartHidden = useCallback((name: string) => {
+    setHiddenParts((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+  }, []);
+
+  /** Show only this part; isolating the part that is already alone shows everything again. */
+  const isolatePart = useCallback(
+    (name: string) => {
+      setHiddenParts((prev) => {
+        const others = partNames.filter((n) => n !== name);
+        const alone = !prev.includes(name) && others.every((n) => prev.includes(n));
+        return alone ? [] : others;
+      });
+      setSelectedPart(name);
+    },
+    [partNames]
+  );
+
+  const showAllParts = useCallback(() => setHiddenParts([]), []);
+
+  // DCC muscle memory: H hide, Shift+H isolate, Alt+H unhide all, F frame selection.
+  useEffect(() => {
+    if (centerView.type !== "code" && centerView.type !== "3d") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+      if (event.metaKey || event.ctrlKey) return;
+      if (event.code === "KeyH") {
+        event.preventDefault();
+        if (event.altKey) showAllParts();
+        else if (selectedPart && event.shiftKey) isolatePart(selectedPart);
+        else if (selectedPart) togglePartHidden(selectedPart);
+      } else if (event.code === "KeyF" && !event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        requestCameraView(selectedPart ? "selection" : "reset");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [centerView.type, selectedPart, isolatePart, togglePartHidden, showAllParts, requestCameraView]);
 
   const historyJobs = useMemo(() => [...libraryImages, ...library3DAssets], [libraryImages, library3DAssets]);
   const promptHistory = usePromptHistory(workspaceId, historyJobs);
@@ -3631,12 +3756,23 @@ function WorkspacePage() {
   };
   const file1Is3D = Boolean(file1 && (/\.(glb|gltf|obj)$/i.test(file1.name) || file1.type.startsWith("model/")));
 
+  /** Name and file facts for an attached image: the file's own name and "PNG · 1.2 MB", or its library origin. */
+  const imageAttachment = (fallbackLabel: string): ComposerAttachment | null => {
+    if (!image1) return null;
+    if (file1 && !file1Is3D) {
+      const ext = file1.name.split(".").pop()?.toUpperCase() || file1.type.replace("image/", "").toUpperCase();
+      const size = file1.size >= 1_000_000 ? `${(file1.size / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(file1.size / 1000))} KB`;
+      return { kind: "image", preview: image1, label: file1.name || fallbackLabel, detail: `${ext} · ${size}` };
+    }
+    return { kind: "image", preview: image1, label: fallbackLabel, detail: jobId1 ? "From library" : undefined };
+  };
+
   const composerAttachment: ComposerAttachment | null = (() => {
     if (activeSection === "image") {
-      return isImageEditMode && image1 ? { kind: "image", preview: image1, label: "Image to edit" } : null;
+      return isImageEditMode ? imageAttachment("Image to edit") : null;
     }
     if (activeSection === "model") {
-      return image1 ? { kind: "image", preview: image1, label: "Reference image" } : null;
+      return imageAttachment("Reference image");
     }
     // The edit slot shares state with image edits; only a 3D source counts as the model.
     const editHasModel = file1Is3D || Boolean(jobId1 && library3DAssets.some((j) => j.id === jobId1));
@@ -3673,7 +3809,7 @@ function WorkspacePage() {
       ? imageEditing
         ? {
             label: "Upload image to edit",
-            hint: "PNG, JPG or WebP · drop, paste, or drag from your library",
+            hint: "PNG, JPG or WebP",
             kind: "image",
             attachment: composerAttachment,
             accept: ["image"],
@@ -3682,7 +3818,7 @@ function WorkspacePage() {
       : imageTo3D
         ? {
             label: "Upload image",
-            hint: "PNG, JPG or WebP · drop, paste, or drag from your library",
+            hint: "PNG, JPG or WebP",
             kind: "image",
             attachment: composerAttachment,
             accept: ["image"],
@@ -3690,7 +3826,7 @@ function WorkspacePage() {
         : activeSection === "edit"
           ? {
               label: "Choose a model",
-              hint: "GLB file, or drag one from your library",
+              hint: "GLB file",
               kind: "model",
               attachment: composerAttachment,
               accept: ["model"],
@@ -4095,7 +4231,7 @@ function WorkspacePage() {
               type="button"
               aria-label="Hide library"
               onClick={() => setLibraryOpen(false)}
-              className="absolute inset-0 bg-black/20"
+              className="absolute inset-0 bg-scrim/20 dark:bg-scrim/50"
             />
             <div className="library-panel-in relative flex h-full w-[264px] max-w-[85vw] flex-col overflow-hidden bg-white pt-[env(safe-area-inset-top)] shadow-[24px_0_60px_-30px_rgba(0,0,0,0.35)]">
               {libraryBar(false)}
@@ -4104,7 +4240,8 @@ function WorkspacePage() {
           </div>
         ) : null}
 
-        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-neutral-50/50 pt-[env(safe-area-inset-top)]">
+        {/* Dark: the canvas is the deepest layer; panels, floats and the 3D stage sit above it. */}
+        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-neutral-50/50 pt-[env(safe-area-inset-top)] dark:bg-[var(--app-canvas)]">
           {libraryFloat && !fullView ? <div className="absolute left-3 top-3 z-30">{libraryBar(true)}</div> : null}
           {showLeftRail && expandableLibrary ? (
             <div className="pointer-events-none absolute left-3 top-1/2 z-20 -translate-y-1/2">
@@ -4137,7 +4274,7 @@ function WorkspacePage() {
             <div
               className={cn(
                 "pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-1.5 sm:gap-2 transition-transform duration-[320ms] ease-out motion-reduce:transition-none",
-                inspectorVisible && !isCompact && "-translate-x-[288px]"
+                inspectorVisible && !isCompact && "-translate-x-[304px]"
               )}
             >
               {(centerView.type === "3d" || centerView.type === "code") && (
@@ -4155,7 +4292,7 @@ function WorkspacePage() {
                   jobId={centerView.type === "3d" ? centerView.jobId : null}
                 />
               )}
-              <div className="pointer-events-auto flex items-center rounded-full border border-neutral-200/80 bg-white p-1 sm:py-1 sm:pl-1 sm:pr-1.5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.18)]">
+              <div className="studio-float pointer-events-auto flex items-center rounded-full border border-neutral-200/80 bg-white p-1 sm:py-1 sm:pl-1 sm:pr-1.5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.18)]">
                 {accountBar}
               </div>
             </div>
@@ -4233,11 +4370,12 @@ function WorkspacePage() {
                 className="flex-1 min-h-0"
                 hideToolbar
                 instance={waterSceneForJob?.instance ?? null}
-                look={look}
+                look={viewerLook}
                 partMaterials={effectiveParts}
                 onParts={handleViewerParts}
                 selectedPart={selectedPart}
                 onPick={setSelectedPart}
+                hiddenParts={hiddenParts}
                 viewRequest={viewRequest}
                 frameLift={frameLift}
                 statsClassName={statsClassName}
@@ -4293,11 +4431,13 @@ function WorkspacePage() {
                 <div className={fullView ? "w-full h-full min-w-0 min-h-0" : "h-full w-full"}>
                 <ThreeViewer
                   glbUrl={centerView.glbUrl}
-                  look={look}
+                  look={viewerLook}
                   partMaterials={effectiveParts}
                   onParts={handleViewerParts}
                   selectedPart={selectedPart}
                   onPick={setSelectedPart}
+                  hiddenParts={hiddenParts}
+                  captureRequest={captureRequest}
                   statsBadge={canvasModelBadge}
                   viewRequest={viewRequest}
                   frameLift={frameLift}
@@ -4325,7 +4465,13 @@ function WorkspacePage() {
           </div>
 
           {!fullView ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-[padding] duration-[320ms] ease-out motion-reduce:transition-none sm:px-6 sm:pb-5",
+                // Centre on the visible canvas: the docked inspector covers the right 304px.
+                inspectorVisible && !isCompact && "sm:pr-[calc(304px+1.5rem)]"
+              )}
+            >
               <Composer
                 mode={composerMode}
                 onModeChange={handleComposerModeChange}
@@ -4377,6 +4523,15 @@ function WorkspacePage() {
                 submitLabel={composerConfig.label}
                 canSubmit={composerConfig.canSubmit && !isGenerating && !slotStatus.blockedNote}
                 blockedNote={slotStatus.blockedNote}
+                blockedChip={
+                  slotStatus.blockedNote
+                    ? slotStatus.needsHour
+                      ? "Choose your hour"
+                      : slotStatus.remainingLabel
+                        ? `Opens in ${slotStatus.remainingLabel}`
+                        : null
+                    : null
+                }
                 generating={isGenerating || (agentRefining && waterThread.busy)}
                 onSubmit={composerConfig.submit}
                 error={error}
@@ -4393,10 +4548,22 @@ function WorkspacePage() {
             <div className={isCompact ? undefined : "pointer-events-none absolute inset-y-0 right-0 z-20"}>
               <InspectorPanel
                 kind={inspectorKind}
-                parts={Object.keys(authoredParts)}
+                parts={partNames}
+                partColors={partColors}
+                editedParts={editedParts}
+                hiddenParts={hiddenParts}
+                onTogglePartHidden={togglePartHidden}
+                onIsolatePart={isolatePart}
+                onShowAllParts={showAllParts}
+                onResetPart={handleResetPart}
+                onResetAllParts={handleResetAllParts}
+                onCopyPartMaterial={handleCopyPartMaterial}
+                onPastePartMaterial={copiedMaterial ? handlePastePartMaterial : undefined}
+                copiedMaterial={copiedMaterial}
+                onCapture={handleCapture}
                 selectedPart={selectedPart}
                 onSelectPart={setSelectedPart}
-                look={look}
+                look={viewerLook}
                 onLookChange={updateLook}
                 partMaterial={selectedPartMaterial}
                 onPartMaterial={handlePartMaterial}

@@ -1,0 +1,25 @@
+<!--
+id: T06
+name: Plan cancelled
+layout: base
+kind: transactional
+sender: hi
+category: billing
+topic: none
+trigger: subscription_cancelled
+phase: 1
+subject: Your Hydrilla plan is cancelled
+preheader: Here is when your paid access ends.
+footer_reason: You're receiving this because a plan on your Hydrilla account was cancelled.
+optional: false
+send_rule: sent once, when the cancellation is scheduled (with access_ends_on) or when it takes effect immediately (without)
+data: plan_name, access_ends_on
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-raw>{% if trigger.access_ends_on %}</mj-raw>
+<mj-text>Your {{ trigger.plan_name | default: "Hydrilla" }} plan is cancelled. You can keep using it until {{ trigger.access_ends_on | default: "the end of your billing period" }}, and you won't be charged again.</mj-text>
+<mj-raw>{% else %}</mj-raw>
+<mj-text>Your {{ trigger.plan_name | default: "Hydrilla" }} plan is cancelled and your paid access has ended.</mj-text>
+<mj-raw>{% endif %}</mj-raw>
+<mj-text>Your models stay in your account. If you change your mind, you can subscribe again at any time.</mj-text>
+<mj-button href="https://hydrilla.ai/app/pricing">View plans</mj-button>

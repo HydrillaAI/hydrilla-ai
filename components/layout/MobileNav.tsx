@@ -291,7 +291,7 @@ export function MobileNav({
                     : "py-2.5 text-neutral-600 hover:bg-black/[0.04] hover:text-neutral-950"
               }`}
             >
-              Sign in
+              Log in
             </Link>
             <Link
               href="/app/studio"
@@ -306,7 +306,7 @@ export function MobileNav({
                     : ""
               }`}
             >
-              Start generating
+              Get started
             </Link>
           </div>
         </SignedOut>

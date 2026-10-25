@@ -1,0 +1,20 @@
+<!--
+id: D02
+name: Payment final notice
+layout: base
+kind: campaign
+sender: hi
+category: billing
+topic: none
+trigger: same campaign as D01; wait 5 days; exit if payment_succeeded
+phase: 2
+subject: Final notice: your payment is still due
+preheader: Update your payment details to avoid an interruption.
+footer_reason: You're receiving this because a payment for your Hydrilla plan is still outstanding.
+optional: false
+data: event.plan_name, event.billing_url
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>The payment for your {{ event.plan_name | default: "Hydrilla" }} plan still hasn't gone through. This is the last reminder we'll send.</mj-text>
+<mj-text>Update your payment details now to keep generating without an interruption.</mj-text>
+<mj-button href="{{ event.billing_url | default: 'https://hydrilla.ai/app/pricing' }}">Update payment details</mj-button>

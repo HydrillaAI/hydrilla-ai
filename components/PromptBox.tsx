@@ -245,7 +245,7 @@ export function PromptBox({
             placeholder={placeholder}
             aria-label="Describe what you want to generate"
             className={cn(
-              "min-w-0 flex-1 border-0 bg-transparent p-0 outline-none",
+              "studio-bare-field min-w-0 flex-1 border-0 bg-transparent p-0 outline-none",
               "text-base leading-none tracking-[-0.01em] text-[#000c1f] sm:text-[1.3125rem]",
               "placeholder:text-[#000c1f]/45",
               "disabled:cursor-not-allowed disabled:opacity-50"

@@ -1,17 +1,14 @@
 "use client";
 
 import {
-  Box,
   Check,
   ChevronDown,
   Clock,
   Cloud,
   Droplets,
   Gauge,
-  Image as ImageIcon,
   SlidersHorizontal,
   Wand2,
-  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -49,7 +46,7 @@ export const displayImageUrl = (url: string | null | undefined): string => {
 
 export const EASE =
   "transition-[background-color,border-color,color,transform] duration-150 ease-out";
-export const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-neutral-300";
+export const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-500";
 export const GHOST = cn(
   "group inline-flex h-8 shrink-0 items-center gap-1 sm:gap-1.5 rounded-full px-2 sm:px-2.5 text-[12px] sm:text-[13px] font-medium text-neutral-600",
   "hover:bg-neutral-100 hover:text-neutral-950 active:scale-[0.97] data-[state=open]:bg-neutral-100 data-[state=open]:text-neutral-950",
@@ -64,71 +61,6 @@ export const ICON_BUTTON = cn(
 );
 export const CHEVRON =
   "h-3.5 w-3.5 text-neutral-400 transition-transform duration-150 ease-out group-data-[state=open]:rotate-180";
-
-/** Input slot in the composer: empty opens a picker; filled shows a thumbnail with remove. */
-export function ChatRefTile({
-  label,
-  preview,
-  kind = "image",
-  filled,
-  onPick,
-  onClear,
-  className,
-}: {
-  label: string;
-  /** Thumbnail; null shows the kind icon (e.g. a 3D file still rendering). */
-  preview: string | null;
-  kind?: "image" | "model";
-  filled: boolean;
-  onPick: () => void;
-  onClear: () => void;
-  className?: string;
-}) {
-  const Icon = kind === "model" ? Box : ImageIcon;
-  if (!filled) {
-    return (
-      <button
-        type="button"
-        onClick={onPick}
-        className={cn(
-          "flex h-12 w-12 sm:h-16 sm:w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 text-neutral-500 hover:border-neutral-400 hover:bg-neutral-100 hover:text-neutral-900",
-          EASE,
-          FOCUS,
-          className
-        )}
-      >
-        <Icon className="h-4 w-4 shrink-0" strokeWidth={1.85} />
-        <span className="max-w-full truncate px-1 text-[10px] sm:text-[11px] font-medium leading-none">{label}</span>
-      </button>
-    );
-  }
-  return (
-    <div
-      className={cn("relative h-12 w-12 sm:h-16 sm:w-16 shrink-0 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100", className)}
-      title={label}
-    >
-      {preview ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={displayImageUrl(preview)} alt={label} className="h-full w-full object-cover" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-neutral-400">
-          <Icon className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-      )}
-      {kind === "model" ? (
-        <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1 text-[10px] font-semibold leading-4 text-white">3D</span>
-      ) : null}
-      <button
-        type="button"
-        onClick={onClear}
-        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
-        aria-label={`Remove ${label}`}
-      >
-        <X className="h-3 w-3" strokeWidth={2.4} />
-      </button>
-    </div>
-  );
-}
 
 export function PromptHistoryDropdown({
   promptHistory,

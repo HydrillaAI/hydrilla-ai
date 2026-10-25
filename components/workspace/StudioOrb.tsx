@@ -8,6 +8,7 @@ type Props = {
   theme?: OrbTheme;
 };
 
-export function StudioOrb({ state = "searching", size = 64, theme = "light" }: Props) {
+/** "auto" follows the nearest `dark` class, so the orb inverts with the theme. */
+export function StudioOrb({ state = "searching", size = 64, theme = "auto" }: Props) {
   return <ThinkingOrb state={state} size={size} theme={theme} />;
 }

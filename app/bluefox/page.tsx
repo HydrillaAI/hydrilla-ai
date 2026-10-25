@@ -1,134 +1,83 @@
+import { getKitJsonLd } from "@/lib/kit-schema";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { PickleActions, type PickleCardItem, PickleCards, PickleCta, PickleHeroVideo, PickleMediaGrid } from "@/components/layout/PicklePage";
 
-const BLUEFOX_JSON_LD = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "SoftwareApplication",
-      "@id": "https://hydrilla.ai/bluefox#model",
-      name: "BlueFox",
-      alternateName: "BlueFox 1",
-      softwareVersion: "1",
-      description:
-        "BlueFox, Hydrilla's 3D model, is built by Hydrilla AI. Its current version is BlueFox 1.",
-      disambiguatingDescription: "Hydrilla's 3D model, generally available in Hydrilla",
-      applicationCategory: "DesignApplication",
-      url: "https://hydrilla.ai/bluefox",
-      creator: {
-        "@id": "https://hydrilla.ai/#organization",
-      },
-      isPartOf: {
-        "@id": "https://hydrilla.ai/features#software",
-      },
-      sameAs: ["https://huggingface.co/Hydrilla/BlueFox3D"],
-    },
-    {
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "Product",
-          item: "https://hydrilla.ai/features",
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: "BlueFox",
-          item: "https://hydrilla.ai/bluefox",
-        },
-      ],
-    },
-  ],
-};
 
 const ADVANTAGE_CARDS = [
   {
     title: "UVs and textures included",
-    line: "Every model arrives unwrapped, with PBR maps already attached, so it reacts to your scene's lights straight away.",
+    icon: "preview",
+    body: "Every model arrives unwrapped, with PBR maps already attached. It reacts to your scene's lights straight away, and the maps are ready to repaint if the look needs to change.",
   },
   {
     title: "Parts split for you",
-    line: "Handles, lids, and panels come back as separate pieces you can select, hide, or rework, with no fused mesh to cut apart first.",
+    icon: "bluefox",
+    body: "Handles, lids, and panels come back as separate pieces you can select, hide, or rework. There is no fused mesh to cut apart before material work can start.",
   },
   {
     title: "Works with your tools",
-    line: (
+    icon: "integrations",
+    body: (
       <>
-        Every Hydrilla plugin works with it, in your engine or DCC.{" "}
-        <Link href="/integrations">Integrations →</Link>
+        Every Hydrilla plugin works with BlueFox, in your engine or DCC, so results reach the scene you are building.{" "}
+        <Link href="/integrations">Integrations</Link>
       </>
     ),
   },
   {
     title: "No training on your data",
-    line: (
+    icon: "security",
+    body: (
       <>
-        Your prompts, pictures, and models stay out of our training sets.{" "}
-        <Link href="/security">How we handle data →</Link>
+        Your prompts, pictures, and models stay out of our training sets, on every plan.{" "}
+        <Link href="/security">How we handle data</Link>
       </>
     ),
   },
-] as const;
+] satisfies PickleCardItem[];
 
 export default function BlueFoxPage() {
   return (
     <>
-      <JsonLd data={BLUEFOX_JSON_LD} />
+      <JsonLd data={getKitJsonLd("/bluefox")} />
       <article className="pickle-article">
         <header className="pickle-article-header">
           <p className="pickle-article-kicker">Model</p>
           <h1 className="pickle-article-title">BlueFox</h1>
-          <div className="pickle-text" style={{ textAlign: "center" }}>
+          <div className="pickle-lead">
+            {/* VERIFY: Wording "generally available to everyone in Hydrilla" (VERIFY-LIST #16) */}
             <p>
               BlueFox, Hydrilla&apos;s 3D model, turns a prompt or a picture into a segmented 3D model with UVs and PBR textures. It&apos;s built by Hydrilla AI. Begin with a{" "}
-              <Link href="/text-to-3d">typed prompt →</Link> or an{" "}
-              <Link href="/image-to-3d">uploaded picture →</Link>.
+              <Link href="/text-to-3d">typed prompt</Link> or an{" "}
+              <Link href="/image-to-3d">uploaded picture</Link>.
             </p>
-            {/* VERIFY: Wording "generally available to everyone in Hydrilla" (VERIFY-LIST #16) */}
-            <p>Current version BlueFox 1, generally available to everyone in Hydrilla.</p>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/app/studio" className="pickle-pill-solid">
-              Start generating
-            </Link>
-          </div>
+          <p className="pickle-chip">Current version BlueFox 1, generally available to everyone in Hydrilla.</p>
+          <PickleActions primary={{ label: "Start generating", href: "/app/studio" }} />
         </header>
 
         <div className="pickle-article-column">
-          {/* TODO(kit): visual – interactive viewer of a segmented sample with a parts toggle */}
-          <figure className="pickle-figure">
-            <div
-              role="img"
-              aria-label="A generated lantern in a 3D viewer, its frame, glass, and handle highlighted as separate parts."
-              className="pickle-card-surface"
-            />
-          </figure>
+          <PickleHeroVideo />
+
+          <div className="pickle-intro">
+            <p>
+              BlueFox is <strong>the flagship of the Hydrilla workspace</strong>. It is designed for the volume work that fills a studio&apos;s schedule, the props, set pieces, and visualization assets that every scene needs and few teams have time to model by hand.
+            </p>
+          </div>
 
           <section className="pickle-section">
             <div className="pickle-head-block">
               <h2 className="pickle-h2">Ready for your pipeline from the first export</h2>
               <div className="pickle-text">
                 <p>
-                  BlueFox is made for the many props, set pieces, and visualization assets a studio needs, and it delivers them in a shape your tools already read.
+                  A generated model is only useful if your tools can work with it. BlueFox delivers assets in a structure artists already expect, so the first minutes after generation go into creative decisions rather than repair.
                 </p>
               </div>
             </div>
 
-            <div className="pickle-research-grid" style={{ width: "100%", marginTop: 0 }}>
-              {ADVANTAGE_CARDS.map((card) => (
-                <div key={card.title} className="pickle-card-surface">
-                  <h3 className="pickle-h3" style={{ width: "100%" }}>
-                    {card.title}
-                  </h3>
-                  <p className="pickle-text" style={{ width: "100%", marginTop: "12px" }}>
-                    {card.line}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <PickleCards cards={ADVANTAGE_CARDS} />
           </section>
 
           <section className="pickle-section">
@@ -137,24 +86,37 @@ export default function BlueFoxPage() {
               <div className="pickle-text">
                 {/* VERIFY: Safe wording "Select one part in Studio and leave the rest alone" (VERIFY-LIST #17) */}
                 <p>
-                  BlueFox returns a mesh split into parts, with UVs and PBR texture maps. Select one part in Studio and leave the rest alone, or repaint the maps in your own tools.
+                  BlueFox returns a mesh split into parts, with UVs and PBR texture maps. That structure is what makes a generated asset editable: select one part in Studio and leave the rest alone, assign a different material to a single panel, or repaint the maps in your own tools without unwrapping anything first.
                 </p>
               </div>
             </div>
 
-            {/* TODO(kit): visual – exploded view of the sample's parts */}
-            <figure className="pickle-figure">
-              <div
-                role="img"
-                aria-label="The lantern pulled apart into its frame, glass panels, handle, and base."
-                className="pickle-card-surface"
-              />
-            </figure>
+            {/* TODO(kit): visual – replace with the exploded view of the sample's parts */}
+            <PickleMediaGrid
+              ratio="4 / 3"
+              items={[
+                {
+                  src: "/features/3d2.png",
+                  alt: "A generated house separated into roof, floors, walls, and deck, with a segmentation list beside it.",
+                  label: <><strong>Parts</strong>Segmented mesh</>,
+                },
+                {
+                  src: "/new-features/3df2.png",
+                  alt: "Base color, roughness, metalness, and normal maps laid out beside the textured helmet.",
+                  label: <><strong>Maps</strong>PBR textures</>,
+                },
+              ]}
+            />
           </section>
 
           <section id="specs" className="pickle-section scroll-mt-28">
             <div className="pickle-head-block">
               <h2 className="pickle-h2">BlueFox at a glance</h2>
+              <div className="pickle-text">
+                <p>
+                  The current release is BlueFox 1. The table summarizes what it takes in and what it returns; the full model card on the research page covers intended use in more detail.
+                </p>
+              </div>
             </div>
 
             <figure className="pickle-figure">
@@ -186,7 +148,7 @@ export default function BlueFoxPage() {
                     <tr>
                       <th>Exports</th>
                       <td>
-                        <Link href="/features#exports">Hydrilla&apos;s export formats →</Link>
+                        <Link href="/features#exports">Hydrilla&apos;s export formats</Link>
                       </td>
                     </tr>
                   </tbody>
@@ -195,25 +157,18 @@ export default function BlueFoxPage() {
             </figure>
           </section>
 
-          <section id="limits" className="pickle-head-block scroll-mt-28">
-            <h2 className="pickle-h2">Where BlueFox fits, and where it stops</h2>
-            <div className="pickle-text">
-              {/* VERIFY: Limits line (VERIFY-LIST #16) */}
-              <p>
-                Use it for props, environment pieces, and visualization assets an artist will finish. BlueFox isn&apos;t built for CAD, manufacturing drawings, or finished hero assets that skip an artist pass. The full{" "}
-                <Link href="/research#model-card">model card →</Link> lists intended use and inputs.
-              </p>
-            </div>
-            <div className="pt-2">
-              <Link
-                href="/research#model-card"
-                className="pickle-glass-pill"
-                style={{ height: "48px", fontSize: "17px", padding: "0 22px" }}
-              >
-                Read the model card
-              </Link>
-            </div>
-          </section>
+          {/* VERIFY: Limits line (VERIFY-LIST #16) */}
+          <PickleCta
+            id="limits"
+            title="Where BlueFox fits, and where it stops"
+            line={
+              <>
+                Use it for props, environment pieces, and visualization assets an artist will finish. BlueFox isn&apos;t built for CAD, manufacturing drawings, or finished hero assets that skip an artist pass. Being clear about that line helps teams plan where generation saves time and where a modeler should lead. The full{" "}
+                <Link href="/research#model-card">model card</Link> lists intended use and inputs.
+              </>
+            }
+            secondary={{ label: "Read the model card", href: "/research#model-card" }}
+          />
         </div>
       </article>
       <Footer />

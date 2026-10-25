@@ -12,7 +12,6 @@ import {
   ExternalLink,
   AlertCircle,
   Loader2,
-  Code2,
   Terminal,
   ShieldCheck,
   Boxes,
@@ -29,7 +28,7 @@ import {
   type DeveloperApiKeyDetails,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { CodeBlock } from "@/components/app/CodeBlock";
 import { Input } from "@/components/ui/input";
 
 export default function ApiKeysPage() {
@@ -197,385 +196,311 @@ const task = await res.json();
 console.log("Task queued:", task.id);`,
   };
 
+  const fmtDate = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Never";
+
+  const TH = "border-b border-neutral-200 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400";
+  const TD = "border-b border-neutral-200/60 px-4 py-3.5 align-middle text-[13px] text-neutral-700";
+
   return (
-    <div className="app-content-page font-dm-sans bg-(--app-canvas) py-8 px-4 sm:px-6">
-      <div className="mx-auto w-full max-w-5xl space-y-6">
+    <div className="app-content-page font-dm-sans bg-(--app-canvas)">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
         {/* Header */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 pb-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-neutral-400 tracking-[0.14em] uppercase">
-                Developers
-              </span>
-              <span className="text-neutral-300">•</span>
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="font-medium uppercase tracking-[0.14em] text-neutral-400">Developers</span>
+              <span className="text-neutral-300">·</span>
               <Link
                 href="https://docs.hydrilla.ai"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:underline"
+                className="inline-flex items-center gap-1 font-medium text-neutral-600 hover:text-neutral-900"
               >
-                docs.hydrilla.ai
+                API docs
                 <ExternalLink className="h-3 w-3" />
               </Link>
             </div>
-            <h1 className="mt-1 text-2xl sm:text-3xl font-semibold text-neutral-900 tracking-[-0.03em]">
-              API Keys
-            </h1>
-            <p className="mt-1 text-sm text-neutral-500">
-              Manage developer secret keys to run Text-to-3D, Image-to-3D, and Image generation pipelines.
+            <h1 className="mt-2 text-neutral-900">API keys</h1>
+            <p className="mt-2.5 max-w-xl text-[15px] text-neutral-500">
+              Secret keys for calling Text-to-3D, Image-to-3D and image generation from your own code. Usage is billed in credits.
             </p>
           </div>
-
-          <Button
-            onClick={() => {
-              setIsCreating(true);
-            }}
-            className="inline-flex items-center gap-2 bg-neutral-900 text-white hover:bg-neutral-800"
-          >
+          <Button onClick={() => setIsCreating(true)} className="h-10 shrink-0 gap-2 self-start px-5 text-[13px] sm:self-auto">
             <Plus className="h-4 w-4" />
-            Create Secret Key
+            Create secret key
           </Button>
         </header>
 
-        {/* Global Error Banner */}
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <div className="flex items-start gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Newly Created Key Alert */}
         {newlyCreatedKey && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-5 space-y-3">
-            <div className="flex items-center gap-2 text-emerald-900 font-semibold text-sm">
-              <ShieldCheck className="h-5 w-5 text-emerald-600" />
-              Save your secret key
+          <div className="rounded-[24px] bg-emerald-500/10 p-5 ring-1 ring-emerald-500/20 sm:p-6">
+            <div className="flex items-center gap-2 text-[15px] font-semibold text-emerald-800 dark:text-emerald-300">
+              <ShieldCheck className="h-5 w-5" />
+              Copy your new secret key now
             </div>
-            <p className="text-xs text-emerald-800 leading-relaxed">
-              Please copy your secret key right now and store it securely. For security reasons, you will not be able to view it again.
+            <p className="mt-1.5 text-[13px] leading-relaxed text-emerald-800/80 dark:text-emerald-300/80">
+              Store it somewhere safe. For security, you won&apos;t be able to see it again.
             </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-white border border-emerald-200 rounded-lg px-3 py-2 text-xs font-mono text-neutral-900 break-all select-all">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <code className="min-w-0 flex-1 select-all break-all rounded-2xl bg-white px-4 py-3 font-mono text-[13px] text-neutral-900">
                 {newlyCreatedKey}
               </code>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  copyToClipboard(newlyCreatedKey);
-                }}
-                className="shrink-0 bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100"
-              >
-                {copiedKey ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-600 mr-1" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5 mr-1" />
-                    Copy
-                  </>
-                )}
+              <Button variant="outline" onClick={() => copyToClipboard(newlyCreatedKey)} className="h-11 shrink-0 gap-1.5 px-5">
+                {copiedKey ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                {copiedKey ? "Copied" : "Copy key"}
               </Button>
             </div>
           </div>
         )}
 
-        {/* Create Key Form Modal/Card */}
         {isCreating && (
-          <Card className="border-neutral-200 shadow-sm">
-            <CardHeader className="pb-3 pt-5 px-5">
-              <h2 className="text-base font-semibold text-neutral-900">Create new secret key</h2>
-              <p className="text-xs text-neutral-500">
-                Give your API key a name to identify where it is being used (e.g. Production Pipeline, Blender Addon).
-              </p>
-            </CardHeader>
-            <CardContent className="px-5 pb-5">
-              <form onSubmit={handleCreateKey} className="space-y-4">
-                <div>
-                  <label htmlFor="keyName" className="block text-xs font-medium text-neutral-700 mb-1">
-                    Key Name
-                  </label>
-                  <Input
-                    id="keyName"
-                    value={newKeyName}
-                    onChange={(e) => {
-                      setNewKeyName(e.target.value);
-                    }}
-                    placeholder="e.g. Game Engine Pipeline"
-                    autoFocus
-                    required
-                  />
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setIsCreating(false);
-                    }}
-                    disabled={creatingSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={creatingSubmitting || !newKeyName.trim()}>
-                    {creatingSubmitting ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                        Generating…
-                      </>
-                    ) : (
-                      "Create Secret Key"
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          <form onSubmit={handleCreateKey} className="app-panel p-5 sm:p-6">
+            <h2 className="text-[18px] text-neutral-900">New secret key</h2>
+            <p className="mt-1 text-[13px] text-neutral-500">Name it after where it&apos;s used, like &ldquo;Production pipeline&rdquo; or &ldquo;Blender add-on&rdquo;.</p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="keyName"
+                aria-label="Key name"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="Key name"
+                autoFocus
+                required
+                className="h-11 flex-1 rounded-full bg-white px-4"
+              />
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} disabled={creatingSubmitting} className="h-11 px-5">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={creatingSubmitting || !newKeyName.trim()} className="h-11 flex-1 gap-1.5 px-5 sm:flex-none">
+                  {creatingSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {creatingSubmitting ? "Creating…" : "Create key"}
+                </Button>
+              </div>
+            </div>
+          </form>
         )}
 
-        {/* Keys List */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-neutral-900">Active Keys</h2>
-            <span className="text-xs text-neutral-500">
-              Usage is measured strictly in credits consumed.
-            </span>
+        {/* Keys */}
+        <section className="flex flex-col gap-4">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-[20px] leading-tight text-neutral-900">Your keys</h2>
+              <p className="mt-1 text-[14px] text-neutral-500">Open a key to see its requests and credit usage.</p>
+            </div>
+            {!loading && keys.length > 0 && (
+              <span className="text-[12px] tabular-nums text-neutral-500">
+                {keys.filter((k) => k.status === "active").length} active
+              </span>
+            )}
           </div>
 
           {loading ? (
-            <Card>
-              <CardContent className="flex items-center justify-center gap-2 py-12 text-sm text-neutral-500">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading API keys…
-              </CardContent>
-            </Card>
+            <div className="app-panel flex items-center justify-center gap-2 py-14 text-sm text-neutral-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading API keys…
+            </div>
           ) : keys.length === 0 ? (
-            <Card className="border-dashed border-neutral-300">
-              <CardContent className="flex flex-col items-center justify-center py-10 text-center space-y-3">
-                <div className="p-3 bg-neutral-100 rounded-full text-neutral-500">
-                  <Key className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-neutral-800">No secret keys yet</h3>
-                  <p className="text-xs text-neutral-500 max-w-sm mt-1">
-                    Generate an API key to call Hydrilla AI from your backend, custom tools, or game engines.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setIsCreating(true);
-                  }}
-                  variant="outline"
-                  size="sm"
-                >
-                  Create your first key
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col items-center gap-3 rounded-[24px] border border-dashed border-neutral-300 px-6 py-12 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-500">
+                <Key className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="text-[15px] font-semibold text-neutral-900">No secret keys yet</h3>
+                <p className="mx-auto mt-1 max-w-sm text-[13px] text-neutral-500">
+                  Create a key to call Hydrilla from your backend, tools or game engine.
+                </p>
+              </div>
+              <Button onClick={() => setIsCreating(true)} variant="outline" className="mt-1 h-10 px-5">
+                Create your first key
+              </Button>
+            </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-200">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Name</th>
-                    <th className="px-4 py-3 font-semibold">Key</th>
-                    <th className="px-4 py-3 font-semibold">Status</th>
-                    <th className="px-4 py-3 font-semibold">Credits Used</th>
-                    <th className="px-4 py-3 font-semibold">Requests</th>
-                    <th className="px-4 py-3 font-semibold">Created</th>
-                    <th className="px-4 py-3 font-semibold">Last Used</th>
-                    <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100 text-neutral-700">
-                  {keys.map((k) => (
-                    <tr key={k.id} className="hover:bg-neutral-50/50">
-                      <td className="px-4 py-3.5 font-medium text-neutral-900">{k.name}</td>
-                      <td className="px-4 py-3.5 font-mono text-neutral-500">{k.keyPrefix}</td>
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                            k.status === "active"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-neutral-100 text-neutral-500"
-                          }`}
-                        >
-                          {k.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-neutral-900 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1">
-                          <Zap className="h-3.5 w-3.5 text-amber-500" />
-                          {k.totalCreditsUsed ?? 0} credits
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-neutral-600 font-medium">
-                        {k.totalRequests ?? 0}
-                      </td>
-                      <td className="px-4 py-3.5 text-neutral-500">
-                        {new Date(k.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3.5 text-neutral-500">
-                        {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "Never"}
-                      </td>
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedKeyId(k.id);
-                            }}
-                            className="h-7 px-2 text-xs text-neutral-700 hover:text-neutral-900 border-neutral-200"
-                            title="View key analytics & logs"
-                          >
-                            <BarChart2 className="h-3.5 w-3.5 mr-1 text-neutral-500" />
-                            Details
-                          </Button>
-                          {k.status === "active" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                handleRevoke(k.id);
-                              }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 px-2"
-                              title="Revoke key"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
+            <div className="app-panel overflow-hidden">
+              <div className="overflow-x-auto p-2 sm:p-3">
+                <table className="w-full min-w-[720px] table-fixed border-separate border-spacing-0 text-left [&_tbody_tr:last-child_td]:border-b-0">
+                  <colgroup>
+                    <col className="w-[30%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className={TH}>Name</th>
+                      <th className={TH}>Status</th>
+                      <th className={`${TH} text-right`}>Requests</th>
+                      <th className={`${TH} text-right`}>Credits</th>
+                      <th className={TH}>Last used</th>
+                      <th className={`${TH} text-right`}>
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {keys.map((k) => (
+                      <tr key={k.id} className="group">
+                        <td className={TD}>
+                          <p className="truncate font-semibold text-neutral-900">{k.name}</p>
+                          <p className="mt-0.5 truncate font-mono text-[12px] text-neutral-400">
+                            {k.keyPrefix} · created {fmtDate(k.createdAt)}
+                          </p>
+                        </td>
+                        <td className={TD}>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${
+                              k.status === "active"
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                                : "bg-neutral-200/70 text-neutral-500"
+                            }`}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                            {k.status}
+                          </span>
+                        </td>
+                        <td className={`${TD} text-right font-medium tabular-nums text-neutral-900`}>
+                          {(k.totalRequests ?? 0).toLocaleString()}
+                        </td>
+                        <td className={`${TD} text-right font-semibold tabular-nums text-neutral-900`}>
+                          {(k.totalCreditsUsed ?? 0).toLocaleString()}
+                        </td>
+                        <td className={`${TD} whitespace-nowrap text-neutral-500`}>{fmtDate(k.lastUsedAt)}</td>
+                        <td className={`${TD} text-right`}>
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedKeyId(k.id)}
+                              className="h-8 gap-1.5 px-3 text-[12px]"
+                              title="View requests and credit usage"
+                            >
+                              <BarChart2 className="h-3.5 w-3.5" />
+                              Details
+                            </Button>
+                            {k.status === "active" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRevoke(k.id)}
+                                className="h-8 w-8 p-0 text-neutral-400 hover:bg-red-500/10 hover:text-red-600"
+                                title="Revoke key"
+                                aria-label={`Revoke ${k.name}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </section>
 
-        {/* Quickstart Code Snippets */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-neutral-900 flex items-center gap-2">
-              <Code2 className="h-4 w-4 text-neutral-600" />
-              Quickstart Example
-            </h2>
-            <div className="flex items-center rounded-lg border border-neutral-200 bg-white p-0.5 text-xs font-medium">
-              <button
-                type="button"
-                onClick={() => {
-                  setSnippetLang("curl");
-                }}
-                className={`px-2.5 py-1 rounded-md transition ${
-                  snippetLang === "curl" ? "bg-neutral-900 text-white" : "text-neutral-600 hover:text-neutral-900"
-                }`}
-              >
-                cURL
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSnippetLang("python");
-                }}
-                className={`px-2.5 py-1 rounded-md transition ${
-                  snippetLang === "python" ? "bg-neutral-900 text-white" : "text-neutral-600 hover:text-neutral-900"
-                }`}
-              >
-                Python
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSnippetLang("typescript");
-                }}
-                className={`px-2.5 py-1 rounded-md transition ${
-                  snippetLang === "typescript" ? "bg-neutral-900 text-white" : "text-neutral-600 hover:text-neutral-900"
-                }`}
-              >
-                TypeScript
-              </button>
-            </div>
+        {/* Quickstart */}
+        <section className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-[20px] leading-tight text-neutral-900">Quickstart</h2>
+            <p className="mt-1 text-[14px] text-neutral-500">
+              Queue an Image-to-3D task, then poll <code className="rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-[12px] text-neutral-800">GET /v1/3d/tasks/:taskId</code> until it&apos;s done.
+            </p>
           </div>
-
-          <div className="relative rounded-xl border border-neutral-800 bg-neutral-950 p-4 text-neutral-100 shadow-sm font-mono text-xs overflow-x-auto">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                copyToClipboard(snippets[snippetLang]);
-              }}
-              className="absolute top-2 right-2 text-neutral-400 hover:text-white hover:bg-neutral-800 h-7 px-2"
-            >
-              {copiedKey ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            </Button>
-            <pre className="pr-12">{snippets[snippetLang]}</pre>
-          </div>
+          <CodeBlock
+            snippets={snippets}
+            lang={snippetLang}
+            onLangChange={setSnippetLang}
+            secret={displayKeyPlaceholder}
+            title="POST /v1/3d/image-to-3d"
+          />
         </section>
 
-        {/* Endpoints & Models Reference Summary */}
-        <section className="grid sm:grid-cols-2 gap-4">
-          <Card className="border-neutral-200">
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-neutral-800">
-                <Boxes className="h-4 w-4 text-neutral-500" />
-                Supported Models
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-1 text-xs text-neutral-600 space-y-2">
-              <div>
-                <span className="font-semibold text-neutral-900">BlueFox 3D (bluefox-1)</span>: 1536/1024 resolution image-to-3D mesh reconstruction with 4096 PBR maps.
-              </div>
-              <div>
-                <span className="font-semibold text-neutral-900">OpenAI Images</span>: gpt-image-2.5-flare (low) and sunburst (high) for orthographic concept rendering.
-              </div>
-              <div>
-                <span className="font-semibold text-neutral-900">Google Gemini Images</span>: gemini-3.1-flash-image and gemini-3-pro-image for 1K/2K generation.
-              </div>
-            </CardContent>
-          </Card>
+        {/* Reference */}
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="app-panel p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <Terminal className="h-4 w-4 text-neutral-500" />
+              <h2 className="text-[17px] text-neutral-900">Endpoints</h2>
+            </div>
+            <ul className="mt-4 flex flex-col gap-1.5 font-mono text-[12.5px]">
+              {(
+                [
+                  ["POST", "/v1/3d/image-to-3d"],
+                  ["POST", "/v1/3d/text-to-3d"],
+                  ["GET", "/v1/3d/tasks/:taskId"],
+                  ["POST", "/v1/images/generate"],
+                  ["POST", "/v1/images/edit"],
+                  ["GET", "/v1/models"],
+                  ["GET", "/v1/user/me"],
+                ] as const
+              ).map(([method, path]) => (
+                <li key={path} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
+                  <span
+                    className={`w-11 shrink-0 rounded-md py-0.5 text-center text-[10px] font-bold tracking-wide ${
+                      method === "POST"
+                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                        : "bg-[var(--hyd-100)] text-[#3f6fa8] dark:text-[var(--hyd-400)]"
+                    }`}
+                  >
+                    {method}
+                  </span>
+                  <span className="truncate text-neutral-800">{path}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-          <Card className="border-neutral-200">
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-neutral-800">
-                <Terminal className="h-4 w-4 text-neutral-500" />
-                API Endpoints
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-1 text-xs text-neutral-600 space-y-1.5 font-mono">
-              <div><span className="text-emerald-600 font-semibold">POST</span> /v1/3d/image-to-3d</div>
-              <div><span className="text-emerald-600 font-semibold">POST</span> /v1/3d/text-to-3d</div>
-              <div><span className="text-blue-600 font-semibold">GET</span> /v1/3d/tasks/:taskId</div>
-              <div><span className="text-emerald-600 font-semibold">POST</span> /v1/images/generate</div>
-              <div><span className="text-emerald-600 font-semibold">POST</span> /v1/images/edit</div>
-              <div><span className="text-blue-600 font-semibold">GET</span> /v1/models &amp; /v1/user/me</div>
-            </CardContent>
-          </Card>
+          <div className="app-panel p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <Boxes className="h-4 w-4 text-neutral-500" />
+              <h2 className="text-[17px] text-neutral-900">Models</h2>
+            </div>
+            <ul className="mt-4 flex flex-col gap-2">
+              {[
+                ["BlueFox 3D", "bluefox-1", "1536/1024 image-to-3D reconstruction with 4096 PBR maps."],
+                ["OpenAI Images", "gpt-image-2.5-flare · sunburst", "Low and high quality orthographic concept renders."],
+                ["Google Gemini Images", "gemini-3.1-flash-image · gemini-3-pro-image", "1K and 2K image generation."],
+              ].map(([name, id, body]) => (
+                <li key={name} className="rounded-xl bg-white px-3.5 py-3">
+                  <p className="text-[13px] font-semibold text-neutral-900">{name}</p>
+                  <p className="mt-0.5 truncate font-mono text-[11.5px] text-neutral-500">{id}</p>
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-neutral-600">{body}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       </div>
 
       {/* Single API Key Inspection Modal */}
       {selectedKeyId && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 backdrop-blur-md community-overlay-in sm:p-6"
           onClick={() => {
             setSelectedKeyId(null);
           }}
         >
           <div
-            className="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-2xl border border-neutral-200 overflow-hidden flex flex-col"
+            className="community-pop-in relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-neutral-200/70 bg-white shadow-[0_24px_80px_-16px_rgba(0,0,0,0.35)]"
             onClick={(e) => {
               e.stopPropagation();
             }}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-neutral-200 px-6 py-4 bg-neutral-50/70">
+            <div className="flex items-center justify-between border-b border-neutral-200/70 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-neutral-900 text-white rounded-lg">
+                <div className="rounded-full bg-neutral-900 p-2 text-white">
                   <Key className="h-4 w-4" />
                 </div>
                 <div>
@@ -619,7 +544,7 @@ console.log("Task queued:", task.id);`,
                 onClick={() => {
                   setSelectedKeyId(null);
                 }}
-                className="rounded-lg p-1.5 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition"
+                className="rounded-full p-2 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700" aria-label="Close"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -633,7 +558,7 @@ console.log("Task queued:", task.id);`,
                   <p className="text-sm">Loading credit analytics &amp; request logs...</p>
                 </div>
               ) : detailsError ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-start gap-2">
+                <div className="flex items-start gap-2 rounded-2xl bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-400">
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div className="space-y-2">
                     <p>{detailsError}</p>
@@ -654,7 +579,7 @@ console.log("Task queued:", task.id);`,
                 <>
                   {/* KPI Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/50">
+                    <div className="rounded-2xl bg-neutral-50 p-4">
                       <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
                         Total Credits Used
                       </div>
@@ -665,7 +590,7 @@ console.log("Task queued:", task.id);`,
                       <div className="text-[11px] text-neutral-400 mt-0.5">credits consumed</div>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/50">
+                    <div className="rounded-2xl bg-neutral-50 p-4">
                       <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
                         Total Requests
                       </div>
@@ -675,11 +600,11 @@ console.log("Task queued:", task.id);`,
                       <div className="text-[11px] text-neutral-400 mt-0.5">lifetime API calls</div>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/50">
+                    <div className="rounded-2xl bg-neutral-50 p-4">
                       <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
                         3D Pipeline
                       </div>
-                      <div className="mt-1 text-2xl font-bold text-blue-600">
+                      <div className="mt-1 text-2xl font-bold text-[#3f6fa8] dark:text-[var(--hyd-400)]">
                         {keyDetails.summary.credits3d}
                       </div>
                       <div className="text-[11px] text-neutral-400 mt-0.5">
@@ -687,7 +612,7 @@ console.log("Task queued:", task.id);`,
                       </div>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/50">
+                    <div className="rounded-2xl bg-neutral-50 p-4">
                       <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
                         2D Image Gen
                       </div>
@@ -701,7 +626,7 @@ console.log("Task queued:", task.id);`,
                   </div>
 
                   {/* Key Metadata Row */}
-                  <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3.5 text-xs text-neutral-600 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-neutral-50 px-4 py-3.5 text-xs text-neutral-600">
                     <div>
                       <span className="text-neutral-400">Created:</span>{" "}
                       <span className="font-medium text-neutral-800">
@@ -742,7 +667,7 @@ console.log("Task queued:", task.id);`,
                         {Object.entries(keyDetails.summary.endpointCounts).map(([endpoint, stats]) => (
                           <div
                             key={endpoint}
-                            className="p-3 rounded-lg border border-neutral-200 bg-white flex items-center justify-between text-xs"
+                            className="flex items-center justify-between rounded-xl bg-neutral-50 px-3.5 py-3 text-xs"
                           >
                             <code className="font-mono text-neutral-800 font-medium">{endpoint}</code>
                             <div className="text-right">
@@ -766,9 +691,9 @@ console.log("Task queued:", task.id);`,
                         No requests recorded for this key yet. Calls made to the developer API will show here in real-time.
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-neutral-200 overflow-x-auto">
+                      <div className="overflow-x-auto rounded-2xl bg-neutral-50 p-1.5">
                         <table className="w-full text-left text-xs">
-                          <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider text-neutral-400 border-b border-neutral-200">
+                          <thead className="border-b border-neutral-200 text-[10px] uppercase tracking-wider text-neutral-400">
                             <tr>
                               <th className="px-3 py-2 font-semibold">Time</th>
                               <th className="px-3 py-2 font-semibold">Method &amp; Endpoint</th>
@@ -846,7 +771,7 @@ console.log("Task queued:", task.id);`,
             </div>
 
             {/* Modal Footer */}
-            <div className="border-t border-neutral-200 px-6 py-3 bg-neutral-50/70 flex justify-end">
+            <div className="flex justify-end border-t border-neutral-200/70 px-6 py-3">
               <Button
                 variant="outline"
                 size="sm"

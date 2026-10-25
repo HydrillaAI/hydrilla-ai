@@ -1,314 +1,158 @@
-import Link from "next/link";
+import { getKitJsonLd } from "@/lib/kit-schema";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  PickleArticlePage,
-  PickleVideoPlayer,
-  PickleVisualThumb,
-  type PickleRelatedItem,
-} from "@/components/layout/PicklePage";
-import { createPageMetadata, getDocsJsonLd } from "@/lib/seo";
-import { WHY_HYDRILLA_MEDIA } from "@/lib/cloudinary";
+import Link from "next/link";
+import Footer from "@/components/layout/Footer";
+import { PicklePlaceholder } from "@/components/layout/PicklePage";
+import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Docs | Get started with Hydrilla",
+  title: "Docs: Get Started with Hydrilla AI 3D | Hydrilla AI",
   description:
-    "Get started with Hydrilla: create a workspace, generate with BlueFox 1 from text or image, preview, and export GLB, FBX, OBJ, or USDZ.",
+    "Create a workspace, generate your first model from text or an image with BlueFox, preview it in the browser, and export it for your tools.",
+  ogTitle: "Get started with Hydrilla",
   path: "/docs",
   absoluteTitle: true,
 });
 
-const TOC = [
-  { href: "#getting-started", label: "Getting started" },
-  { href: "#text-to-3d", label: "Text to 3D" },
-  { href: "#image-to-3d", label: "Image to 3D" },
-  { href: "#preview", label: "Preview" },
-  { href: "#export", label: "Export formats" },
-  { href: "#workspaces", label: "Workspaces and credits" },
-  { href: "#api", label: "API" },
-];
-
-const RELATED: PickleRelatedItem[] = [
-  {
-    title: "Hydrilla REST API",
-    subtitle: "Submit text-to-3D and image-to-3D jobs from your own studio pipeline.",
-    href: "/api",
-    date: "Aug 19, 2026",
-    author: "Hydrilla Team",
-    thumbVariant: "api-stream",
-  },
-  {
-    title: "DCC & Engine Integrations",
-    subtitle: "Connect Blender, Unity, Unreal Engine, Godot 4, and MCP agents.",
-    href: "/integrations",
-    date: "Aug 19, 2026",
-    author: "Hydrilla Team",
-    thumbVariant: "unity-engine",
-  },
-];
+const SCALE_ROWS = [
+  ["Blender", "Meters", "Z up", "Apply scale before you export again"],
+  ["Unreal Engine", "Centimeters", "Z up", "Check the import scale field"],
+  ["Unity", "Meters", "Y up", "Compare against a default cube"],
+  ["glTF 2.0 (GLB)", "Meters", "Y up", "Importers read this as the source"],
+  ["Godot 4", "Meters", "Y up", "Compare against a one-meter box"],
+] as const;
 
 export default function DocsPage() {
   return (
     <>
-      <JsonLd data={getDocsJsonLd()} />
-      <PickleArticlePage
-        kicker="Documentation"
-        title="Get started with Hydrilla"
-        subtitle="From first prompt to a production export in Unity, Unreal, or Blender."
-        date="Aug 19, 2026"
-        author="Hydrilla Team"
-        heroThumbVariant="docs-flow"
-        ctaLabel="Open Studio"
-        ctaHref="/app/studio"
-        footnote="Looking for full REST endpoint specifications and interactive Try-It consoles? Visit docs.hydrilla.ai or contact founders@hydrilla.ai."
-        relatedItems={RELATED}
-      >
-        {/* Table of contents in Pickle summary card style */}
-        <nav
-          aria-label="On this page"
-          className="pickle-card-surface"
-          style={{ width: "min(600px, 100%)", padding: "24px 28px", borderRadius: "24px" }}
-        >
-          <p
-            style={{
-              margin: "0 0 12px",
-              fontSize: "15px",
-              fontWeight: 566,
-              color: "#000",
-              letterSpacing: "-0.15px",
-            }}
-          >
-            On this page
-          </p>
-          <ol
-            style={{
-              margin: 0,
-              paddingLeft: "20px",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-              gap: "6px 24px",
-              fontSize: "15px",
-              lineHeight: 1.8,
-            }}
-          >
-            {TOC.map((item) => (
-              <li key={item.href}>
-                <a
-                  href={item.href}
-                  style={{
-                    color: "rgba(0,0,0,0.68)",
-                    textDecoration: "none",
-                  }}
-                >
-                  {item.label}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-
-        <section id="getting-started" className="pickle-head-block scroll-mt-28">
-          <h2 className="pickle-h2">Getting started</h2>
-          <div className="pickle-text">
-            <ol>
-              <li>Create an account and open a workspace.</li>
-              <li>
-                Start a generation with a text prompt or a reference image (BlueFox 1).
-              </li>
-              <li>
-                Wait for the mesh. Inspect parts, PBR, and silhouette in the browser
-                preview.
-              </li>
-              <li>
-                Export GLB (Free) or GLB, FBX, OBJ, and USDZ (Starter and Pro).
-              </li>
-              <li>Import into Unity, Unreal, Blender, or your DCC.</li>
-            </ol>
-            <p style={{ marginTop: "1.45em" }}>
-              Explore{" "}
-              <Link href="/features">Features</Link>
-              {" · "}
-              <Link href="/pricing">Pricing</Link>
-              {" · "}
-              <Link href="/api">API</Link>
-              {" · "}
-              <Link href="/faq">FAQ</Link>.
+      <JsonLd data={getKitJsonLd("/docs")} />
+      <article className="pickle-article">
+        <header className="pickle-article-header">
+          <p className="pickle-article-kicker">Documentation</p>
+          <h1 className="pickle-article-title" data-wide="true">
+            Get started with Hydrilla
+          </h1>
+          <div className="pickle-lead">
+            <p>This guide takes a new Hydrilla AI account to its first AI 3D export, step by step, in the browser.</p>
+          </div>
+          <div className="pickle-actions">
+            <Link href="/app/studio" className="pickle-pill-solid">
+              Start generating
+            </Link>
+            <Link href="/pricing" className="pickle-pill-ghost">
+              See pricing
+            </Link>
+          </div>
+        </header>
+        <div className="pickle-article-column">
+          <div className="pickle-intro">
+            <p>
+              It is <strong>written for the first hour with Hydrilla</strong>. Follow the steps in order and you will finish with a model in your own tool, plus the settings that keep every later import consistent. Each product page goes deeper; this page stays practical.
             </p>
           </div>
-        </section>
 
-        <section id="text-to-3d" className="pickle-section scroll-mt-28">
-          <div className="pickle-head-block">
-            <h2 className="pickle-h2">Text to 3D</h2>
+          <nav aria-label="On this page" className="pickle-actions">
+            <a href="#first-export" className="pickle-pill-ghost">Your first export</a>
+            <a href="#preview" className="pickle-pill-ghost">Preview and export</a>
+            <a href="#credits" className="pickle-pill-ghost">Workspaces and credits</a>
+            <a href="#scale" className="pickle-pill-ghost">Get the scale right on import</a>
+            <a href="#water" className="pickle-pill-ghost">Water Agent</a>
+          </nav>
+          <section id="first-export" className="pickle-head-block scroll-mt-28">
+            <h2 className="pickle-h2">Your first export</h2>
             <div className="pickle-text">
+              <p>Six steps take you from sign-up to a file in your project. None of them need a plugin, so you can start in any browser.</p>
+              <ol className="pickle-steps">
+                <li>Sign up, then open Studio.</li>
+                <li>Create a workspace so a project&apos;s generations stay together.</li>
+                <li>
+                  Generate: write a prompt in <Link href="/text-to-3d">text to 3D</Link>, or drop a photo into{" "}
+                  <Link href="/image-to-3d">image to 3D</Link>.
+                </li>
+                <li>Preview the model: orbit it and check parts and materials.</li>
+                <li>Choose a format in the export menu and export.</li>
+                <li>
+                  Import the file into Blender, Unity, Unreal, or Godot, or send it with a <Link href="/integrations">plugin</Link>.
+                </li>
+              </ol>
+            </div>
+            {/* TODO(kit): visual – Studio screen for the current step, with the relevant button highlighted. One capture per step. */}
+            <PicklePlaceholder alt="Studio screen for the current step, with the relevant button highlighted." />
+          </section>
+          <section id="preview" className="pickle-head-block scroll-mt-28">
+            <h2 className="pickle-h2">Preview and export</h2>
+            <div id="export" className="pickle-text scroll-mt-28">
               <p>
-                Type a prompt that names the subject, style, and any production
-                constraints: a game-ready prop, a cinematic character, an
-                interior piece. BlueFox 1 turns that description into a
-                structured mesh with parts you can continue editing.
-              </p>
-              <p>
-                Hydrilla first renders a reference image with OpenAI or Gemini.
-                Pick Low for quick drafts or High for more detail, and choose a
-                square, landscape, or portrait frame. Refine the image with an
-                Edit prompt until it looks right, then generate the 3D model.
-              </p>
-              <p>
-                Be specific about scale and use. “Low-poly crate for Unity” and
-                “hero prop with PBR wear” produce different starting points.
+                The preview shows the model under light, so shape and material problems appear before you download. Orbit it from every side, select parts to check how the mesh is divided, and look at the materials in light and shadow. When it looks right, open the export menu; it lists every format, and{" "}
+                <Link href="/features#exports">this table shows which suits which tool</Link>.
               </p>
             </div>
-          </div>
-
-          <PickleVideoPlayer
-            src={WHY_HYDRILLA_MEDIA.bluefox.video}
-            poster={WHY_HYDRILLA_MEDIA.bluefox.poster}
-            variant="inline"
-          />
-        </section>
-
-        <section id="image-to-3d" className="pickle-head-block scroll-mt-28">
-          <h2 className="pickle-h2">Image to 3D</h2>
-          <div className="pickle-text">
-            <p>
-              Drop a reference image when you already have a look. Hydrilla
-              uses the image as visual input so the generated asset tracks
-              silhouette, materials, and style instead of guessing from text
-              alone.
-            </p>
-            <p>
-              You can combine a short prompt with a reference when you need
-              both a look and a production note (engine, poly budget, or
-              export target).
-            </p>
-          </div>
-        </section>
-
-        <section id="preview" className="pickle-section scroll-mt-28">
-          <div className="pickle-head-block">
-            <h2 className="pickle-h2">Preview</h2>
+          </section>
+          <section id="credits" className="pickle-head-block scroll-mt-28">
+            <h2 className="pickle-h2">Workspaces and credits</h2>
             <div className="pickle-text">
               <p>
-                Orbit the model in the browser before you download. Check
-                topology, materials, and silhouettes under lighting so issues
-                show up before the file hits your DCC tool or engine.
-              </p>
-              <p>
-                Meshes arrive segmented into logical parts, which keeps material
-                assignment and cleanup precise instead of starting from a solid
-                blob.
+                A workspace keeps a project&apos;s generations and versions in one place, so it is easy to compare drafts and find the version you approved. Each generation spends plan credits, and your account shows what is left.{" "}
+                <Link href="/pricing">Cost per model</Link>
               </p>
             </div>
-          </div>
-
-          <figure className="pickle-figure">
-            <div className="pickle-player-frame" data-variant="inline">
-              <div className="pickle-player-media">
-                <PickleVisualThumb variant="critter-rig" />
+          </section>
+          <section id="scale" className="pickle-section scroll-mt-28">
+            <div className="pickle-head-block">
+              <h2 className="pickle-h2">Get the scale right on import</h2>
+              <div className="pickle-text">
+                <p>
+                  Every tool assumes its own unit and up axis. A mesh in meters arrives a hundred times too small in a tool expecting centimeters, unless the importer converts it. Check the first asset you bring into a project against the table, then save the importer settings so the next import matches.
+                </p>
               </div>
             </div>
-            <figcaption className="pickle-caption">
-              Meshes arrive segmented into logical parts with four PBR channels ready for inspection.
-            </figcaption>
-          </figure>
-        </section>
-
-        <section id="export" className="pickle-section scroll-mt-28">
-          <div className="pickle-head-block">
-            <h2 className="pickle-h2">Export formats</h2>
+            <figure className="pickle-figure">
+              <div className="pickle-card-surface">
+                <table className="pickle-table">
+                  <thead>
+                    <tr>
+                      <th>Tool</th>
+                      <th>Unit</th>
+                      <th>Up axis</th>
+                      <th>What to watch</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SCALE_ROWS.map((row) => (
+                      <tr key={row[0]}>
+                        <th>{row[0]}</th>
+                        <td>{row[1]}</td>
+                        <td>{row[2]}</td>
+                        <td>{row[3]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </figure>
+          </section>
+          <section id="water" className="pickle-head-block scroll-mt-28">
+            <h2 className="pickle-h2">Water Agent</h2>
             <div className="pickle-text">
               <p>
-                Hydrilla exports GLB, FBX, OBJ, and USDZ. Use GLB for web and
-                many real-time pipelines, FBX and OBJ for DCC and engines, and
-                USDZ for AR viewers.
+                Open Water Agent in the Hydrilla app, or through the Hydrilla plugin inside Blender, Unity, Unreal, or Godot. Describe your brief, review the plan, and revise piece by piece until the set is right.{" "}
+                <Link href="/water">What Water Agent does</Link>
               </p>
+            </div>
+          </section>
+
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">Where to go next</h2>
+            <div className="pickle-text">
               <p>
-                Topology and UVs are produced for production handoff into Unity,
-                Unreal, Blender, and AR tools, without rebuilding the asset
-                from scratch.
+                Running jobs from code? See the <Link href="/api">REST API</Link>. Working inside an engine or DCC every day? Install a{" "}
+                <Link href="/integrations">plugin</Link>. Account and licensing questions are answered in the <Link href="/faq">FAQ</Link>.
               </p>
             </div>
-          </div>
-
-          <figure className="pickle-figure">
-            <div className="pickle-card-surface">
-              <table className="pickle-table">
-                <thead>
-                  <tr>
-                    <th>Format</th>
-                    <th>Plans</th>
-                    <th>Primary pipeline target</th>
-                    <th>Included maps</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th>GLB</th>
-                    <td>Free, Starter, Pro</td>
-                    <td>Blender, Unity, WebGL, Three.js, Godot 4</td>
-                    <td>Base color, metalness, roughness, normal</td>
-                  </tr>
-                  <tr>
-                    <th>FBX</th>
-                    <td>Starter, Pro</td>
-                    <td>Unreal Engine, Maya, 3ds Max, Houdini</td>
-                    <td>Embedded PBR textures + part hierarchy</td>
-                  </tr>
-                  <tr>
-                    <th>OBJ</th>
-                    <td>Starter, Pro</td>
-                    <td>ZBrush, Substance Painter, universal DCC ingest</td>
-                    <td>Mesh + MTL + PBR texture maps</td>
-                  </tr>
-                  <tr>
-                    <th>USDZ</th>
-                    <td>Starter, Pro</td>
-                    <td>Apple VisionOS, iOS Quick Look, Omniverse</td>
-                    <td>USD stage + PBR material bindings</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <figcaption className="pickle-caption">
-              Four production export formats generated from a single BlueFox 1 synthesis run.
-            </figcaption>
-          </figure>
-        </section>
-
-        <section id="workspaces" className="pickle-head-block scroll-mt-28">
-          <h2 className="pickle-h2">Workspaces and credits</h2>
-          <div className="pickle-text">
-            <p>
-              Workspaces keep generations, versions, and team delivery in one
-              place. Organize drafts, share review, and move from first output
-              to a client-ready file without scattering assets across folders.
-            </p>
-            <p>
-              Usage is metered in credits. At default quality, a model from an
-              uploaded image costs 30 credits. Starting from text also creates
-              the source image, bringing the default total to 45 credits. Free
-              includes 100 credits; Starter and Slot include 900; Pro and Slot
-              Pro include 3,000. Slot plans use the same credit budgets during
-              a chosen daily generation window.
-            </p>
-          </div>
-        </section>
-
-        <section id="api" className="pickle-head-block scroll-mt-28">
-          <h2 className="pickle-h2">API</h2>
-          <div className="pickle-text">
-            <p>
-              Studios that need programmatic generation can integrate Hydrilla
-              into an existing pipeline. Authentication is account-based; the
-              public API surface is documented for partners and Pro accounts.
-            </p>
-            <p>
-              <Link href="/api">Read the API overview</Link> or email{" "}
-              <a href="mailto:founders@hydrilla.ai">founders@hydrilla.ai</a> if
-              you need pipeline access.
-            </p>
-          </div>
-        </section>
-      </PickleArticlePage>
+          </section>
+        </div>
+      </article>
+      <Footer />
     </>
   );
 }

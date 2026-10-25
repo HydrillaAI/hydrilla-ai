@@ -2,10 +2,9 @@
 
 import React, { Suspense } from "react";
 import dynamic from "next/dynamic";
-import { motion } from "motion/react";
-import { SignUpButton } from "@clerk/nextjs";
 import { BlurReveal } from "@/components/ui/BlurReveal";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import CtaSection from "@/components/sections/CtaSection";
+import { SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
 
 /**
  * Below-the-fold homepage sections.
@@ -99,56 +98,7 @@ export default function HomeBelowFold() {
         <FAQSection />
       </Suspense>
 
-      <section
-        className="relative w-full bg-white py-16 sm:py-20 md:py-24 border-t border-neutral-100"
-        style={{ boxSizing: "border-box", WebkitFontSmoothing: "antialiased" }}
-      >
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 text-center">
-          <BlurReveal
-            as="h2"
-            className="text-3xl sm:text-4xl md:text-5xl font-medium text-[#111] tracking-tight leading-tight mb-6"
-            style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
-          >
-            Ready to raise your 3D game?
-          </BlurReveal>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.5, delay: 0.08 }}
-            className="text-base sm:text-lg leading-[1.5] text-neutral-600 mb-10 max-w-2xl mx-auto"
-            style={{ fontFamily: GEIST_FONT, fontWeight: DESCRIPTION_WEIGHT }}
-          >
-            Start creating production-ready 3D assets, or book a demo with our team.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5"
-          >
-            <SignUpButton mode="modal" forceRedirectUrl="/app/studio">
-              <button
-                type="button"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#111] text-white text-base font-semibold hover:bg-neutral-800 transition-colors cursor-pointer"
-                style={{ fontFamily: SANS_FONT }}
-              >
-                Start creating
-              </button>
-            </SignUpButton>
-            <a
-              href="https://cal.com/hydrilla"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border-2 border-[#111] bg-transparent text-[#111] text-base font-semibold hover:bg-[#111] hover:text-white transition-colors"
-              style={{ fontFamily: SANS_FONT }}
-            >
-              Book Demo
-            </a>
-          </motion.div>
-        </div>
-      </section>
+      <CtaSection />
     </>
   );
 }

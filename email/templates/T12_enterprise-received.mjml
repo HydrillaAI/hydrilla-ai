@@ -1,0 +1,21 @@
+<!--
+id: T12
+name: Enterprise inquiry received
+layout: base
+kind: transactional
+sender: hi
+category: account
+topic: none
+trigger: enterprise_inquiry_submitted
+phase: 1
+subject: Thanks for your interest in Hydrilla for teams
+preheader: We've got your details. You can also book a demo.
+footer_reason: You're receiving this because you sent an enquiry about Hydrilla for teams.
+optional: false
+facts: do not promise a reply time until the team agrees one
+data: name, company
+-->
+<mj-text>Hi {{ trigger.name | default: "there" }},</mj-text>
+<mj-text>Thanks for your interest in Hydrilla{% if trigger.company %} for {{ trigger.company | default: "" | escape }}{% endif %}. We've received your details and someone from the team will be in touch.</mj-text>
+<mj-text>If you'd rather talk it through now, you can pick a time that suits you.</mj-text>
+<mj-button href="https://cal.com/hydrilla">Book a demo</mj-button>

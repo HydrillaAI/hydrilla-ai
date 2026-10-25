@@ -41,6 +41,18 @@ export const HERO_STAGE_MODELS = [
   cloudinaryRaw("v1792555685/hydrilla-landing/hero/stage-j.glb"),
 ] as const;
 
+/**
+ * Closing CTA puppets, left to right. Simplified to ~150k triangles,
+ * 768px WebP textures and Meshopt (`-cc`), so each is 0.7–1.7 MB.
+ */
+export const CTA_PUPPET_MODELS = {
+  antMan: cloudinaryRaw("v1792870570/hydrilla-landing/cta/puppet-a.glb"),
+  mantis: cloudinaryRaw("v1792870571/hydrilla-landing/cta/puppet-b.glb"),
+  lantern: cloudinaryRaw("v1792870572/hydrilla-landing/cta/puppet-c.glb"),
+  witch: cloudinaryRaw("v1792870573/hydrilla-landing/cta/puppet-d.glb"),
+  deadpool: cloudinaryRaw("v1792870574/hydrilla-landing/cta/puppet-e.glb"),
+} as const;
+
 /** 404 grass field. Served from the original uncompressed model in /public. */
 export const NOT_FOUND_GRASS_URL = "/notfound-3d/simple_grass_chunks.glb";
 

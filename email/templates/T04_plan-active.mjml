@@ -1,0 +1,26 @@
+<!--
+id: T04
+name: Plan active
+layout: base
+kind: transactional
+sender: hi
+category: billing
+topic: none
+trigger: subscription_activated
+phase: 1
+subject: You're on Hydrilla {{ trigger.plan_name | default: "Pro" }}
+preheader: Your plan is active. Here is what you have.
+footer_reason: You're receiving this because you started a paid plan on Hydrilla.
+optional: false
+facts: confirm with a founder; credit amounts per plan (docs/pricing-and-models.md); whether Dodo Payments already emails the receipt; trial wording once the terms placeholders are filled
+data: plan_name, credits_total, renews_on, is_trial, trial_ends_on
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>Your {{ trigger.plan_name | default: "Hydrilla" }} plan is active. You have {{ trigger.credits_total | default: 0 }} credits for this billing period.</mj-text>
+<mj-raw>{% if trigger.is_trial %}</mj-raw>
+<mj-text>Your trial runs until {{ trigger.trial_ends_on | default: "the end of the trial" }}.</mj-text>
+<mj-raw>{% else %}</mj-raw>
+<mj-text>Your plan renews on {{ trigger.renews_on | default: "your next billing date" }}.</mj-text>
+<mj-raw>{% endif %}</mj-raw>
+<mj-button href="https://hydrilla.ai/app/studio">Open Studio</mj-button>
+<mj-text css-class="muted" font-size="14px">Manage or cancel your plan any time from your account.</mj-text>
