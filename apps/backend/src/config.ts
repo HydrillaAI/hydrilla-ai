@@ -1,0 +1,203 @@
+import dotenv from "dotenv";
+import crypto from "crypto";
+
+// Load .env then .env.local (local overrides — matches Next.js convention)
+dotenv.config({ override: true });
+dotenv.config({ path: ".env.local", override: true });
+
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+function requireEnv(name: string): string {
+  const v = process.env[name]?.trim();
+  if (!v) {
+    throw new Error(
+      `[config] Missing required environment variable: ${name}. Set it in .env (do not hardcode secrets in source).`
+    );
+  }
+  return v;
+}
+
+const defaultCorsOrigins = [
+  "https://hydrilla.co",
+  "https://www.hydrilla.co",
+  "https://hydrilla.ai",
+  "https://www.hydrilla.ai",
+  "https://admin.hydrilla.ai",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1:3001",
+];
+
+export const config = {
+  port: parseInt(process.env.PORT || "4000", 10),
+  supabase: {
+    url: requireEnv("SUPABASE_URL"),
+    serviceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  },
+  clerk: {
+    publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "",
+    secretKey: process.env.CLERK_SECRET_KEY || "",
+  },
+  /** GPU VM (hydrilla_runtime, BlueFox3D image-to-3d). Loaded dynamically from DB / Admin Panel. */
+  gpuGateway: {
+    url: "",
+  },
+  /** GCP Compute instance behind the GPU gateway (admin status / start / stop). Loaded dynamically from DB. */
+  gcpGpuInstance: {
+    projectId: process.env.GCP_PROJECT_ID?.trim() || "hydrilla-486606",
+    zone: process.env.GCP_GPU_ZONE?.trim() || "asia-south1-c",
+    instance: "",
+    /** Service account JSON (raw or base64) with compute.instances.get/start/stop. */
+    serviceAccountKey: process.env.GCP_SERVICE_ACCOUNT_KEY?.trim() || "",
+  },
+  /** Shared secret for Node ↔ GPU and internal job webhooks */
+  internalApiSecret: process.env.HYDRILLA_INTERNAL_API_SECRET || "",
+  corsOrigins: [
+    ...new Set([
+      ...(process.env.CORS_ORIGINS
+        ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+        : defaultCorsOrigins),
+      "https://admin.hydrilla.ai",
+      "http://localhost:3001",
+      "http://127.0.0.1:3001",
+    ]),
+  ],
+  s3: {
+    bucket: process.env.S3_BUCKET || "hydrilla-outputs-1",
+    region: process.env.S3_REGION || "us-east-1",
+    presignedUrlExpiry: parseInt(process.env.S3_PRESIGNED_URL_EXPIRY || "3600", 10),
+  },
+  pollIntervalMs: parseInt(process.env.POLL_INTERVAL_MS || "2000", 10),
+  /** Customer.io: Track API (people, events) and App API (transactional sends, reporting). */
+  customerio: {
+    siteId: process.env.CUSTOMERIO_SITE_ID?.trim() || "",
+    trackApiKey: process.env.CUSTOMERIO_TRACK_API_KEY?.trim() || "",
+    appApiKey: process.env.CUSTOMERIO_APP_API_KEY?.trim() || "",
+    region: process.env.CUSTOMERIO_REGION?.trim() === "eu" ? "eu" : "us",
+    /** Team inbox for internal alerts (new form messages, GPU offline). */
+    teamInbox: process.env.EMAIL_TEAM_INBOX?.trim() || "hi@hydrilla.ai",
+  },
+  /** Svix signing secret for the Clerk user webhook (whsec_...). */
+  clerkWebhookSecret: process.env.CLERK_WEBHOOK_SECRET?.trim() || "",
+  /** Vercel sends this as a Bearer token on cron requests. */
+  cronSecret: process.env.CRON_SECRET?.trim() || "",
+  adminEmails: (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean),
+  frontendUrl: process.env.FRONTEND_URL || "https://hydrilla.co",
+  databaseUrl: process.env.DATABASE_URL || "",
+  /** AES key material for BYOK API keys (scrypt). Set in Vercel env. */
+  userApiKeysEncryptionSecret:
+    process.env.USER_API_KEYS_ENCRYPTION_SECRET || "",
+  dodoPayment: {
+    apiKey: process.env.DODO_PAYMENT_API_KEY || "",
+    mode: process.env.DODO_PAYMENT_MODE || "test",  // "test" or "live"
+    webhookSecret: process.env.DODO_PAYMENT_WEBHOOK_SECRET || "",
+    baseUrl: (process.env.DODO_PAYMENT_MODE || "test") === "live" ? "https://live.dodopayments.com" : "https://test.dodopayments.com",
+    environment: ((process.env.DODO_PAYMENT_MODE || "test") === "live" ? "live_mode" : "test_mode") as "live_mode" | "test_mode",
+    // Subscription plan product IDs (set in .env.local only)
+    starterProductId: process.env.DODO_PAYMENT_STARTER_PRODUCT_ID || "",
+    /** Pro product. Env key stays DODO_PAYMENT_STUDIO_PRODUCT_ID. */
+    proProductId: process.env.DODO_PAYMENT_STUDIO_PRODUCT_ID || "",
+    slotProductId: process.env.DODO_PAYMENT_SLOT_PRODUCT_ID || "",
+    slotProProductId: process.env.DODO_PAYMENT_SLOT_PRO_PRODUCT_ID || "",
+    returnUrl: process.env.DODO_PAYMENTS_RETURN_URL || "",
+  },
+  /** Seat limits for Slot plans only. Free, Starter, and Pro are not counted here. */
+  slot: {
+    /** People who may book the same 1-hour Slot. */
+    seats: 2,
+    /** People who may book the same 2-hour Slot Pro window. */
+    proSeats: 4,
+  },
+  // Map product IDs to plan names and credit limits
+  planConfig: {
+    starter: {
+      productId: process.env.DODO_PAYMENT_STARTER_PRODUCT_ID || "",
+      credits: 900,
+      label: "Starter",
+    },
+    pro: {
+      productId: process.env.DODO_PAYMENT_STUDIO_PRODUCT_ID || "",
+      credits: 3000,
+      label: "Pro",
+    },
+  } as Record<string, { productId: string; credits: number; label: string }>,
+};
+
+const hasImageKey =
+  Boolean(process.env.IMAGE_OPENAI_API_KEY?.trim()) ||
+  Boolean(process.env.IMAGE_GEMINI_API_KEY?.trim()) ||
+  Boolean(process.env.IMAGE_GOOGLE_API_KEY?.trim()) ||
+  Boolean(process.env.OPENAI_API_KEY?.trim()) ||
+  Boolean(process.env.GEMINI_API_KEY?.trim()) ||
+  Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim());
+
+if (!hasImageKey) {
+  console.warn(
+    "[config] IMAGE_OPENAI_API_KEY / IMAGE_GEMINI_API_KEY not set in .env. Image generation will use admin image keys if configured in the admin panel."
+  );
+}
+
+if (!config.clerk.secretKey) {
+  console.warn("[config] CLERK_SECRET_KEY is missing. Authentication will fail until set.");
+}
+
+if (!config.customerio.appApiKey || !config.customerio.trackApiKey) {
+  console.warn("[config] CUSTOMERIO_APP_API_KEY / CUSTOMERIO_TRACK_API_KEY missing. Emails will not be sent.");
+}
+
+if (!config.dodoPayment.apiKey) {
+  console.warn("[config] DODO_PAYMENT_API_KEY is missing. Payment functionality will be disabled.");
+}
+
+if (!config.dodoPayment.starterProductId) {
+  console.warn("[config] DODO_PAYMENT_STARTER_PRODUCT_ID is missing. Starter plan checkout will not work.");
+}
+
+if (!config.dodoPayment.proProductId) {
+  console.warn("[config] DODO_PAYMENT_STUDIO_PRODUCT_ID is missing. Pro plan checkout will not work.");
+}
+
+if (!config.dodoPayment.returnUrl) {
+  console.warn("[config] DODO_PAYMENTS_RETURN_URL is missing. Payment redirects will not work correctly.");
+}
+
+if (!config.userApiKeysEncryptionSecret) {
+  console.warn(
+    "[config] USER_API_KEYS_ENCRYPTION_SECRET is missing. BYOK / Water API key storage will fail until set."
+  );
+}
+
+if (!config.internalApiSecret) {
+  console.warn(
+    "[config] HYDRILLA_INTERNAL_API_SECRET is missing. GPU gateway calls and internal job webhooks will be rejected until set."
+  );
+}
+
+if (!config.adminEmails.length) {
+  console.warn("[config] ADMIN_EMAILS is missing. Admin-only routes will deny all users.");
+}
+
+const onVercel = process.env.VERCEL === "1" || !!process.env.VERCEL_ENV;
+if (
+  onVercel &&
+  (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY)
+) {
+  console.warn(
+    "[config] Vercel: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY missing — image uploads will fail until set (with S3_BUCKET, S3_REGION)."
+  );
+}
+
+/** Constant-time compare for internal API secret headers */
+export function timingSafeEqualString(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}

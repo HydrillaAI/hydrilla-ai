@@ -1,0 +1,126 @@
+import express from "express";
+import cors from "cors";
+import path from "path";
+import fs from "fs";
+import { threeDRouter } from "./routes/threeD.js";
+import { paymentsRouter } from "./routes/payments.js";
+import { dodopaymentsRouter } from "./routes/dodopayments/route.js";
+import { contactRouter } from "./routes/contact.js";
+import { supportRouter } from "./routes/support.js";
+import { userRouter } from "./routes/user.js";
+import { adminRouter } from "./routes/admin.js";
+import { blogRouter } from "./routes/blog.js";
+import { communityRouter } from "./routes/community.js";
+import { codeSculptRouter } from "./routes/codeSculpt.js";
+import { createToolsRouter } from "./routes/createTools.js";
+import { developerV1Router } from "./routes/v1/developerApi.js";
+import { publicCreditClaimsRouter } from "./routes/creditClaims.js";
+import { webhooksRouter } from "./routes/webhooks.js";
+import { cronRouter } from "./routes/cron.js";
+import { logger } from "./logger.js";
+import { config } from "./config.js";
+import { initDb } from "./db.js";
+import { syncAppSettingsFromDb } from "./services/appSettings.js";
+import pinoHttp from "pino-http";
+import { syncAllJobs } from "./services/jobSync.js";
+
+async function main() {
+  await initDb();
+  await syncAppSettingsFromDb();
+  const app = express();
+  app.use(
+    cors({
+      origin(origin, callback) {
+        // Allow non-browser clients (no Origin) and configured frontend origins
+        if (!origin || config.corsOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      },
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "webhook-id",
+        "webhook-signature",
+        "webhook-timestamp",
+        "X-Hydrilla-Internal",
+      ],
+      credentials: true,
+    })
+  );
+  app.use(pinoHttp({ logger }));
+  
+  // Raw body parser for webhook signature verification (must be before json parser)
+  app.use("/api/payments/webhook/dodo", express.raw({ type: "application/json" }));
+  app.use("/api/dodo/webhook", express.raw({ type: "application/json" }));
+  app.use("/api/webhooks", express.raw({ type: "application/json" }));
+  
+  // JSON parser for all other routes
+  app.use(express.json({ limit: "10mb" }));
+
+  // Serve uploaded images statically (only if not in Vercel/serverless)
+  // In Vercel, files should be served from S3, not local filesystem
+  const isVercel = process.env.VERCEL === "1" || process.env.VERCEL_ENV;
+  if (!isVercel) {
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    if (fs.existsSync(uploadsDir)) {
+      app.use("/uploads", express.static(uploadsDir));
+    }
+  }
+
+  app.get("/api/health", (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  app.use("/api/3d", threeDRouter);
+  app.use("/api/payments", paymentsRouter);
+  app.use("/api/dodo", dodopaymentsRouter);
+  app.use("/api/contact", contactRouter);
+  app.use("/api/support", supportRouter);
+  app.use("/api/user", userRouter);
+  app.use("/api/credits/claim", publicCreditClaimsRouter);
+  app.use("/api/webhooks", webhooksRouter);
+  app.use("/api/cron", cronRouter);
+  app.use("/api/admin", adminRouter);
+  app.use("/api/blog", blogRouter);
+  app.use("/api/community", communityRouter);
+  app.use("/api/water", codeSculptRouter);
+  app.use("/api/code-sculpt", codeSculptRouter); // legacy alias
+  app.use("/api/create/tools", createToolsRouter);
+  app.use("/v1", developerV1Router);
+  app.use("/api/v1", developerV1Router);
+
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    logger.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  });
+
+  // Start background job sync service
+  const syncInterval = setInterval(async () => {
+    try {
+      await syncAllJobs();
+    } catch (err: any) {
+      logger.error({ err }, "Background job sync failed");
+    }
+  }, config.pollIntervalMs);
+
+  // Cleanup on shutdown
+  process.on("SIGTERM", () => {
+    clearInterval(syncInterval);
+  });
+  process.on("SIGINT", () => {
+    clearInterval(syncInterval);
+  });
+
+  app.listen(config.port, () => {
+    logger.info(`Backend listening on port ${config.port}`);
+    logger.info(`Background job sync started (interval: ${config.pollIntervalMs}ms)`);
+  });
+}
+
+main().catch((err) => {
+  logger.error(err, "fatal error");
+  process.exit(1);
+});
+

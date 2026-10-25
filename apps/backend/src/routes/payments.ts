@@ -1,0 +1,2106 @@
+import { Router, Request, Response } from "express";
+import { logger } from "../logger.js";
+import { config } from "../config.js";
+import { supabase } from "../db.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { getDodoPaymentsClient } from "../lib/dodopayments.js";
+import { captureServerEvent, flushPostHog } from "../lib/posthog.js";
+import {
+  onCheckoutStarted,
+  onPaymentFailed,
+  onPaymentSucceeded,
+  onPlanActive,
+  onPlanCancelled,
+} from "../services/notifications.js";
+import {
+  applyFreePeriodResetIfDue,
+  availableCredits,
+  FREE_TIER_CREDITS,
+  grantCredits,
+  listCreditLedger,
+} from "../services/credits.js";
+import { bookSlot, isSlotPlan, releaseSlot, slotOverview } from "../services/slotAccess.js";
+
+// ============================================================================
+// DODO PAYMENTS - Subscription Integration
+// Plans: starter (900 credits/mo), pro (3000 credits/mo)
+// Webhook: POST /api/payments/webhook/dodo
+// ============================================================================
+
+export const paymentsRouter = Router();
+
+const CREDIT_PLANS = ["starter", "pro"] as const;
+const CATALOG_PLANS = ["starter", "pro", "slot", "slot_pro"] as const;
+type CreditPlan = (typeof CREDIT_PLANS)[number];
+type CatalogPlan = (typeof CATALOG_PLANS)[number];
+
+function isCreditPlan(plan: unknown): plan is CreditPlan {
+  return plan === "starter" || plan === "pro";
+}
+
+/** Monthly credits for a paid plan. Slot matches Starter. Slot Pro matches Pro. */
+function creditAllotment(plan: CatalogPlan | null): number | null {
+  if (plan === "starter" || plan === "pro" || plan === "slot" || plan === "slot_pro") {
+    return PLAN_CREDITS[plan];
+  }
+  return null;
+}
+
+/** Current catalog only. Legacy creator/studio rows are not Starter or Pro. */
+function canonicalizePlan(plan: unknown): CatalogPlan | null {
+  if (plan === "starter" || plan === "pro" || plan === "slot" || plan === "slot_pro") {
+    return plan;
+  }
+  return null;
+}
+
+/** Checkout links may still send the previous names. "pro" stays the $12 plan. */
+function parseCheckoutPlan(plan: unknown): CatalogPlan | null {
+  if (plan === "creator" || plan === "starter") {
+    return "starter";
+  }
+  if (plan === "studio" || plan === "pro") {
+    return "pro";
+  }
+  if (plan === "slot" || plan === "slot_pro") {
+    return plan;
+  }
+  return null;
+}
+
+function getPlanFromProductId(productId: string): CatalogPlan | null {
+  if (productId && productId === config.dodoPayment.starterProductId) {
+    return "starter";
+  }
+  if (productId && productId === config.dodoPayment.proProductId) {
+    return "pro";
+  }
+  if (productId && productId === config.dodoPayment.slotProductId) {
+    return "slot";
+  }
+  if (productId && productId === config.dodoPayment.slotProProductId) {
+    return "slot_pro";
+  }
+  return null;
+}
+
+function productIdForPlan(plan: CatalogPlan): string {
+  if (plan === "starter") {
+    return config.dodoPayment.starterProductId;
+  }
+  if (plan === "pro") {
+    return config.dodoPayment.proProductId;
+  }
+  if (plan === "slot") {
+    return config.dodoPayment.slotProductId;
+  }
+  return config.dodoPayment.slotProProductId;
+}
+
+function resolvePaidPlan(data: any, productId?: string): CatalogPlan | null {
+  const fromProduct = productId ? getPlanFromProductId(productId) : null;
+  if (fromProduct) {
+    return fromProduct;
+  }
+  return parseCheckoutPlan(data?.metadata?.plan);
+}
+
+/** Paid access stays while the subscription is active, or past_due during a grace period. on_hold does not. */
+function entitledPlan(subscription: { status?: string; product_id?: string | null } | null): CatalogPlan | null {
+  if (!subscription) {
+    return null;
+  }
+  if (subscription.status !== "active" && subscription.status !== "past_due") {
+    return null;
+  }
+  return getPlanFromProductId(subscription.product_id || "");
+}
+
+/** Credits granted per plan per billing cycle. The slot plans add a time limit on top. */
+const PLAN_CREDITS: Record<CatalogPlan, number> = {
+  starter: 900,
+  pro: 3000,
+  slot: 900,
+  slot_pro: 3000,
+};
+
+const FREE_CREDITS = FREE_TIER_CREDITS;
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+async function getActiveSubscription(userId: string) {
+  const { data, error } = await supabase
+    .from("user_subscriptions")
+    .select("*")
+    .eq("user_id", userId)
+    .in("status", ["active", "on_hold", "past_due", "paused"])
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (error) {
+    logger.error({ error: error.message, userId }, "Failed to load active subscription");
+    return null;
+  }
+  const rows = data || [];
+  return rows.find((row) => entitledPlan(row)) || rows[0] || null;
+}
+
+async function signedInUserOwnsCheckout(callerUserId: string, payment: any, sub: any): Promise<boolean> {
+  const metaUser = nonEmptyString(payment?.metadata?.user_id) || nonEmptyString(sub?.metadata?.user_id);
+  if (metaUser) return metaUser === callerUserId;
+
+  const { data: me } = await supabase.from("users").select("email").eq("id", callerUserId).maybeSingle();
+  const mine = (me?.email || "").trim().toLowerCase();
+  if (!mine) return false;
+  const theirs = [payment?.customer?.email, sub?.customer?.email, sub?.customer_email, sub?.email, payment?.metadata?.email, sub?.metadata?.email]
+    .map((value) => (typeof value === "string" ? value.trim().toLowerCase() : ""))
+    .filter(Boolean);
+  return theirs.includes(mine);
+}
+
+async function persistSubscriptionStatus(subscriptionId: string, rawStatus: string) {
+  if (!subscriptionId) return;
+  const { data: existing } = await supabase
+    .from("user_subscriptions")
+    .select("metadata")
+    .eq("dodo_subscription_id", subscriptionId)
+    .maybeSingle();
+  const previousMeta = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+  const metadata = { ...previousMeta, dodo_status: rawStatus };
+  const attempt = async (status: string) =>
+    supabase
+      .from("user_subscriptions")
+      .update({ status, metadata, updated_at: new Date().toISOString() })
+      .eq("dodo_subscription_id", subscriptionId);
+
+  let result = await attempt(rawStatus);
+  if (result.error?.code === "23514" && (rawStatus === "paused" || rawStatus === "past_due")) {
+    result = await attempt(rawStatus === "paused" ? "on_hold" : "active");
+  }
+  if (result.error) logger.error({ error: result.error, subscriptionId, rawStatus }, "Failed to store subscription status");
+}
+
+/**
+ * Persist subscription rows against the live CHECK.
+ * Preferred values are starter and pro. If the database check has not been
+ * widened yet, fall back to the legacy creator/studio values so the row still saves.
+ */
+async function writeUserSubscription(
+  kind: "upsert" | "update",
+  payload: Record<string, unknown>,
+  dodoSubscriptionId?: string
+) {
+  const run = (row: Record<string, unknown>) =>
+    kind === "upsert"
+      ? supabase.from("user_subscriptions").upsert(row, { onConflict: "dodo_subscription_id" })
+      : supabase.from("user_subscriptions").update(row).eq("dodo_subscription_id", dodoSubscriptionId!);
+
+  let result = await run(payload);
+  const legacyPlan = payload.plan === "starter" ? "creator" : payload.plan === "pro" ? "studio" : null;
+  if (result.error?.code === "23514" && legacyPlan) {
+    logger.warn(
+      { plan: payload.plan, fallback: legacyPlan },
+      "user_subscriptions check rejected current plan name; saving legacy value"
+    );
+    result = await run({ ...payload, plan: legacyPlan });
+  }
+  return result;
+}
+
+// ============================================================================
+// TEST ENDPOINT
+// GET /api/payments/test
+// ============================================================================
+paymentsRouter.get("/test", requireAuth, requireAdmin, (_req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    mode: config.dodoPayment.mode,
+    hasApiKey: !!config.dodoPayment.apiKey,
+    hasWebhookSecret: !!config.dodoPayment.webhookSecret,
+    starterProductId: config.dodoPayment.starterProductId || "(not set)",
+    proProductId: config.dodoPayment.proProductId || "(not set)",
+  });
+});
+
+// ============================================================================
+// CREATE SUBSCRIPTION CHECKOUT SESSION
+// POST /api/payments/create-checkout
+// Body: { plan: "starter" | "pro", email: string }
+// ============================================================================
+paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: Response) => {
+  try {
+    // Validate early so invalid requests fail fast (better TTFB for client)
+    const { plan, email } = req.body ?? {};
+    const userId = (req as any).userId || null;
+
+    const paidPlan = parseCheckoutPlan(plan);
+    if (!paidPlan) {
+      return res.status(400).json({ error: "Choose Starter, Pro, Slot, or Slot Pro." });
+    }
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({ error: "Valid email is required" });
+    }
+
+    if (userId) {
+      const existingSub = await getActiveSubscription(userId);
+      const existing = entitledPlan(existingSub);
+      const slotInvolved = isSlotPlan(existing) || isSlotPlan(paidPlan);
+      if (existing && slotInvolved && existing !== paidPlan) {
+        return res.status(409).json({
+          error: "Cancel your current plan before you start another one. Only one paid plan can be active.",
+        });
+      }
+      const renewalCancelled =
+        (existingSub?.metadata as Record<string, unknown> | null)?.cancel_at_next_billing_date === true;
+      if (existing && existing === paidPlan && (isSlotPlan(paidPlan) || !renewalCancelled)) {
+        return res.status(409).json({ error: "This plan is already active on your account." });
+      }
+    }
+
+    const productId = productIdForPlan(paidPlan);
+
+    if (!productId) {
+      logger.error({ plan: paidPlan }, "Product ID not configured for plan");
+      return res.status(500).json({ error: `Payment product for ${paidPlan} plan not configured` });
+    }
+
+    const hasUsedTrial = await checkUserTrialUsed(userId, email);
+    const applyTrial = !hasUsedTrial;
+
+    const returnUrl = config.dodoPayment.returnUrl ||
+      `${config.frontendUrl}/checkout/success`;
+    const cancelUrl = `${config.frontendUrl.replace(/\/+$/, "")}/pricing`;
+
+    const dodo = getDodoPaymentsClient();
+
+    const session = await dodo.checkoutSessions.create({
+      product_cart: [{ product_id: productId, quantity: 1 }],
+      customer: { email },
+      return_url: returnUrl,
+      cancel_url: cancelUrl,
+      subscription_data: {
+        trial_period_days: applyTrial ? 14 : 0,
+      },
+      metadata: {
+        plan: paidPlan,
+        user_id: userId || "",
+        email,
+        is_trial: applyTrial ? "true" : "false",
+      },
+    });
+
+    logger.info({ plan: paidPlan, email, sessionId: session.session_id, applyTrial }, "Checkout session created");
+
+    captureServerEvent(userId, "checkout_session_created", {
+      plan: paidPlan,
+      session_id: session.session_id,
+      trial: applyTrial,
+    });
+    void flushPostHog();
+    onCheckoutStarted(userId, paidPlan);
+
+    res.json({
+      checkoutUrl: session.checkout_url,
+      sessionId: session.session_id,
+      applyTrial,
+    });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error creating checkout session");
+    captureServerEvent((req as any).userId || null, "checkout_session_failed", {
+      plan: req.body?.plan || null,
+    });
+    void flushPostHog();
+    res.status(500).json({ error: "Failed to create checkout session" });
+  }
+});
+
+// ============================================================================
+// GET USER SUBSCRIPTION STATUS
+// GET /api/payments/subscription
+// ============================================================================
+paymentsRouter.get("/subscription", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const subscription = await getActiveSubscription(userId);
+    const plan = entitledPlan(subscription);
+
+    res.json({
+      subscription: plan && subscription ? { ...subscription, plan } : null,
+    });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error fetching subscription");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============================================================================
+// GET BILLING (current plan + this user's payment history)
+// GET /api/payments/billing
+// ============================================================================
+paymentsRouter.get("/billing", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const subscription = await getActiveSubscription(userId);
+    const plan = entitledPlan(subscription);
+    const payments = await listPaymentsForPerson(userId);
+    const meta = (subscription?.metadata || {}) as Record<string, unknown>;
+    const cancelAtPeriodEnd = Boolean(plan && meta.cancel_at_next_billing_date === true);
+    const periodEnd = subscription?.current_period_end || (typeof meta.next_billing_date === "string" ? meta.next_billing_date : null);
+
+    const isTrial = Boolean(
+      plan &&
+      (meta.is_trial === true ||
+        (subscription?.status === "active" &&
+          typeof meta.trial_ends_at === "string" &&
+          new Date(meta.trial_ends_at).getTime() > Date.now()))
+    );
+    const trialEndsAt = isTrial ? (meta.trial_ends_at as string) || periodEnd : null;
+
+    let pastPlan: string | null = null;
+    let pastStatus: string | null = null;
+    let pastEndedAt: string | null = null;
+    if (!plan) {
+      const { data: pastSubs } = await supabase
+        .from("user_subscriptions")
+        .select("plan, status, updated_at, cancelled_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (pastSubs && pastSubs[0]) {
+        pastPlan = pastSubs[0].plan;
+        pastStatus = pastSubs[0].status;
+        pastEndedAt = pastSubs[0].cancelled_at || pastSubs[0].updated_at;
+      }
+    }
+
+    res.json({
+      plan,
+      isTrial,
+      trialEndsAt,
+      trialPeriodDays: isTrial ? Number(meta.trial_period_days || 14) : 0,
+      renewsAt: plan && !cancelAtPeriodEnd ? periodEnd : null,
+      cancelAtPeriodEnd,
+      accessUntil: cancelAtPeriodEnd ? periodEnd : null,
+      pastPlan,
+      pastStatus,
+      pastEndedAt,
+      payments,
+    });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error fetching billing");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+paymentsRouter.get("/trial-eligibility", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { data: userRow } = await supabase.from("users").select("email").eq("id", userId).maybeSingle();
+    const email = userRow?.email || null;
+    const used = await checkUserTrialUsed(userId, email);
+    res.json({
+      eligible: !used,
+      trialPeriodDays: !used ? 14 : 0,
+    });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error checking trial eligibility");
+    res.json({ eligible: false, trialPeriodDays: 0 });
+  }
+});
+
+paymentsRouter.get("/slot", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const timezone = typeof req.query.timezone === "string" ? req.query.timezone : null;
+    res.json(await slotOverview(userId, timezone));
+  } catch (error: any) {
+    const status = error?.status || 500;
+    logger.error({ error: error?.message, userId: (req as any).userId }, "GET /slot failed");
+    res.status(status).json({ error: error?.message || "Could not load your hours. Try again.", code: error?.code || "slot_load_failed" });
+  }
+});
+
+paymentsRouter.post("/slot", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const startHour = Number(req.body?.startHour);
+    const timezone = typeof req.body?.timezone === "string" ? req.body.timezone : "";
+    const result = await bookSlot(userId, startHour, timezone);
+    if ("error" in result) {
+      const status =
+        result.code === "slot_not_ready" ? 503 : result.code === "not_slot_plan" ? 403 : result.code === "timezone" ? 400 : 409;
+      return res.status(status).json(result);
+    }
+    res.json(await slotOverview(userId, timezone));
+  } catch (error: any) {
+    logger.error({ error: error?.message, userId: (req as any).userId }, "POST /slot failed");
+    res.status(error?.status || 500).json({ error: error?.message || "Could not save these hours. Try again.", code: error?.code || "slot_book_failed" });
+  }
+});
+
+// ============================================================================
+// CANCEL AT NEXT BILLING DATE
+// POST /api/payments/cancel
+// The subscription stays active until the period the customer already paid for ends.
+// ============================================================================
+paymentsRouter.post("/cancel", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const subscription = await getActiveSubscription(userId);
+    const plan = entitledPlan(subscription);
+    const subscriptionId = subscription?.dodo_subscription_id;
+    if (!plan || !subscriptionId) {
+      return res.status(400).json({ error: "No active Starter or Pro plan to cancel" });
+    }
+
+    const already = (subscription.metadata as Record<string, unknown> | null)?.cancel_at_next_billing_date === true;
+    if (!already) {
+      const dodo = getDodoPaymentsClient();
+      const updated: any = await dodo.subscriptions.update(subscriptionId, {
+        cancel_at_next_billing_date: true,
+        cancel_reason: "cancelled_by_customer",
+      });
+      await markCancelScheduled(subscriptionId, updated || {});
+    }
+
+    const { data: row } = await supabase
+      .from("user_subscriptions")
+      .select("current_period_end, metadata")
+      .eq("dodo_subscription_id", subscriptionId)
+      .maybeSingle();
+    const accessUntil = row?.current_period_end || (row?.metadata as any)?.next_billing_date || subscription.current_period_end || null;
+
+    res.json({ ok: true, plan, cancelAtPeriodEnd: true, accessUntil });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error scheduling cancellation");
+    res.status(500).json({ error: "Failed to cancel renewal" });
+  }
+});
+
+// ============================================================================
+// SYNC SUBSCRIPTION FROM DODO (use when webhook can't reach you, e.g. localhost)
+// POST /api/payments/sync?payment_id=xxx  OR  ?subscription_id=xxx
+// Also accepts: POST body { payment_id, subscription_id }
+// Fetches subscription from Dodo API and writes to DB (same as webhook would).
+// ============================================================================
+paymentsRouter.post("/sync", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const paymentId = (req.query.payment_id || req.body?.payment_id) as string | undefined;
+    const subscriptionIdParam = (req.query.subscription_id || req.body?.subscription_id) as string | undefined;
+    // If the calling user is authenticated, use their userId to backfill immediately
+    const callerUserId: string | null = (req as any).userId || null;
+
+    let subscriptionId: string | undefined = subscriptionIdParam;
+    let payment: any = null;
+
+    const dodo = getDodoPaymentsClient();
+
+    if (paymentId) {
+      try {
+        payment = await dodo.payments.retrieve(paymentId);
+        subscriptionId = subscriptionId || payment.subscription_id || payment.subscription?.id;
+        logger.info({ paymentId, subscriptionId }, "Resolved subscription_id from payment_id");
+      } catch (err: any) {
+        logger.warn({ paymentId, err: err?.message }, "Could not fetch payment from Dodo");
+      }
+    }
+
+    if (!subscriptionId) {
+      return res.status(400).json({ error: "Provide payment_id or subscription_id in query or body" });
+    }
+
+    let sub: any;
+    try {
+      sub = await dodo.subscriptions.retrieve(subscriptionId);
+    } catch (err: any) {
+      logger.warn({ subscriptionId, err: err?.message }, "Could not fetch subscription from Dodo");
+      return res.status(400).json({ error: "Invalid subscription_id or could not fetch from Dodo" });
+    }
+
+    if (!payment && subscriptionId) {
+      try {
+        const page = await dodo.payments.list({ subscription_id: subscriptionId, page_size: 10 });
+        const items = page.items || [];
+        payment = items.find((item: any) => item.status === "succeeded") || null;
+      } catch (err: any) {
+        logger.warn({ subscriptionId, err: err?.message }, "Could not list payments for subscription");
+      }
+    }
+
+    if (!callerUserId || !(await signedInUserOwnsCheckout(callerUserId, payment, sub))) {
+      logger.warn({ callerUserId, subscriptionId, paymentId: payment?.payment_id || paymentId }, "Sync rejected: payment does not belong to this account");
+      return res.status(403).json({ error: "This payment belongs to a different account", granted: false });
+    }
+
+    const dodoStatus = typeof sub.status === "string" ? sub.status : "pending";
+    const customerEmail: string = sub.customer?.email || sub.customer_email || sub.email || payment?.customer?.email || "";
+    const isSubTrial = Boolean(
+      (sub.trial_period_days && Number(sub.trial_period_days) > 0) ||
+      sub.metadata?.is_trial === "true" ||
+      sub.metadata?.is_trial === true
+    );
+    const paid = payment?.status === "succeeded" || isSubTrial;
+    const data = {
+      subscription_id: sub.id || sub.subscription_id || subscriptionId,
+      product_id: sub.product_id,
+      customer_id: sub.customer_id,
+      customer: sub.customer || { email: customerEmail, name: sub.customer_name },
+      email: customerEmail,
+      currency: sub.currency || "INR",
+      current_period_start: sub.current_period_start || sub.previous_billing_date,
+      current_period_end: sub.current_period_end || sub.next_billing_date,
+      next_billing_date: sub.next_billing_date,
+      cancel_at_next_billing_date: sub.cancel_at_next_billing_date === true,
+      recurring_pre_tax_amount: sub.recurring_pre_tax_amount ?? 0,
+      trial_period_days: sub.trial_period_days ?? (isSubTrial ? 14 : 0),
+      trial_amount: sub.trial_amount ?? 0,
+      metadata: sub.metadata || {},
+      status: dodoStatus,
+      _callerUserId: callerUserId,
+    };
+
+    if (payment && (payment.status === "succeeded" || payment.status === "failed")) {
+      await recordSubscriptionPayment({
+        paymentId: payment.payment_id || paymentId,
+        subscriptionId,
+        email: payment.customer?.email || customerEmail,
+        userId: payment.metadata?.user_id || callerUserId,
+        amountCents: payment.total_amount ?? payment.amount ?? 0,
+        currency: payment.currency || sub.currency || "INR",
+        status: payment.status === "failed" ? "failed" : "succeeded",
+        plan: resolvePaidPlan(payment, sub.product_id),
+        webhookId: `sync-${payment.payment_id || paymentId}`,
+        metadata: { source: "sync", payment_id: payment.payment_id || paymentId, dodo_status: dodoStatus },
+      });
+    }
+
+    let granted = false;
+    if (paid && (dodoStatus === "active" || dodoStatus === "past_due")) {
+      const beforeCredits = (
+        await supabase.from("user_credits").select("subscription_id, plan, credits_total").eq("user_id", callerUserId).maybeSingle()
+      ).data;
+      await handleSubscriptionActive(data, `sync-${payment.payment_id || paymentId || subscriptionId}`);
+      await resetCreditsForNewPaidPeriod(callerUserId, data, beforeCredits);
+      if (dodoStatus === "past_due") await persistSubscriptionStatus(data.subscription_id, "past_due");
+      if (data.cancel_at_next_billing_date) await markCancelScheduled(data.subscription_id, data);
+      granted = dodoStatus === "active";
+    } else if (dodoStatus === "on_hold" || dodoStatus === "paused") {
+      await handleSubscriptionOnHold({ ...data, subscription_id: data.subscription_id });
+      await persistSubscriptionStatus(data.subscription_id, dodoStatus);
+    } else if (dodoStatus === "cancelled" || dodoStatus === "expired") {
+      await handleSubscriptionCancelled(data, dodoStatus === "expired" ? "subscription.expired" : "subscription.cancelled");
+    } else if (dodoStatus === "failed") {
+      await handleSubscriptionFailed(data);
+    } else if (dodoStatus !== "active") {
+      await persistSubscriptionStatus(data.subscription_id, "pending");
+    }
+
+    logger.info({ subscriptionId: data.subscription_id, callerUserId, dodoStatus, paid, granted }, "Sync completed");
+    res.json({
+      ok: true,
+      granted,
+      status: dodoStatus,
+      subscription_id: data.subscription_id,
+    });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error syncing subscription");
+    res.status(500).json({ error: error?.message || "Sync failed" });
+  }
+});
+
+// ============================================================================
+// GET USER CREDITS
+// GET /api/payments/credits
+// ============================================================================
+paymentsRouter.get("/credits", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    let credits = (await supabase.from("user_credits").select("*").eq("user_id", userId).maybeSingle()).data;
+    const subscription = await getActiveSubscription(userId);
+    const subscriptionPlan = entitledPlan(subscription);
+
+    if (!credits) {
+      const allotment = creditAllotment(subscriptionPlan);
+      if (subscriptionPlan && allotment != null) {
+        logger.info({ userId, plan: subscriptionPlan }, "No credits row but active subscription – creating paid credits row");
+        const { data: newRow, error: insertErr } = await supabase
+          .from("user_credits")
+          .insert({
+            user_id: userId,
+            plan: subscriptionPlan,
+            credits_total: allotment,
+            credits_used: 0,
+            credits_bonus: 0,
+            subscription_id: subscription?.dodo_subscription_id || null,
+            reset_at: subscription?.current_period_end || null,
+          })
+          .select()
+          .single();
+        if (!insertErr && newRow) credits = newRow;
+        else if (insertErr?.code === "23505") credits = (await supabase.from("user_credits").select("*").eq("user_id", userId).maybeSingle()).data;
+        else if (insertErr) logger.error({ error: insertErr, userId }, "Failed to create paid credits row");
+      } else {
+        const freeResetAt = new Date();
+        freeResetAt.setUTCMonth(freeResetAt.getUTCMonth() + 1);
+        logger.info({ userId }, "No credits row – creating free tier (100 credits)");
+        const { data: newRow, error: insertErr } = await supabase
+          .from("user_credits")
+          .insert({
+            user_id: userId,
+            plan: null,
+            credits_total: FREE_CREDITS,
+            credits_used: 0,
+            credits_bonus: 0,
+            reset_at: freeResetAt.toISOString(),
+          })
+          .select()
+          .single();
+        if (!insertErr && newRow) credits = newRow;
+        else if (insertErr?.code === "23505") credits = (await supabase.from("user_credits").select("*").eq("user_id", userId).maybeSingle()).data;
+        else if (insertErr) logger.error({ error: insertErr, userId }, "Failed to create free credits row");
+      }
+    } else if (credits && !subscriptionPlan && credits.plan) {
+      const { error: clearErr } = await supabase
+        .from("user_credits")
+        .update({ plan: null, updated_at: new Date().toISOString() })
+        .eq("id", credits.id);
+      if (clearErr) logger.error({ error: clearErr, userId }, "Failed to clear stale credits plan");
+      else credits.plan = null;
+    } else if (isSlotPlan(subscriptionPlan) && (credits.plan !== subscriptionPlan || credits.credits_total === FREE_CREDITS)) {
+      const allotment = creditAllotment(subscriptionPlan);
+      const updateData: Record<string, unknown> = {
+        plan: subscriptionPlan,
+        subscription_id: credits.subscription_id || subscription?.dodo_subscription_id || null,
+        updated_at: new Date().toISOString(),
+      };
+      if (allotment != null && credits.credits_total === FREE_CREDITS) updateData.credits_total = allotment;
+      const { error: labelErr } = await supabase.from("user_credits").update(updateData).eq("id", credits.id);
+      if (labelErr) logger.error({ error: labelErr, userId }, "Failed to grant slot credits");
+      else {
+        credits.plan = subscriptionPlan;
+        if (typeof updateData.credits_total === "number") credits.credits_total = updateData.credits_total;
+      }
+    } else if (isCreditPlan(subscriptionPlan) && !isCreditPlan(credits.plan)) {
+      // Backfill plan from the existing subscription row. Do not delete usage.
+      // If the credits row is still the free-tier 100, restore paid allotment.
+      const updateData: Record<string, unknown> = {
+        plan: subscriptionPlan,
+        subscription_id: credits.subscription_id || subscription?.dodo_subscription_id || null,
+        updated_at: new Date().toISOString(),
+      };
+      if (credits.credits_total === FREE_CREDITS) {
+        updateData.credits_total = PLAN_CREDITS[subscriptionPlan];
+      }
+      const { error: backfillErr } = await supabase
+        .from("user_credits")
+        .update(updateData)
+        .eq("id", credits.id);
+      if (backfillErr) {
+        logger.error({ error: backfillErr, userId }, "Failed to backfill user_credits.plan from subscription");
+      } else {
+        credits.plan = subscriptionPlan;
+        if (typeof updateData.credits_total === "number") {
+          credits.credits_total = updateData.credits_total;
+        }
+      }
+    }
+
+    // Free monthly hard-reset when period is due (preserves bonus).
+    // applyFreePeriodResetIfDue also skips users with on_hold/paused/failed subs.
+    if (credits && !subscriptionPlan && !credits.plan) {
+      const resetRow = await applyFreePeriodResetIfDue(userId);
+      if (resetRow) {
+        credits = {
+          ...credits,
+          credits_total: resetRow.credits_total,
+          credits_used: resetRow.credits_used,
+          credits_bonus: resetRow.credits_bonus,
+          reset_at: resetRow.reset_at,
+          plan: resetRow.plan,
+        };
+      }
+    }
+
+    if (!credits) {
+      const fallbackTotal = creditAllotment(subscriptionPlan) ?? FREE_CREDITS;
+      return res.json({
+        credits: {
+          used: 0,
+          total: fallbackTotal,
+          periodUsed: 0,
+          periodTotal: fallbackTotal,
+          bonus: 0,
+          plan: subscriptionPlan,
+          remaining: fallbackTotal,
+        },
+      });
+    }
+
+    const used = Number(credits.credits_used) || 0;
+    const total = Number(credits.credits_total) || 0;
+    const bonus = Number(credits.credits_bonus) || 0;
+    res.json({
+      credits: {
+        used,
+        total,
+        periodUsed: used,
+        periodTotal: total,
+        bonus,
+        remaining: availableCredits({
+          credits_total: total,
+          credits_used: used,
+          credits_bonus: bonus,
+        }),
+        plan: subscriptionPlan,
+        resetAt: credits.reset_at,
+      },
+    });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error fetching credits");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============================================================================
+// GET USER CREDIT REWARDS HISTORY
+// GET /api/payments/credits/history
+// Positive ledger additions: claim links, admin grants, system grants.
+// ============================================================================
+const USER_REWARD_SOURCES = new Set(["claim_link", "admin_grant", "system"]);
+
+paymentsRouter.get("/credits/history", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId as string;
+    const rows = await listCreditLedger(userId);
+    const rewards = rows
+      .filter((row) => row.delta > 0 && USER_REWARD_SOURCES.has(row.source))
+      .map((row) => ({
+        id: row.id,
+        amount: row.delta,
+        reason: row.reason,
+        source: row.source,
+        createdAt: row.created_at,
+      }));
+    res.json({ rewards });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error fetching credit rewards history");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============================================================================
+// GET USAGE BREAKDOWN BY JOB TYPE
+// GET /api/payments/usage
+// Returns credits used per category (3D, image gen, edit) from jobs table.
+// ============================================================================
+type UsageCategory = "3d" | "image" | "edit";
+const THREE_D_GENERATE_TYPES = new Set(["ImageTo3D", "TextTo3D", "Water", "CodeSculpt"]);
+
+function usageCategory(generateType: string, hasGlb: boolean): UsageCategory {
+  // Legacy "Combined" rows (removed combine feature) are billed as edits.
+  if (generateType === "EditImage" || generateType === "Combined") return "edit";
+  if (generateType === "TextToImage") return "image";
+  if (hasGlb || THREE_D_GENERATE_TYPES.has(generateType)) return "3d";
+  return "image";
+}
+
+const USAGE_HISTORY_LABELS: Record<UsageCategory, string> = {
+  "3d": "3D model",
+  image: "Image generation",
+  edit: "Edit image",
+};
+
+paymentsRouter.get("/usage", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const { data: jobs, error } = await supabase
+      .from("jobs")
+      .select("generate_type, credits_used, result_glb_url")
+      .eq("user_id", userId)
+      .gt("credits_used", 0);
+
+    if (error) {
+      logger.error({ error: error.message }, "Error fetching usage breakdown");
+      return res.status(500).json({ error: "Failed to load usage" });
+    }
+
+    type BreakdownItem = { type: string; label: string; credits: number; count: number };
+    const map: Record<string, BreakdownItem> = {
+      "3d": { type: "3d", label: "3D model generation", credits: 0, count: 0 },
+      image: { type: "image", label: "Image generation", credits: 0, count: 0 },
+      edit: { type: "edit", label: "Edit image", credits: 0, count: 0 },
+    };
+
+    for (const j of jobs || []) {
+      const credits = Number(j.credits_used) || 0;
+      const gen = (j.generate_type || "Normal") as string;
+      const hasGlb = !!(j.result_glb_url && String(j.result_glb_url).trim());
+
+      const bucket = map[usageCategory(gen, hasGlb)];
+      bucket.credits += credits;
+      bucket.count += 1;
+    }
+
+    const breakdown = Object.values(map)
+      .filter((b) => b.credits > 0)
+      .sort((a, b) => b.credits - a.credits);
+
+    res.json({ breakdown });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error fetching usage");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============================================================================
+// GET USAGE HISTORY (per-job rows for table / CSV)
+// GET /api/payments/usage/history?limit=100
+// ============================================================================
+paymentsRouter.get("/usage/history", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit), 10) || 100));
+
+    const { data: jobs, error } = await supabase
+      .from("jobs")
+      .select("id, created_at, generate_type, credits_used, result_glb_url, status")
+      .eq("user_id", userId)
+      .gt("credits_used", 0)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      logger.error({ error: error.message }, "Error fetching usage history");
+      return res.status(500).json({ error: "Failed to load usage history" });
+    }
+
+    const rows = (jobs || []).map((j) => {
+      const gen = (j.generate_type || "Normal") as string;
+      const hasGlb = !!(j.result_glb_url && String(j.result_glb_url).trim());
+      const label = USAGE_HISTORY_LABELS[usageCategory(gen, hasGlb)];
+      return {
+        id: j.id,
+        date: j.created_at,
+        type: label,
+        credits: Number(j.credits_used) || 0,
+        status: j.status === "DONE" ? "Included" : j.status === "FAIL" ? "Failed" : "Included",
+      };
+    });
+
+    res.json({ usage: rows });
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error fetching usage history");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============================================================================
+// WEBHOOK ENDPOINT
+// POST /api/payments/webhook/dodo
+// Handles subscription lifecycle events from Dodo Payments
+// ============================================================================
+paymentsRouter.post("/webhook/dodo", async (req: Request, res: Response) => {
+  try {
+    const webhookId = req.headers["webhook-id"] as string;
+    const webhookSignature = req.headers["webhook-signature"] as string;
+    const webhookTimestamp = req.headers["webhook-timestamp"] as string;
+
+    if (!webhookId || !webhookSignature || !webhookTimestamp) {
+      logger.warn("Webhook missing required headers");
+      return res.status(400).json({ error: "Missing webhook headers" });
+    }
+
+    // --- DEDUPLICATION CHECK ---
+    const { data: existingWebhook } = await supabase
+      .from("webhook_events")
+      .select("id")
+      .eq("webhook_id", webhookId)
+      .maybeSingle();
+
+    if (existingWebhook) {
+      logger.info({ webhookId }, "Webhook already processed");
+      return res.status(200).json({ received: true, status: "already_processed" });
+    }
+
+    // --- GET RAW PAYLOAD ---
+    let payload: string;
+    if (Buffer.isBuffer(req.body)) {
+      payload = req.body.toString("utf8");
+    } else if (typeof req.body === "string") {
+      payload = req.body;
+    } else {
+      payload = JSON.stringify(req.body);
+    }
+
+    // --- VERIFY SIGNATURE ---
+    let event: any;
+    try {
+      const dodo = getDodoPaymentsClient();
+      event = dodo.webhooks.unwrap(payload, {
+        headers: {
+          "webhook-id": webhookId,
+          "webhook-signature": webhookSignature,
+          "webhook-timestamp": webhookTimestamp,
+        },
+      });
+      logger.info({ type: event?.type }, "Webhook signature verified");
+    } catch (verifyError: any) {
+      const isProd =
+        process.env.NODE_ENV === "production" ||
+        process.env.VERCEL_ENV === "production";
+      if (!isProd && process.env.SKIP_WEBHOOK_VERIFICATION === "true") {
+        logger.warn("Skipping webhook verification (dev mode only)");
+        try { event = JSON.parse(payload); } catch {
+          return res.status(400).json({ error: "Invalid JSON payload" });
+        }
+      } else {
+        if (isProd && process.env.SKIP_WEBHOOK_VERIFICATION === "true") {
+          logger.error("SKIP_WEBHOOK_VERIFICATION is set but ignored in production");
+        }
+        logger.error({ error: verifyError?.message }, "Webhook signature verification failed");
+        return res.status(401).json({ error: "Signature verification failed" });
+      }
+    }
+
+    const eventType: string = event?.type || "";
+    const eventData: any = event?.data || {};
+
+    // --- STORE WEBHOOK (deduplication) ---
+    const { error: insertErr } = await supabase.from("webhook_events").insert({
+      webhook_id: webhookId,
+      event_type: eventType,
+      payload: event,
+    });
+
+    if (insertErr?.code === "23505") {
+      // Race: another process already stored and processed this exact webhook_id
+      logger.info({ webhookId, eventType }, "Webhook already processed (race dedup)");
+      return res.status(200).json({ received: true, status: "already_processed" });
+    }
+
+    // ── PROCESS BEFORE RESPONDING ─────────────────────────────────────────────
+    // On Vercel / serverless hosts the function can be frozen immediately after
+    // res.json(), so we process synchronously first, then acknowledge Dodo.
+    // DB operations are fast (< 2 s); Dodo's response timeout is ~30 s so this
+    // is safe. We ALWAYS return 200 even when a handler throws.
+    logger.info({ eventType, webhookId }, "Processing webhook event");
+
+    try {
+      switch (eventType) {
+        case "subscription.active":
+        case "subscription.plan_changed":
+          await handleSubscriptionActive(eventData, webhookId);
+          break;
+        case "subscription.renewed":
+          await handleSubscriptionRenewed(eventData, webhookId);
+          break;
+        case "subscription.cancelled":
+        case "subscription.expired":
+          await handleSubscriptionCancelled(eventData, eventType);
+          break;
+        case "subscription.on_hold":
+          await handleSubscriptionOnHold(eventData);
+          break;
+        case "subscription.paused":
+          await handleSubscriptionOnHold(eventData);
+          await persistSubscriptionStatus(eventData.subscription_id || eventData.id, "paused");
+          break;
+        case "subscription.failed":
+          await handleSubscriptionFailed(eventData);
+          break;
+        case "subscription.past_due":
+          await persistSubscriptionStatus(eventData.subscription_id || eventData.id, "past_due");
+          logger.info({ subscriptionId: eventData?.subscription_id }, "Subscription past due; access stays until on_hold or cancelled");
+          break;
+        case "subscription.unpaused":
+          await handleSubscriptionUpdated({ ...eventData, status: "active" });
+          break;
+        case "subscription.updated":
+          await handleSubscriptionUpdated(eventData);
+          break;
+        case "payment.succeeded":
+          await handlePaymentSucceeded(eventData, webhookId);
+          break;
+        case "payment.failed":
+          await handlePaymentFailed(eventData, webhookId);
+          break;
+        case "refund.succeeded":
+        case "payment.refunded":
+          await handleRefundSucceeded(eventData, webhookId);
+          break;
+        case "credit.added":
+          await handleCreditAdded(eventData, webhookId);
+          break;
+        default:
+          // Unknown types: ack so Dodo does not retry forever.
+          logger.info({ eventType }, "Unhandled webhook event type – ignored");
+      }
+    } catch (handlerErr: any) {
+      // Return 500 so Dodo retries failed grant/renew handlers. Handlers are upsert-idempotent.
+      // The dedup row is released first, otherwise the retry would be acknowledged as already processed.
+      logger.error(
+        { eventType, webhookId, error: handlerErr?.message, stack: handlerErr?.stack },
+        "Webhook handler error – returning 500 for retry"
+      );
+      const { error: releaseErr } = await supabase.from("webhook_events").delete().eq("webhook_id", webhookId);
+      if (releaseErr) logger.error({ error: releaseErr, webhookId }, "Could not release webhook dedup row; retry will be skipped");
+      return res.status(500).json({ received: false, eventType, error: "Handler failed" });
+    }
+
+    return res.status(200).json({ received: true, eventType });
+
+  } catch (error: any) {
+    logger.error({ error: error?.message, stack: error?.stack }, "Webhook processing error – returning 500 for retry");
+    if (!res.headersSent) {
+      res.status(500).json({ received: false, error: "Processing error" });
+    }
+  }
+});
+
+// ============================================================================
+// WEBHOOK HANDLERS
+// ============================================================================
+
+/** subscription.active - New subscription activated, grant credits */
+async function handleSubscriptionActive(data: any, webhookId: string) {
+  try {
+    const subscriptionId = data.subscription_id || data.id;
+    const productId = data.product_id;
+    const customerId = data.customer_id;
+    const email: string =
+      data.customer?.email ||
+      data.customer_email ||
+      data.email ||
+      (typeof data.customer === "string" ? data.customer : "") ||
+      "";
+    const customerName: string = data.customer?.name || data.customer_name || "";
+    const currency: string = data.currency || "INR";
+    const currentPeriodStart = data.current_period_start || data.current_period_start_at || data.previous_billing_date;
+    const currentPeriodEnd = data.current_period_end || data.current_period_end_at || data.next_billing_date;
+    const recurringAmount: number = data.recurring_pre_tax_amount ?? data.recurring_amount ?? 0;
+
+    const plan = resolvePaidPlan(data, productId);
+    const credits = creditAllotment(plan) ?? 0;
+    if (!plan && (productId || subscriptionId)) {
+      logger.info({ subscriptionId, productId }, "subscription.active: unknown product_id, skipping credit grant");
+    }
+
+    const callerUserId = nonEmptyString(data._callerUserId);
+    const metadataUserId = nonEmptyString(data?.metadata?.user_id);
+    const userId: string | null = callerUserId || metadataUserId || (email ? await findUserIdByEmail(email) : null);
+
+    logger.info({ subscriptionId, productId, plan, email, credits, userId }, "Subscription activated");
+
+    if (!userId && !email) {
+      logger.error({ data, keys: Object.keys(data || {}) }, "subscription.active missing user_id and customer email");
+      return;
+    }
+
+    const { data: existingSub } = subscriptionId
+      ? await supabase.from("user_subscriptions").select("metadata").eq("dodo_subscription_id", subscriptionId).maybeSingle()
+      : { data: null };
+    const previousMeta = existingSub?.metadata && typeof existingSub.metadata === "object" ? existingSub.metadata : {};
+    const cancelScheduled = data.cancel_at_next_billing_date === true || previousMeta.cancel_at_next_billing_date === true;
+
+    const trialDays = Number(data.trial_period_days ?? 0);
+    const trialAmount = data.trial_amount != null ? Number(data.trial_amount) : 0;
+    const isTrial = Boolean(trialDays > 0 && trialAmount === 0);
+    const trialEndsAt = isTrial ? (data.next_billing_date || currentPeriodEnd || null) : null;
+    // Both subscription.active and the payment.succeeded fallback land here; announce each plan once.
+    const alreadyAnnounced = previousMeta.announced_plan === (plan || "unknown") && previousMeta.announced_trial === isTrial;
+
+    // --- Upsert user_subscriptions (no email column on live table) ---
+    logger.info({ subscriptionId, email, plan, userId, isTrial, trialDays }, "Upserting user_subscriptions...");
+    const { error: subErr } = await writeUserSubscription("upsert", {
+      user_id: userId,
+      plan: plan || "unknown",
+      status: "active",
+      dodo_subscription_id: subscriptionId,
+      dodo_customer_id: customerId,
+      product_id: productId,
+      recurring_amount: recurringAmount,
+      currency,
+      current_period_start: currentPeriodStart,
+      current_period_end: currentPeriodEnd,
+      customer_name: customerName,
+      metadata: {
+        ...previousMeta,
+        webhook_id: webhookId,
+        plan: plan || "unknown",
+        user_id: userId,
+        email,
+        cancel_at_next_billing_date: cancelScheduled,
+        next_billing_date: data.next_billing_date || previousMeta.next_billing_date || currentPeriodEnd || null,
+        is_trial: isTrial,
+        trial_period_days: trialDays,
+        trial_ends_at: trialEndsAt,
+        announced_plan: plan || "unknown",
+        announced_trial: isTrial,
+      },
+      updated_at: new Date().toISOString(),
+    });
+
+    if (subErr) {
+      logger.error({ error: subErr, code: subErr.code, details: subErr.details, hint: subErr.hint, subscriptionId, email, plan, userId }, "❌ Failed to upsert user_subscriptions");
+    } else {
+      logger.info({ subscriptionId, email, plan, userId }, "✅ user_subscriptions upserted");
+    }
+
+    if (userId && isTrial) {
+      await markUserTrialUsed(userId, email);
+    }
+
+    if (plan && credits > 0) {
+      await upsertUserCredits({
+        userId,
+        email,
+        plan,
+        creditsTotal: credits,
+        subscriptionId,
+        resetAt: currentPeriodEnd,
+      });
+    }
+
+    if (userId && subscriptionId && isCreditPlan(plan)) {
+      await stopReplacedSubscriptions(userId, subscriptionId);
+    }
+
+    logger.info({ subscriptionId, email, plan, credits, isTrial }, "✅ Subscription active + credits granted");
+
+    captureServerEvent(userId, "subscription_activated", {
+      plan: plan || "unknown",
+      credits,
+      source: "dodo_webhook",
+      is_trial: isTrial,
+    });
+    void flushPostHog();
+    if (plan && !subErr && !alreadyAnnounced) {
+      onPlanActive({
+        userId,
+        email,
+        plan,
+        creditsTotal: credits,
+        isTrial,
+        trialEndsAt,
+        renewsAt: data.next_billing_date || currentPeriodEnd || null,
+      });
+    }
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handleSubscriptionActive");
+    throw error;
+  }
+}
+
+/**
+ * A newer Starter or Pro subscription replaces older ones. Older ones stop renewing at their next
+ * billing date so the customer is not billed twice. Only subscriptions created before this one are touched,
+ * so a replayed event for an old subscription cannot cancel the newer one.
+ */
+async function stopReplacedSubscriptions(userId: string, subscriptionId: string) {
+  try {
+    const { data: current } = await supabase
+      .from("user_subscriptions")
+      .select("created_at")
+      .eq("dodo_subscription_id", subscriptionId)
+      .maybeSingle();
+    if (!current?.created_at) return;
+
+    const { data: older } = await supabase
+      .from("user_subscriptions")
+      .select("dodo_subscription_id, status, product_id, metadata")
+      .eq("user_id", userId)
+      .neq("dodo_subscription_id", subscriptionId)
+      .lt("created_at", current.created_at)
+      .in("status", ["active", "past_due"]);
+
+    for (const row of older || []) {
+      const oldId = row.dodo_subscription_id as string | null;
+      const oldPlan = entitledPlan(row);
+      const alreadyScheduled = (row.metadata as Record<string, unknown> | null)?.cancel_at_next_billing_date === true;
+      if (!oldId || !isCreditPlan(oldPlan) || alreadyScheduled) continue;
+      try {
+        const updated: any = await getDodoPaymentsClient().subscriptions.update(oldId, {
+          cancel_at_next_billing_date: true,
+          cancel_reason: "cancelled_by_merchant",
+        });
+        await markCancelScheduled(oldId, updated || {});
+        logger.info({ userId, replaced: oldId, by: subscriptionId }, "Replaced subscription set to stop at next billing date");
+      } catch (err: any) {
+        logger.error({ userId, replaced: oldId, by: subscriptionId, error: err?.message }, "Could not stop replaced subscription; customer may be billed twice");
+      }
+    }
+  } catch (err: any) {
+    logger.error({ userId, subscriptionId, error: err?.message }, "stopReplacedSubscriptions failed");
+  }
+}
+
+/** subscription.renewed - Billing cycle renewed, reset period allotment; credits_bonus is preserved. */
+async function handleSubscriptionRenewed(data: any, webhookId: string) {
+  try {
+    const subscriptionId = data.subscription_id;
+    const productId = data.product_id;
+    const email: string = data.customer?.email || data.email || "";
+    const currentPeriodStart = data.current_period_start || data.previous_billing_date;
+    const currentPeriodEnd = data.current_period_end || data.next_billing_date;
+
+    const plan = resolvePaidPlan(data, productId);
+    const credits = creditAllotment(plan) ?? 0;
+
+    logger.info({ subscriptionId, plan, email }, "Subscription renewed");
+
+    const { data: existingSub } = subscriptionId
+      ? await supabase.from("user_subscriptions").select("metadata").eq("dodo_subscription_id", subscriptionId).maybeSingle()
+      : { data: null };
+    const previousMeta = existingSub?.metadata && typeof existingSub.metadata === "object" ? existingSub.metadata : {};
+
+    const renewUpdate: Record<string, unknown> = {
+      status: "active",
+      current_period_start: currentPeriodStart,
+      current_period_end: currentPeriodEnd,
+      updated_at: new Date().toISOString(),
+      metadata: {
+        ...previousMeta,
+        last_renewed: new Date().toISOString(),
+        webhook_id: webhookId,
+        plan: plan || null,
+        is_trial: false, // Transition from trial to first paid month
+        trial_ends_at: null,
+      },
+    };
+    if (plan) renewUpdate.plan = plan;
+
+    const { error: renewErr } = await writeUserSubscription("update", renewUpdate, subscriptionId);
+    if (renewErr) {
+      logger.error({ error: renewErr, subscriptionId, plan }, "Failed to update user_subscriptions on renew");
+    }
+
+    if (plan && credits > 0) {
+      const { data: subRow } = await supabase
+        .from("user_subscriptions")
+        .select("user_id")
+        .eq("dodo_subscription_id", subscriptionId)
+        .maybeSingle();
+      const userId = subRow?.user_id ?? (email ? await findUserIdByEmail(email) : null);
+      const userEmail = userId
+        ? (await supabase.from("users").select("email").eq("id", userId).maybeSingle()).data?.email ?? email
+        : email;
+      if (userId && userEmail) {
+        await upsertUserCredits({
+          userId,
+          email: userEmail,
+          plan,
+          creditsTotal: credits,
+          subscriptionId,
+          resetAt: currentPeriodEnd,
+          resetUsed: true,
+        });
+      }
+    }
+
+    logger.info({ subscriptionId, plan, credits }, "✅ Subscription renewed + credits reset");
+
+    const renewUserId =
+      (await supabase
+        .from("user_subscriptions")
+        .select("user_id")
+        .eq("dodo_subscription_id", subscriptionId)
+        .maybeSingle()).data?.user_id ??
+      (email ? await findUserIdByEmail(email) : null);
+    captureServerEvent(renewUserId, "subscription_renewed", {
+      plan: plan || "unknown",
+      credits,
+    });
+    void flushPostHog();
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handleSubscriptionRenewed");
+    throw error;
+  }
+}
+
+/** subscription.cancelled / subscription.expired. A scheduled cancel stays active until this event. */
+async function handleSubscriptionCancelled(data: any, eventType: string) {
+  try {
+    const subscriptionId = data.subscription_id || data.id;
+    if (!subscriptionId) return;
+    const stillScheduled = data.cancel_at_next_billing_date === true && data.status === "active";
+    if (stillScheduled) {
+      await markCancelScheduled(subscriptionId, data);
+      return;
+    }
+
+    const status = eventType === "subscription.expired" ? "expired" : "cancelled";
+
+    logger.info({ subscriptionId, status }, "Subscription cancelled/expired");
+
+    const { data: existing } = await supabase
+      .from("user_subscriptions")
+      .select("metadata")
+      .eq("dodo_subscription_id", subscriptionId)
+      .maybeSingle();
+    const previousMeta = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+
+    await supabase
+      .from("user_subscriptions")
+      .update({
+        status,
+        cancelled_at: new Date().toISOString(),
+        metadata: { ...previousMeta, cancel_at_next_billing_date: false },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("dodo_subscription_id", subscriptionId);
+
+    const { data: subRow } = await supabase
+      .from("user_subscriptions")
+      .select("user_id, plan")
+      .eq("dodo_subscription_id", subscriptionId)
+      .maybeSingle();
+    if (subRow?.user_id) {
+      await endPaidAccess(subRow.user_id, subscriptionId);
+      if (isSlotPlan(subRow.plan)) await releaseSlot(subRow.user_id);
+    }
+    captureServerEvent(subRow?.user_id, "subscription_cancelled", {
+      status,
+      plan: subRow?.plan || null,
+    });
+    void flushPostHog();
+    // A scheduled cancellation was already announced when it was scheduled (markCancelScheduled).
+    if (previousMeta.cancel_at_next_billing_date !== true) {
+      onPlanCancelled(subRow?.user_id, subRow?.plan || null, null);
+    }
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handleSubscriptionCancelled");
+    throw error;
+  }
+}
+
+/** subscription.on_hold - Payment failed, subscription paused */
+async function handleSubscriptionOnHold(data: any) {
+  try {
+    const subscriptionId = data.subscription_id;
+    logger.info({ subscriptionId }, "Subscription on hold");
+
+    await supabase
+      .from("user_subscriptions")
+      .update({
+        status: "on_hold",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("dodo_subscription_id", subscriptionId);
+
+    const { data: subRow } = await supabase
+      .from("user_subscriptions")
+      .select("user_id, plan")
+      .eq("dodo_subscription_id", subscriptionId)
+      .maybeSingle();
+    if (subRow?.user_id) {
+      await supabase
+        .from("user_credits")
+        .update({ plan: null, updated_at: new Date().toISOString() })
+        .eq("user_id", subRow.user_id);
+      if (isSlotPlan(subRow.plan)) await releaseSlot(subRow.user_id);
+    }
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handleSubscriptionOnHold");
+    throw error;
+  }
+}
+
+/** subscription.failed */
+async function handleSubscriptionFailed(data: any) {
+  try {
+    const subscriptionId = data.subscription_id;
+    logger.info({ subscriptionId }, "Subscription failed");
+
+    await supabase
+      .from("user_subscriptions")
+      .update({
+        status: "failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("dodo_subscription_id", subscriptionId);
+
+    const { data: subRow } = await supabase
+      .from("user_subscriptions")
+      .select("user_id, plan")
+      .eq("dodo_subscription_id", subscriptionId)
+      .maybeSingle();
+    if (subRow?.user_id) {
+      if (isSlotPlan(subRow.plan)) await releaseSlot(subRow.user_id);
+      await supabase
+        .from("user_credits")
+        .update({ plan: null, updated_at: new Date().toISOString() })
+        .eq("user_id", subRow.user_id);
+    }
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handleSubscriptionFailed");
+    throw error;
+  }
+}
+
+/** subscription.updated — sync status and plan. A scheduled cancel does not remove access. */
+async function handleSubscriptionUpdated(data: any) {
+  try {
+    const subscriptionId = data.subscription_id || data.id;
+    if (!subscriptionId) return;
+    const scheduled = data.cancel_at_next_billing_date === true;
+    const rawStatus = typeof data.status === "string" ? data.status : "";
+    const status = rawStatus === "paused" ? "on_hold" : rawStatus;
+
+    if (scheduled && (status === "active" || status === "")) {
+      await markCancelScheduled(subscriptionId, data);
+      return;
+    }
+    if (status === "cancelled" || status === "expired") {
+      await handleSubscriptionCancelled(
+        data,
+        status === "expired" ? "subscription.expired" : "subscription.cancelled"
+      );
+      return;
+    }
+
+    const allowed = new Set(["pending", "active", "on_hold", "failed"]);
+    const plan = resolvePaidPlan(data, data.product_id);
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (allowed.has(status)) patch.status = status;
+    if (plan) patch.plan = plan;
+    const periodStart = data.current_period_start || data.previous_billing_date;
+    const periodEnd = data.current_period_end || data.next_billing_date;
+    if (periodStart) patch.current_period_start = periodStart;
+    if (periodEnd) patch.current_period_end = periodEnd;
+    if (data.cancel_at_next_billing_date === false) {
+      const { data: existing } = await supabase
+        .from("user_subscriptions")
+        .select("metadata")
+        .eq("dodo_subscription_id", subscriptionId)
+        .maybeSingle();
+      const previousMeta = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+      patch.metadata = { ...previousMeta, cancel_at_next_billing_date: false };
+    }
+    const { error } = await writeUserSubscription("update", patch, subscriptionId);
+    if (error) logger.error({ error, subscriptionId }, "Failed to apply subscription.updated");
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handleSubscriptionUpdated");
+    throw error;
+  }
+}
+
+async function markCancelScheduled(subscriptionId: string, data: any) {
+  const { data: existing } = await supabase
+    .from("user_subscriptions")
+    .select("metadata, user_id, plan")
+    .eq("dodo_subscription_id", subscriptionId)
+    .maybeSingle();
+  const previousMeta = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+  const periodEnd = data.current_period_end || data.next_billing_date || previousMeta.next_billing_date || null;
+  const newlyScheduled = previousMeta.cancel_at_next_billing_date !== true;
+  const patch: Record<string, unknown> = {
+    status: "active",
+    metadata: {
+      ...previousMeta,
+      cancel_at_next_billing_date: true,
+      next_billing_date: periodEnd,
+    },
+    updated_at: new Date().toISOString(),
+  };
+  if (periodEnd) patch.current_period_end = periodEnd;
+  const { error } = await writeUserSubscription("update", patch, subscriptionId);
+  if (error) logger.error({ error, subscriptionId }, "Failed to store scheduled cancellation");
+  else {
+    logger.info({ subscriptionId, periodEnd }, "Cancellation scheduled for the next billing date");
+    if (newlyScheduled) onPlanCancelled(existing?.user_id, existing?.plan || null, periodEnd);
+  }
+}
+
+/** First confirmed payment for this subscription resets usage. Opening the success page again does not. */
+async function resetCreditsForNewPaidPeriod(
+  userId: string | null,
+  data: any,
+  before: { subscription_id?: string | null; plan?: string | null; credits_total?: number | null } | null
+) {
+  if (!userId) return;
+  const plan = resolvePaidPlan(data, data.product_id);
+  const allotment = creditAllotment(plan);
+  if (!plan || allotment == null) return;
+  const alreadyOnThisPlan =
+    before?.subscription_id === data.subscription_id &&
+    before?.plan === plan &&
+    before?.credits_total === allotment;
+  if (alreadyOnThisPlan) return;
+  await upsertUserCredits({
+    userId,
+    plan,
+    creditsTotal: allotment,
+    subscriptionId: data.subscription_id,
+    resetAt: data.current_period_end || data.next_billing_date || null,
+    resetUsed: true,
+  });
+}
+
+/** Paid term ended. Plan label goes back to Free and the monthly allotment returns to 100. Bonus is preserved. */
+async function endPaidAccess(userId: string, subscriptionId: string) {
+  const { data: credits } = await supabase
+    .from("user_credits")
+    .select("id, subscription_id, plan")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!credits) return;
+  if (credits.subscription_id && credits.subscription_id !== subscriptionId) return;
+  const slot = isSlotPlan(credits.plan);
+  const paid = isCreditPlan(credits.plan) || slot;
+  const freeResetAt = new Date();
+  freeResetAt.setUTCMonth(freeResetAt.getUTCMonth() + 1);
+  const update: Record<string, unknown> = { plan: null, updated_at: new Date().toISOString() };
+  if (paid) {
+    update.credits_total = FREE_CREDITS;
+    update.credits_used = 0;
+    update.subscription_id = null;
+    update.reset_at = freeResetAt.toISOString();
+  }
+  const { error } = await supabase.from("user_credits").update(update).eq("id", credits.id);
+  if (error) logger.error({ error, userId, subscriptionId }, "Failed to end paid credits");
+  if (slot) await releaseSlot(userId);
+}
+
+/** refund.succeeded / payment.refunded — mark the existing payment row. Does not delete it. */
+async function handleRefundSucceeded(data: any, webhookId: string) {
+  try {
+    const paymentId = data.payment_id || data.id;
+    if (!paymentId) return;
+    await recordSubscriptionPayment({
+      paymentId,
+      subscriptionId: data.subscription_id || null,
+      email: data.customer?.email || data.metadata?.email || "",
+      userId: data.metadata?.user_id || null,
+      amountCents: data.total_amount || data.amount || 0,
+      currency: data.currency || "INR",
+      status: "refunded",
+      plan: resolvePaidPlan(data, data.product_id),
+      webhookId,
+      metadata: { raw: data },
+    });
+    logger.info({ paymentId }, "Payment marked refunded");
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handleRefundSucceeded");
+    throw error;
+  }
+}
+
+async function recordSubscriptionPayment(params: {
+  paymentId: string;
+  subscriptionId?: string | null;
+  email?: string | null;
+  userId?: string | null;
+  amountCents?: number;
+  currency?: string;
+  status: "succeeded" | "failed" | "refunded";
+  plan?: string | null;
+  webhookId?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!params.paymentId) return;
+  const { error } = await supabase.from("subscription_payments").upsert(
+    {
+      email: params.email || null,
+      user_id: params.userId || null,
+      dodo_payment_id: params.paymentId,
+      dodo_subscription_id: params.subscriptionId || null,
+      amount_cents: params.amountCents ?? 0,
+      currency: params.currency || "INR",
+      status: params.status,
+      plan: params.plan ? canonicalizePlan(params.plan) || params.plan : null,
+      webhook_id: params.webhookId || null,
+      metadata: params.metadata || null,
+    },
+    { onConflict: "dodo_payment_id" }
+  );
+  if (error) {
+    logger.error({ error, paymentId: params.paymentId }, "Failed to upsert subscription_payments");
+  }
+}
+
+/** payment.succeeded - Log payment record AND activate subscription if not yet active.
+ *  This acts as a fallback for when subscription.active webhook can't reach the server
+ *  (e.g. localhost). We fetch the subscription from Dodo and run handleSubscriptionActive.
+ */
+async function handlePaymentSucceeded(data: any, webhookId: string) {
+  try {
+    const paymentId = data.payment_id || data.id;
+    const subscriptionId = data.subscription_id;
+    const email: string =
+      data.customer?.email ||
+      data.metadata?.email ||
+      data.email ||
+      "";
+    const amountCents: number = data.total_amount || data.amount || 0;
+    const currency: string = data.currency || "INR";
+    // product_cart may be null for subscription payments — determine plan from subscription
+    const productId = data.product_cart?.[0]?.product_id || data.product_id;
+    let plan = resolvePaidPlan(data, productId);
+
+    logger.info({ paymentId, subscriptionId, email, amountCents, plan }, "Payment succeeded");
+
+    await recordSubscriptionPayment({
+      paymentId,
+      subscriptionId,
+      email,
+      userId: data.metadata?.user_id || null,
+      amountCents,
+      currency,
+      status: "succeeded",
+      plan,
+      webhookId,
+      metadata: { raw: data },
+    });
+    onPaymentSucceeded(data.metadata?.user_id || (email ? await findUserIdByEmail(email) : null));
+
+    // ── Subscription activation fallback ────────────────────────────────────
+    // subscription.active may never reach localhost; activate here if the
+    // payment belongs to a subscription and no active row exists yet.
+    if (subscriptionId) {
+      const { data: existingSub } = await supabase
+        .from("user_subscriptions")
+        .select("id, status")
+        .eq("dodo_subscription_id", subscriptionId)
+        .maybeSingle();
+
+      const alreadyActive =
+        existingSub?.status === "active" || existingSub?.status === "on_hold";
+
+      if (!alreadyActive) {
+        logger.info({ subscriptionId, email }, "payment.succeeded: no active subscription row – fetching from Dodo to activate");
+        try {
+          const dodo = getDodoPaymentsClient();
+          const sub: any = await dodo.subscriptions.retrieve(subscriptionId);
+          const customerEmail: string =
+            sub.customer?.email || sub.customer_email || email;
+
+          const subData = {
+            subscription_id: sub.id || sub.subscription_id || subscriptionId,
+            product_id: sub.product_id || productId,
+            customer_id: sub.customer_id || data.customer?.customer_id,
+            customer: sub.customer || { email: customerEmail },
+            email: customerEmail,
+            currency: sub.currency || currency,
+            current_period_start: sub.current_period_start,
+            current_period_end: sub.current_period_end,
+            recurring_pre_tax_amount: sub.recurring_pre_tax_amount ?? amountCents,
+            metadata: sub.metadata || data.metadata || {},
+            _callerUserId: data.metadata?.user_id || null,
+          };
+
+          await handleSubscriptionActive(subData, `payment-fallback-${webhookId}`);
+          logger.info({ subscriptionId, email }, "✅ Subscription activated via payment.succeeded fallback");
+        } catch (fetchErr: any) {
+          logger.warn({ err: fetchErr?.message, subscriptionId }, "payment.succeeded: could not fetch subscription from Dodo for fallback activation");
+        }
+      } else {
+        logger.info({ subscriptionId }, "payment.succeeded: subscription already active – skipping fallback");
+      }
+    }
+  } catch (error: any) {
+    logger.error({ error: error?.message, stack: error?.stack }, "Error in handlePaymentSucceeded");
+    throw error;
+  }
+}
+
+/** payment.failed - Log failed payment */
+async function handlePaymentFailed(data: any, webhookId: string) {
+  try {
+    const paymentId = data.payment_id || data.id;
+    const subscriptionId = data.subscription_id;
+    const email: string = data.customer?.email || "";
+    const amountCents: number = data.total_amount || data.amount || 0;
+    const currency: string = data.currency || "INR";
+
+    logger.info({ paymentId, subscriptionId, email }, "Payment failed");
+
+    await recordSubscriptionPayment({
+      paymentId,
+      subscriptionId,
+      email,
+      userId: data.metadata?.user_id || null,
+      amountCents,
+      currency,
+      status: "failed",
+      plan: resolvePaidPlan(data, data.product_cart?.[0]?.product_id || data.product_id),
+      webhookId,
+      metadata: { raw: data },
+    });
+    onPaymentFailed(
+      data.metadata?.user_id || (email ? await findUserIdByEmail(email) : null),
+      resolvePaidPlan(data, data.product_cart?.[0]?.product_id || data.product_id)
+    );
+  } catch (error: any) {
+    logger.error({ error: error?.message }, "Error in handlePaymentFailed");
+    throw error;
+  }
+}
+
+/** credit.added - Dodo incremental credits go into credits_bonus so renewals do not wipe them. */
+async function handleCreditAdded(data: any, webhookId: string) {
+  try {
+    const subscriptionId = data.subscription_id || data.subscription?.id;
+    const customerId = data.customer_id || data.customer?.id;
+    const email: string =
+      data.customer?.email ||
+      data.customer_email ||
+      data.email ||
+      "";
+    const amountIncremental = Number(data.amount ?? data.quantity ?? data.credits_added ?? 0);
+
+    logger.info(
+      { subscriptionId, customerId, email, amountIncremental, webhookId, dataKeys: Object.keys(data || {}) },
+      "Credit added"
+    );
+
+    let resolvedEmail = email;
+    let userId: string | null = null;
+
+    if (subscriptionId) {
+      const { data: sub } = await supabase
+        .from("user_subscriptions")
+        .select("user_id, plan")
+        .eq("dodo_subscription_id", subscriptionId)
+        .maybeSingle();
+      if (sub?.user_id) {
+        userId = sub.user_id;
+        if (!resolvedEmail) {
+          const { data: user } = await supabase.from("users").select("email").eq("id", sub.user_id).maybeSingle();
+          resolvedEmail = user?.email ?? "";
+        }
+      }
+    }
+
+    if (!userId && resolvedEmail) {
+      userId = await findUserIdByEmail(resolvedEmail);
+    }
+
+    if (!userId) {
+      logger.warn({ data }, "credit.added: could not resolve user_id");
+      return;
+    }
+
+    const amount = Math.round(amountIncremental);
+    if (!(amount > 0)) {
+      logger.info({ data }, "credit.added: no usable incremental amount, skipping");
+      return;
+    }
+
+    const grantRes = await grantCredits(userId, amount, {
+      source: "system",
+      reason: "Dodo credit.added",
+      metadata: { webhook_id: webhookId, subscription_id: subscriptionId || null },
+    });
+    if (!grantRes.ok) {
+      throw new Error(grantRes.error || "credit.added grant failed");
+    }
+
+    logger.info(
+      { email: resolvedEmail, userId, amount, bonus: grantRes.bonus, subscriptionId },
+      "✅ credit.added applied to credits_bonus"
+    );
+  } catch (error: any) {
+    logger.error({ error: error?.message, stack: error?.stack }, "Error in handleCreditAdded");
+    throw error;
+  }
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+const BILLING_PAYMENT_COLUMNS =
+  "id, created_at, amount_cents, currency, status, plan, dodo_payment_id, dodo_subscription_id, email, user_id";
+
+/** Every charge for this person: the signed-in id, every Clerk id with the same email, and rows saved only by email. */
+async function listPaymentsForPerson(userId: string) {
+  const { data: me, error: meErr } = await supabase
+    .from("users")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle();
+  if (meErr) throw meErr;
+
+  const email = (me?.email || "").trim();
+  const { data: samePerson } = email
+    ? await supabase.from("users").select("id").eq("email", email)
+    : { data: [] as { id: string }[] };
+  const userIds = Array.from(new Set([userId, ...(samePerson || []).map((row) => row.id).filter(Boolean)]));
+
+  const [byUser, byEmail] = await Promise.all([
+    supabase
+      .from("subscription_payments")
+      .select(BILLING_PAYMENT_COLUMNS)
+      .in("user_id", userIds)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    email
+      ? supabase
+          .from("subscription_payments")
+          .select(BILLING_PAYMENT_COLUMNS)
+          .eq("email", email)
+          .order("created_at", { ascending: false })
+          .limit(100)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (byUser.error) throw byUser.error;
+  if (byEmail.error) throw byEmail.error;
+
+  const merged = new Map<string, any>();
+  for (const row of [...(byEmail.data || []), ...(byUser.data || [])]) {
+    merged.set(row.id, row);
+  }
+  const rows = Array.from(merged.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  const missingPlanSubs = Array.from(
+    new Set(
+      rows
+        .filter((row) => !row.plan && row.dodo_subscription_id)
+        .map((row) => row.dodo_subscription_id as string)
+    )
+  );
+  const planBySubscription = new Map<string, string>();
+  if (missingPlanSubs.length) {
+    const { data: subs } = await supabase
+      .from("user_subscriptions")
+      .select("dodo_subscription_id, plan")
+      .in("dodo_subscription_id", missingPlanSubs);
+    for (const sub of subs || []) {
+      if (sub.dodo_subscription_id && sub.plan) planBySubscription.set(sub.dodo_subscription_id, sub.plan);
+    }
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    amount: row.amount_cents ?? 0,
+    currency: row.currency || "INR",
+    status: row.status,
+    plan: row.plan || planBySubscription.get(row.dodo_subscription_id) || null,
+    paymentId: row.dodo_payment_id,
+  }));
+}
+
+/** Find a Clerk user_id by email from the users table */
+async function findUserIdByEmail(email: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id")
+    .eq("email", email)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    logger.warn({ error: error.message }, "findUserIdByEmail failed");
+    return null;
+  }
+  return data?.[0]?.id || null;
+}
+
+/**
+ * Check whether a user has already used a free trial on their account.
+ * Inspects users.has_used_trial and historical user_subscriptions metadata.
+ */
+async function checkUserTrialUsed(userId?: string | null, email?: string | null): Promise<boolean> {
+  if (!userId && !email) return false;
+
+  try {
+    // 1. Direct check on users table if userId is present
+    if (userId) {
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("id, has_used_trial, email")
+        .eq("id", userId)
+        .maybeSingle();
+      if ((userRow as any)?.has_used_trial === true) {
+        return true;
+      }
+      if (!email && userRow?.email) {
+        email = userRow.email;
+      }
+    }
+
+    // 2. Resolve userId from email if missing
+    const resolvedUserId = userId || (email ? await findUserIdByEmail(email) : null);
+
+    // 3. Check historical subscription records for either resolvedUserId or email
+    // user_subscriptions has no email column, so history is matched by user id only.
+    const { data: subs, error } = resolvedUserId
+      ? await supabase
+          .from("user_subscriptions")
+          .select("id, metadata, status, plan, is_trial")
+          .eq("user_id", resolvedUserId)
+          .limit(25)
+      : { data: null, error: null };
+
+    if (!error && subs && subs.length > 0) {
+      const hasUsedPlanOrTrial = subs.some((s) => {
+        const meta = (s.metadata || {}) as Record<string, unknown>;
+        return (
+          s.is_trial === true ||
+          meta.is_trial === true ||
+          Number(meta.trial_period_days || 0) > 0 ||
+          s.status === "active" ||
+          s.status === "cancelled" ||
+          s.status === "expired" ||
+          s.status === "past_due" ||
+          s.status === "on_hold"
+        );
+      });
+      if (hasUsedPlanOrTrial) return true;
+    }
+
+    // 4. Check payment history: any succeeded payment also means already paid customer
+    let payQuery = supabase
+      .from("subscription_payments")
+      .select("id")
+      .eq("status", "succeeded");
+
+    if (resolvedUserId && email) {
+      payQuery = payQuery.or(`user_id.eq.${resolvedUserId},email.eq.${email}`);
+    } else if (resolvedUserId) {
+      payQuery = payQuery.eq("user_id", resolvedUserId);
+    } else if (email) {
+      payQuery = payQuery.eq("email", email);
+    }
+
+    const { data: payments } = await payQuery.limit(1);
+    if (payments && payments.length > 0) {
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    logger.warn({ err, userId, email }, "checkUserTrialUsed encountered non-fatal error");
+    return false;
+  }
+}
+
+/** Mark that a user has claimed their free trial */
+async function markUserTrialUsed(userId: string, email?: string | null): Promise<void> {
+  try {
+    await supabase.from("users").update({ has_used_trial: true } as any).eq("id", userId);
+  } catch (err) {
+    logger.debug({ err, userId }, "Could not set has_used_trial on users table (column may not exist yet)");
+  }
+}
+
+/** Upsert period allotment by user_id. Never touches credits_bonus. Clamps used on mid-cycle downgrade. */
+async function upsertUserCredits(params: {
+  userId: string | null;
+  email?: string;
+  plan: string;
+  creditsTotal: number;
+  subscriptionId?: string | null;
+  resetAt?: string | null;
+  resetUsed?: boolean;
+}) {
+  const { userId, plan, creditsTotal, subscriptionId, resetAt, resetUsed } = params;
+  const subId = subscriptionId && subscriptionId.trim() ? subscriptionId.trim() : null;
+
+  if (!userId) {
+    logger.error({}, "upsertUserCredits called without userId – skipping");
+    return;
+  }
+
+  const { data: existing, error: selectErr } = await supabase
+    .from("user_credits")
+    .select("id, credits_used, credits_bonus, credits_total")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (selectErr) {
+    logger.error({ error: selectErr, userId }, "user_credits select failed");
+    throw selectErr;
+  }
+
+  const nextUsed = (prevUsed: number) => {
+    if (resetUsed) {
+      return 0;
+    }
+    // Mid-cycle downgrade: never leave used > total.
+    return Math.min(prevUsed, creditsTotal);
+  };
+
+  if (existing) {
+    const updateData: Record<string, unknown> = {
+      plan,
+      credits_total: creditsTotal,
+      credits_used: nextUsed(Number(existing.credits_used) || 0),
+      reset_at: resetAt || null,
+      updated_at: new Date().toISOString(),
+    };
+    if (subId) updateData.subscription_id = subId;
+
+    const { error: updateErr } = await supabase.from("user_credits").update(updateData).eq("id", existing.id);
+    if (updateErr) {
+      logger.error({ error: updateErr, userId }, "user_credits update failed");
+      throw updateErr;
+    }
+    logger.info(
+      { userId, plan, creditsTotal, bonus: existing.credits_bonus, resetUsed: !!resetUsed },
+      "user_credits updated (bonus preserved)"
+    );
+
+    if (resetUsed) {
+      await supabase.from("credit_ledger").insert({
+        user_id: userId,
+        delta: 0,
+        balance_total_after: creditsTotal,
+        balance_used_after: 0,
+        source: "period_reset",
+        reason: "Paid billing period reset",
+        metadata: {
+          plan,
+          credits_bonus: existing.credits_bonus ?? 0,
+          reset_at: resetAt || null,
+        },
+      });
+    }
+  } else {
+    const insertPayload: Record<string, unknown> = {
+      user_id: userId,
+      plan,
+      credits_total: creditsTotal,
+      credits_used: 0,
+      credits_bonus: 0,
+      reset_at: resetAt || null,
+    };
+    if (subId) insertPayload.subscription_id = subId;
+
+    const { error: insertErr } = await supabase.from("user_credits").insert(insertPayload);
+    if (insertErr) {
+      if (insertErr.code === "23505") {
+        const { data: raceRow } = await supabase
+          .from("user_credits")
+          .select("id, credits_used, credits_bonus")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (raceRow) {
+          const retryData: Record<string, unknown> = {
+            plan,
+            credits_total: creditsTotal,
+            credits_used: nextUsed(Number(raceRow.credits_used) || 0),
+            reset_at: resetAt || null,
+            updated_at: new Date().toISOString(),
+          };
+          if (subId) retryData.subscription_id = subId;
+          const { error: retryErr } = await supabase.from("user_credits").update(retryData).eq("id", raceRow.id);
+          if (retryErr) {
+            throw retryErr;
+          }
+        }
+      } else {
+        logger.error({ error: insertErr, userId }, "user_credits insert failed");
+        throw insertErr;
+      }
+    } else {
+      logger.info({ userId, plan, creditsTotal }, "user_credits inserted (new row)");
+    }
+  }
+}

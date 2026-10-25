@@ -1,0 +1,409 @@
+import { Router, Request, Response } from "express";
+import crypto from "crypto";
+import { supabase } from "../db.js";
+import { logger } from "../logger.js";
+import { config } from "../config.js";
+import { clerk, optionalAuth, requireAuth } from "../middleware/auth.js";
+import { sendClaimLink } from "../services/notifications.js";
+
+export const adminCreditClaimsRouter = Router();
+export const publicCreditClaimsRouter = Router();
+
+async function getUserDetails(userId: string): Promise<{ email: string | null; name: string | null }> {
+  const { data: dbUser } = await supabase
+    .from("users")
+    .select("email, first_name, last_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (dbUser?.email) {
+    const fullName = [dbUser.first_name, dbUser.last_name].filter(Boolean).join(" ").trim() || null;
+    return { email: dbUser.email, name: fullName };
+  }
+
+  try {
+    const clerkUser = await clerk.users.getUser(userId);
+    const primary = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId);
+    const email = primary?.emailAddress || clerkUser.emailAddresses[0]?.emailAddress || null;
+    const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() || null;
+    return { email, name };
+  } catch (err: any) {
+    logger.warn({ err: err?.message, userId }, "Failed to fetch user details from Clerk");
+    return { email: null, name: null };
+  }
+}
+
+// ============================================================
+// Admin Routes (mounted under /api/admin/credit-claims)
+// ============================================================
+
+adminCreditClaimsRouter.post("/", async (req: Request, res: Response) => {
+  try {
+    const amount = Number(req.body.amount);
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : null;
+    const expiresAt = req.body.expiresAt ? new Date(req.body.expiresAt).toISOString() : null;
+    const maxClaims = Number(req.body.maxClaims);
+    const claimsLimit = Number.isInteger(maxClaims) && maxClaims > 0 ? maxClaims : 1;
+    const rawAllowedEmail = typeof req.body.allowedEmail === "string" ? req.body.allowedEmail.trim() : "";
+    const allowedEmail = rawAllowedEmail ? rawAllowedEmail.toLowerCase() : null;
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: "Amount must be a positive number" });
+    }
+
+    const token = crypto.randomBytes(16).toString("hex");
+
+    const { data: link, error } = await supabase
+      .from("credit_claim_links")
+      .insert({
+        token,
+        amount,
+        reason,
+        expires_at: expiresAt,
+        max_claims: claimsLimit,
+        claims_used: 0,
+        status: "active",
+        allowed_email: allowedEmail,
+        created_by_admin_id: req.userId || null,
+        created_by_admin_email: req.userEmail || null,
+      })
+      .select("*")
+      .single();
+
+    if (error || !link) {
+      logger.error({ error }, "Failed to create credit claim link");
+      return res.status(500).json({ error: error?.message || "Failed to create claim link" });
+    }
+
+    const claimUrl = `${config.frontendUrl}/claim/${link.token}`;
+    return res.json({
+      success: true,
+      link,
+      claimUrl,
+    });
+  } catch (err: any) {
+    logger.error({ err }, "POST /api/admin/credit-claims failed");
+    return res.status(500).json({ error: "Failed to create claim link" });
+  }
+});
+
+adminCreditClaimsRouter.get("/", async (req: Request, res: Response) => {
+  try {
+    const baseQuery = supabase.from("credit_claim_links").select("*");
+    const filteredQuery = req.query.status === "active" || req.query.status === "disabled"
+      ? baseQuery.eq("status", req.query.status)
+      : baseQuery;
+
+    const { data, error } = await filteredQuery.order("created_at", { ascending: false }).limit(200);
+
+    if (error) {
+      logger.error({ error }, "Failed to list credit claim links");
+      return res.status(500).json({ error: "Failed to list claim links" });
+    }
+
+    const links = (data || []).map((link) => ({
+      ...link,
+      claimUrl: `${config.frontendUrl}/claim/${link.token}`,
+    }));
+
+    return res.json({ links });
+  } catch (err: any) {
+    logger.error({ err }, "GET /api/admin/credit-claims failed");
+    return res.status(500).json({ error: "Failed to list claim links" });
+  }
+});
+
+adminCreditClaimsRouter.patch("/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    if (!id) {
+      return res.status(400).json({ error: "Link ID is required" });
+    }
+
+    const patchPayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (typeof req.body.status === "string" && ["active", "disabled"].includes(req.body.status)) {
+      patchPayload.status = req.body.status;
+    }
+    if (req.body.expiresAt !== undefined) {
+      patchPayload.expires_at = req.body.expiresAt ? new Date(req.body.expiresAt).toISOString() : null;
+    }
+    if (typeof req.body.maxClaims === "number" && req.body.maxClaims > 0) {
+      patchPayload.max_claims = req.body.maxClaims;
+    }
+
+    const { data: updated, error } = await supabase
+      .from("credit_claim_links")
+      .update(patchPayload)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      logger.error({ error, id }, "Failed to update credit claim link");
+      return res.status(500).json({ error: "Failed to update claim link" });
+    }
+
+    if (!updated) {
+      return res.status(404).json({ error: "Claim link not found" });
+    }
+
+    return res.json({
+      success: true,
+      link: {
+        ...updated,
+        claimUrl: `${config.frontendUrl}/claim/${updated.token}`,
+      },
+    });
+  } catch (err: any) {
+    logger.error({ err, id: req.params.id }, "PATCH /api/admin/credit-claims/:id failed");
+    return res.status(500).json({ error: "Failed to update claim link" });
+  }
+});
+
+/**
+ * POST /api/admin/credit-claims/:id/send — Rishi emails the claim link to one person.
+ * Body: { to?: string, name?: string }. A link restricted to one address can only go to that address.
+ */
+adminCreditClaimsRouter.post("/:id/send", async (req: Request, res: Response) => {
+  try {
+    const { data: link, error } = await supabase
+      .from("credit_claim_links")
+      .select("*")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    if (error || !link) {
+      return res.status(404).json({ error: "Claim link not found" });
+    }
+    if (link.status !== "active") {
+      return res.status(400).json({ error: "This link is disabled" });
+    }
+    if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
+      return res.status(400).json({ error: "This link has expired" });
+    }
+    if (link.claims_used >= link.max_claims) {
+      return res.status(400).json({ error: "This link has no claims left" });
+    }
+
+    const requested = typeof req.body?.to === "string" ? req.body.to.trim().toLowerCase() : "";
+    const restricted = link.allowed_email ? String(link.allowed_email).trim().toLowerCase() : null;
+    const to = requested || restricted || "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      return res.status(400).json({ error: "Enter a valid email address" });
+    }
+    if (restricted && to !== restricted) {
+      return res.status(400).json({ error: `This link only works for ${restricted}` });
+    }
+
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() || null : null;
+    const result = await sendClaimLink({
+      to,
+      name,
+      amount: Number(link.amount) || 0,
+      reason: link.reason,
+      claimUrl: `${claimLinkBase()}/claim/${link.token}`,
+      expiresAt: link.expires_at,
+      restrictedTo: restricted,
+    });
+    if (!result.ok) {
+      return res.status(502).json({ error: `Email not sent: ${result.error}` });
+    }
+    logger.info({ linkId: link.id, to, by: req.userEmail }, "Claim link emailed");
+    return res.json({ success: true, sentTo: to, deliveryId: result.deliveryId });
+  } catch (err: any) {
+    logger.error({ err, id: req.params.id }, "POST /api/admin/credit-claims/:id/send failed");
+    return res.status(500).json({ error: "Failed to send claim link" });
+  }
+});
+
+/** Emailed links must open the live site even when the admin runs against a local backend. */
+function claimLinkBase(): string {
+  const base = config.frontendUrl.replace(/\/+$/, "");
+  return /localhost|127\.0\.0\.1/.test(base) ? "https://hydrilla.ai" : base;
+}
+
+// ============================================================
+// Public / User Routes (mounted under /api/credits/claim)
+// ============================================================
+
+publicCreditClaimsRouter.get("/:token", optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const token = String(req.params.token || "").trim();
+    if (!token) {
+      return res.status(400).json({ error: "Token is required", status: "not_found" });
+    }
+
+    const { data: link, error } = await supabase
+      .from("credit_claim_links")
+      .select("*")
+      .eq("token", token)
+      .maybeSingle();
+
+    if (error || !link) {
+      return res.status(404).json({
+        status: "not_found",
+        error: "Claim link not found or invalid.",
+      });
+    }
+
+    if (link.status === "disabled") {
+      return res.json({
+        status: "disabled",
+        amount: link.amount,
+        reason: link.reason,
+        expiresAt: link.expires_at,
+      });
+    }
+
+    if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
+      return res.json({
+        status: "expired",
+        amount: link.amount,
+        reason: link.reason,
+        expiresAt: link.expires_at,
+      });
+    }
+
+    if (link.claims_used >= link.max_claims) {
+      return res.json({
+        status: "exhausted",
+        amount: link.amount,
+        reason: link.reason,
+        expiresAt: link.expires_at,
+      });
+    }
+
+    if (req.userId) {
+      const { data: alreadyClaimed } = await supabase
+        .from("credit_ledger")
+        .select("id")
+        .eq("claim_link_id", link.id)
+        .eq("user_id", req.userId)
+        .maybeSingle();
+
+      if (alreadyClaimed) {
+        return res.json({
+          status: "exhausted",
+          amount: link.amount,
+          reason: link.reason,
+          expiresAt: link.expires_at,
+          alreadyClaimedByUser: true,
+        });
+      }
+
+      if (link.allowed_email) {
+        const userDetails = await getUserDetails(req.userId);
+        const linkEmail = link.allowed_email.trim().toLowerCase();
+        const userEmail = (userDetails.email || "").trim().toLowerCase();
+
+        if (!userEmail || userEmail !== linkEmail) {
+          return res.json({
+            status: "email_mismatch",
+            amount: link.amount,
+            reason: link.reason,
+            allowedEmail: link.allowed_email,
+            userEmail: userDetails.email,
+          });
+        }
+      }
+
+      return res.json({
+        status: "ok",
+        amount: link.amount,
+        reason: link.reason,
+        expiresAt: link.expires_at,
+        requiresAuth: false,
+      });
+    }
+
+    return res.json({
+      status: "ok",
+      amount: link.amount,
+      reason: link.reason,
+      expiresAt: link.expires_at,
+      requiresAuth: true,
+    });
+  } catch (err: any) {
+    logger.error({ err, token: req.params.token }, "GET /api/credits/claim/:token failed");
+    return res.status(500).json({ error: "Failed to inspect claim link", status: "not_found" });
+  }
+});
+
+publicCreditClaimsRouter.post("/:token", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const token = String(req.params.token || "").trim();
+    const userId = req.userId;
+
+    if (!token) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const userDetails = await getUserDetails(userId);
+
+    // Atomic claim: lock link, increment claims_used, grant into credits_bonus, ledger — one RPC.
+    const { data: rpcData, error: rpcError } = await supabase.rpc("claim_credit_link", {
+      p_token: token,
+      p_user_id: userId,
+      p_user_email: userDetails.email || null,
+    });
+
+    if (rpcError) {
+      logger.error({ error: rpcError, token, userId }, "claim_credit_link RPC failed");
+      return res.status(500).json({ error: "Failed to claim credits" });
+    }
+
+    const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    if (!row) {
+      return res.status(500).json({ error: "Failed to claim credits" });
+    }
+
+    if (!row.success) {
+      const code = String(row.error_code || "failed");
+      if (code === "not_found") {
+        return res.status(404).json({ error: "Claim link not found", status: "not_found" });
+      }
+      if (code === "disabled") {
+        return res.status(400).json({ error: "This claim link has been disabled", status: "disabled" });
+      }
+      if (code === "expired") {
+        return res.status(400).json({ error: "This claim link has expired", status: "expired" });
+      }
+      if (code === "exhausted" || code === "already_claimed") {
+        return res.status(400).json({
+          error:
+            code === "already_claimed"
+              ? "You have already claimed this credit link"
+              : "This claim link has reached its maximum claims",
+          status: "exhausted",
+        });
+      }
+      if (code === "email_mismatch") {
+        return res.status(403).json({
+          error: "This credit link is restricted to a different email",
+          status: "email_mismatch",
+        });
+      }
+      return res.status(400).json({ error: "Unable to claim this credit link", status: code });
+    }
+
+    const amount = Number(row.amount) || 0;
+    const remaining = Number(row.remaining) || 0;
+
+    // No email on claim: the person sees the result on screen.
+    return res.json({
+      success: true,
+      amount,
+      remaining,
+      total: Number(row.total) || 0,
+      bonus: Number(row.bonus) || 0,
+    });
+  } catch (err: any) {
+    logger.error({ err, token: req.params.token }, "POST /api/credits/claim/:token failed");
+    return res.status(500).json({ error: "Failed to claim credits" });
+  }
+});

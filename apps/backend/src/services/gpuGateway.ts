@@ -1,0 +1,252 @@
+import { config, timingSafeEqualString } from "../config.js";
+import { logger } from "../logger.js";
+
+export function withInternalSecretHeaders(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers || {});
+  if (config.internalApiSecret) {
+    headers.set("X-Hydrilla-Internal", config.internalApiSecret);
+  }
+  return { ...init, headers };
+}
+
+export class GpuSubmitHttpError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "GpuSubmitHttpError";
+  }
+}
+
+const GPU_SUBMIT_RETRY_DELAYS_MS = [2000, 3000, 5000, 5000, 5000];
+
+function isTransientGpuSubmitError(err: unknown): boolean {
+  if (err instanceof GpuSubmitHttpError) {
+    if (/queue full/i.test(err.message)) {
+      return false;
+    }
+    return err.status === 502 || err.status === 503 || err.status === 504;
+  }
+  const msg = err && typeof (err as any).message === "string" ? (err as any).message : "";
+  return /fetch failed|ECONNREFUSED|ECONNRESET|socket hang up|other side closed|network/i.test(msg);
+}
+
+export async function submitWithGpuRestartRetry<T>(
+  submit: () => Promise<T>,
+  attempt: number = 0
+): Promise<T> {
+  try {
+    return await submit();
+  } catch (err) {
+    const delayMs = GPU_SUBMIT_RETRY_DELAYS_MS[attempt];
+    if (delayMs === undefined || !isTransientGpuSubmitError(err)) {
+      throw err;
+    }
+    logger.warn(
+      { attempt: attempt + 1, delayMs, err: (err as any)?.message },
+      "GPU VM temporarily unavailable; retrying job submission"
+    );
+    await new Promise((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
+    return submitWithGpuRestartRetry(submit, attempt + 1);
+  }
+}
+
+export async function submitImageTo3dGpu(params: {
+  imageUrl?: string;
+  imageBuffer?: Buffer;
+  filename?: string;
+  contentType?: string;
+  resolution?: number;
+  seed?: number;
+  userId: string;
+}): Promise<{ jobId: string; jobsAhead?: number }> {
+  if (!config.gpuGateway.url) {
+    throw new GpuOfflineError("No GPU gateway configured. An administrator must set the active GPU in the Admin Panel.");
+  }
+  const resolution = params.resolution ?? 1024;
+  const seed = params.seed ?? 42;
+
+  const submitFn = async (): Promise<{ jobId: string; jobsAhead?: number }> => {
+    if (params.imageBuffer) {
+      const formData = new FormData();
+      const blob = new Blob([new Uint8Array(params.imageBuffer)], {
+        type: params.contentType || "image/png",
+      });
+      formData.append("image", blob, params.filename || "image.png");
+      formData.append("user_id", params.userId);
+      formData.append("resolution", String(resolution));
+      formData.append("seed", String(seed));
+
+      const res = await fetch(
+        `${config.gpuGateway.url}/image-to-3d`,
+        withInternalSecretHeaders({
+          method: "POST",
+          body: formData,
+        })
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new GpuSubmitHttpError(res.status, text || `GPU returned status ${res.status}`);
+      }
+
+      const data = (await res.json()) as { job_id: string; jobs_ahead?: number };
+      return { jobId: data.job_id, jobsAhead: data.jobs_ahead };
+    }
+
+    if (params.imageUrl) {
+      const formData = new URLSearchParams();
+      formData.append("image_url", params.imageUrl);
+      formData.append("user_id", params.userId);
+      formData.append("resolution", String(resolution));
+      formData.append("seed", String(seed));
+
+      const res = await fetch(
+        `${config.gpuGateway.url}/image-to-3d`,
+        withInternalSecretHeaders({
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData.toString(),
+        })
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new GpuSubmitHttpError(res.status, text || `GPU returned status ${res.status}`);
+      }
+
+      const data = (await res.json()) as { job_id: string; jobs_ahead?: number };
+      return { jobId: data.job_id, jobsAhead: data.jobs_ahead };
+    }
+
+    throw new Error("Either imageUrl or imageBuffer is required");
+  };
+
+  return submitWithGpuRestartRetry(submitFn);
+}
+
+export async function fetchGpuJobStatus(
+  jobId: string
+): Promise<Record<string, unknown> | null> {
+  if (!config.gpuGateway.url) {
+    return null;
+  }
+  try {
+    const res = await fetch(
+      `${config.gpuGateway.url}/status/${jobId}`,
+      withInternalSecretHeaders({
+        signal: AbortSignal.timeout(8000),
+      })
+    );
+
+    if (!res.ok) {
+      return null;
+    }
+
+    return (await res.json()) as Record<string, unknown>;
+  } catch (err) {
+    logger.warn({ err, jobId }, "Failed to fetch GPU status for job");
+    return null;
+  }
+}
+
+export async function cancelGpuJob(jobId: string): Promise<boolean> {
+  if (!config.gpuGateway.url) {
+    return false;
+  }
+  try {
+    const res = await fetch(
+      `${config.gpuGateway.url}/cancel/${jobId}`,
+      withInternalSecretHeaders({
+        method: "POST",
+        signal: AbortSignal.timeout(5000),
+      })
+    );
+    return res.ok;
+  } catch (err) {
+    logger.warn({ err, jobId }, "Failed to cancel GPU job");
+    return false;
+  }
+}
+
+export async function fetchGpuQueueInfo(): Promise<Record<string, unknown> | null> {
+  if (!config.gpuGateway.url) {
+    return null;
+  }
+  try {
+    const res = await fetch(
+      `${config.gpuGateway.url}/queue/info`,
+      withInternalSecretHeaders({
+        signal: AbortSignal.timeout(5000),
+      })
+    );
+    if (!res.ok) {
+      return null;
+    }
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+export class GpuOfflineError extends Error {
+  status = 503;
+  constructor(
+    message = "GPU is currently offline or restarting. Please try again in a moment."
+  ) {
+    super(message);
+    this.name = "GpuOfflineError";
+  }
+}
+
+export function isGpuPipelineReady(body: any): boolean {
+  if (!body) {
+    return false;
+  }
+  if (body.features && typeof body.features === "object" && body.features.image_to_3d === false) {
+    return false;
+  }
+  return !!(
+    body.pipeline_loaded === true ||
+    body.model_loaded === true ||
+    body.trellis_loaded === true ||
+    body.trellis2_pipeline_loaded === true
+  );
+}
+
+export async function probeGpuVm(): Promise<{ reachable: boolean; ready: boolean; raw: any }> {
+  if (!config.gpuGateway.url) {
+    return { reachable: false, ready: false, raw: null };
+  }
+  try {
+    const res = await fetch(
+      `${config.gpuGateway.url}/health`,
+      withInternalSecretHeaders({ signal: AbortSignal.timeout(5000) })
+    );
+    if (!res.ok) {
+      return { reachable: false, ready: false, raw: null };
+    }
+    const raw = await res.json().catch(() => null);
+    return { reachable: !!raw, ready: isGpuPipelineReady(raw), raw };
+  } catch {
+    return { reachable: false, ready: false, raw: null };
+  }
+}
+
+/**
+ * Fail before image generation / credit spend when image→3D will be needed next.
+ */
+export async function assertGpuReadyFor3d(): Promise<void> {
+  const gpu = await probeGpuVm();
+  if (gpu.ready) {
+    return;
+  }
+  if (gpu.reachable) {
+    throw new GpuOfflineError(
+      "3D GPU is warming up or not ready. Try again in a moment — no image was generated and no 3D credits were charged."
+    );
+  }
+  throw new GpuOfflineError(
+    "3D GPU is currently offline or restarting. Try again in a moment — no image was generated and no 3D credits were charged."
+  );
+}

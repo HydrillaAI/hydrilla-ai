@@ -1,0 +1,128 @@
+import express from "express";
+import cors from "cors";
+import { threeDRouter } from "../src/routes/threeD.js";
+import { paymentsRouter } from "../src/routes/payments.js";
+import { userRouter } from "../src/routes/user.js";
+import { adminRouter } from "../src/routes/admin.js";
+import { contactRouter } from "../src/routes/contact.js";
+import { supportRouter } from "../src/routes/support.js";
+import { blogRouter } from "../src/routes/blog.js";
+import { communityRouter } from "../src/routes/community.js";
+import { codeSculptRouter } from "../src/routes/codeSculpt.js";
+import { createToolsRouter } from "../src/routes/createTools.js";
+import { developerV1Router } from "../src/routes/v1/developerApi.js";
+import { publicCreditClaimsRouter } from "../src/routes/creditClaims.js";
+import { webhooksRouter } from "../src/routes/webhooks.js";
+import { cronRouter } from "../src/routes/cron.js";
+import { logger } from "../src/logger.js";
+import { initDb } from "../src/db.js";
+import { syncAppSettingsFromDb } from "../src/services/appSettings.js";
+import { config as appConfig } from "../src/config.js";
+import pinoHttp from "pino-http";
+
+// Water generations run after the response via waitUntil, so this function must stay alive
+// for a whole Studio run. 800 s is the GA maximum with Fluid compute; LLM wait time is not
+// billed as Active CPU. Must equal FUNCTION_MAX_DURATION_S in src/lib/water/runtimeLimits.ts
+// (Vercel reads this export statically, so it stays a literal).
+export const config = {
+  maxDuration: 60,
+  
+};
+
+// Initialize database connection
+const dbState = { initialized: false };
+async function ensureDb() {
+  if (!dbState.initialized) {
+    await initDb();
+    await syncAppSettingsFromDb();
+    dbState.initialized = true;
+  }
+}
+
+const app = express();
+
+// Middleware — CORS allowlist (same as server.ts)
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || appConfig.corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'webhook-id', 'webhook-signature', 'webhook-timestamp', 'X-Hydrilla-Internal'],
+  credentials: true
+}));
+
+// Raw body parser for webhook signature verification (must be before json parser)
+app.use("/api/payments/webhook/dodo", express.raw({ type: "application/json" }));
+app.use("/api/webhooks", express.raw({ type: "application/json" }));
+
+// JSON parser for all other routes
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(pinoHttp({ logger }));
+
+// Health check endpoints
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, timestamp: new Date().toISOString() });
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, timestamp: new Date().toISOString() });
+});
+
+// Root route
+app.get("/", (_req, res) => {
+  res.json({ message: "Hydrilla Backend API", status: "ok" });
+});
+
+// Initialize database middleware
+async function initDbMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!dbState.initialized) {
+    try {
+      await ensureDb();
+    } catch (dbErr: any) {
+      logger.error({ err: dbErr }, "Database initialization failed");
+      // Don't block the request, but log the error
+    }
+  }
+  next();
+}
+
+// 3D routes
+app.use("/api/3d", initDbMiddleware, threeDRouter);
+
+// Payments routes
+app.use("/api/payments", initDbMiddleware, paymentsRouter);
+app.use("/api/contact", initDbMiddleware, contactRouter);
+app.use("/api/support", initDbMiddleware, supportRouter);
+
+// BYOK keys + Water engine (legacy alias: /api/code-sculpt)
+app.use("/api/user", initDbMiddleware, userRouter);
+app.use("/api/credits/claim", initDbMiddleware, publicCreditClaimsRouter);
+app.use("/api/webhooks", initDbMiddleware, webhooksRouter);
+app.use("/api/cron", initDbMiddleware, cronRouter);
+app.use("/api/admin", initDbMiddleware, adminRouter);
+app.use("/api/blog", initDbMiddleware, blogRouter);
+app.use("/api/community", initDbMiddleware, communityRouter);
+app.use("/api/water", initDbMiddleware, codeSculptRouter);
+app.use("/api/code-sculpt", initDbMiddleware, codeSculptRouter);
+app.use("/api/create/tools", initDbMiddleware, createToolsRouter);
+app.use("/v1", initDbMiddleware, developerV1Router);
+app.use("/api/v1", initDbMiddleware, developerV1Router);
+
+// Error handler
+app.use((err: any, _req: any, res: any, _next: any) => {
+  logger.error(err);
+  res.status(500).json({ error: "Internal Server Error" });
+});
+
+// 404 handler (must be last)
+app.use((_req, res) => {
+  res.status(404).json({ error: "Not Found", code: "NOT_FOUND" });
+});
+
+// Vercel serverless function handler
+export default app;
+

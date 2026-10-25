@@ -1,0 +1,475 @@
+import { supabase } from "../db.js";
+import { GenerateType, JobRecord, JobStatus } from "../types.js";
+import { logger } from "../logger.js";
+import { normalizeGlbUrl, normalizePreviewUrl, unwrapImageProxyUrl } from "../utils/s3Urls.js";
+
+export async function createJob(params: {
+  id: string;
+  userId?: string | null;  // Owner of the job
+  chatId?: string | null;  // Chat this job belongs to
+  workspaceId?: string | null;  // Workspace this job belongs to
+  parentJobId?: string | null;  // Primary parent job for iterative prompting lineage
+  parentJobIds?: string[];       // All parent IDs
+  prompt?: string | null;
+  imageUrl?: string | null;
+  sourceImages?: string[] | null; // Actual source image URLs used as input
+  generateType: GenerateType;
+  status?: JobStatus;  // Optional initial status (defaults to "WAIT")
+  creditsUsed?: number;  // Credits consumed for this job (default 0)
+  previewImageUrl?: string | null;
+  llmProvider?: string | null;  // Image jobs: "openai" | "gemini"
+  llmModel?: string | null;
+  source?: "web" | "api";
+}) {
+  const {
+    id,
+    userId = null,
+    chatId = null,
+    workspaceId = null,
+    parentJobId = null,
+    parentJobIds = [],
+    prompt = null,
+    imageUrl = null,
+    sourceImages = null,
+    generateType,
+    status = "WAIT",
+    creditsUsed = 0,
+    previewImageUrl = null,
+    llmProvider = null,
+    llmModel = null,
+    source = "web",
+  } = params;
+
+  try {
+    // Canonical parent list: explicit array > single parent > empty
+    const allParentIds = parentJobIds.length > 0 ? parentJobIds : (parentJobId ? [parentJobId] : []);
+    // Denormalized first-parent for legacy compat (column kept for simple queries)
+    const firstParentId = allParentIds.length > 0 ? allParentIds[0] : null;
+
+    const insertPayload: Record<string, any> = {
+      id,
+      user_id: userId,
+      chat_id: chatId,
+      workspace_id: workspaceId,
+      parent_job_id: firstParentId,
+      status: status,
+      prompt,
+      image_url: imageUrl,
+      source_images: sourceImages && sourceImages.length > 0 ? JSON.stringify(sourceImages) : null,
+      generate_type: generateType,
+      credits_used: creditsUsed,
+      source,
+      ...(previewImageUrl ? { preview_image_url: previewImageUrl } : {}),
+      ...(llmProvider ? { llm_provider: llmProvider } : {}),
+      ...(llmModel ? { llm_model: llmModel } : {}),
+    };
+
+    let { error } = await supabase.from("jobs").insert(insertPayload);
+    // Graceful fallback if migration 018 hasn't been executed in Supabase yet
+    if (error && /source.*schema cache|column.*source/i.test(error.message || "")) {
+      delete insertPayload.source;
+      const retryResult = await supabase.from("jobs").insert(insertPayload);
+      error = retryResult.error;
+    }
+
+    if (error) throw error;
+
+    // Junction table is the source of truth for all parent relationships
+    if (allParentIds.length > 0) {
+      await upsertJobParents(id, allParentIds);
+    }
+  } catch (err: any) {
+    logger.error(err, "Failed to create job in database");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+/**
+ * Insert/update parent relationships in the job_parents junction table.
+ */
+export async function upsertJobParents(jobId: string, parentIds: string[]): Promise<void> {
+  if (!parentIds || parentIds.length === 0) return;
+  try {
+    const rows = parentIds.map((pid, idx) => ({
+      job_id: jobId,
+      parent_job_id: pid,
+      slot: idx + 1,
+    }));
+    const { error } = await supabase
+      .from("job_parents")
+      .upsert(rows, { onConflict: "job_id,parent_job_id" });
+    if (error) throw error;
+  } catch (err: any) {
+    // Non-critical: log and continue (table may not exist yet if migration hasn't run)
+    logger.warn({ err, jobId, parentIds }, "Failed to upsert job_parents (non-critical)");
+  }
+}
+
+/**
+ * Get all parent job IDs for a given job from the junction table.
+ */
+export async function getJobParentIds(jobId: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from("job_parents")
+      .select("parent_job_id, slot")
+      .eq("job_id", jobId)
+      .order("slot", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((r: any) => r.parent_job_id);
+  } catch {
+    // Table may not exist yet — return empty
+    return [];
+  }
+}
+
+export async function updateJobStatus(
+  jobId: string,
+  data: {
+    status: JobStatus;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    creditsUsed?: number;
+  }
+) {
+  const { status, errorCode = null, errorMessage = null, creditsUsed } = data;
+  const updatePayload: Record<string, unknown> = {
+    status,
+    error_code: errorCode,
+    error_message: errorMessage,
+    updated_at: new Date().toISOString(),
+  };
+  if (typeof creditsUsed === "number") {
+    updatePayload.credits_used = creditsUsed;
+  }
+  try {
+    const { error } = await supabase
+      .from("jobs")
+      .update(updatePayload)
+      .eq("id", jobId);
+
+    if (error) {
+      throw error;
+    }
+  } catch (err: any) {
+    logger.error(err, "Failed to update job status");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+export async function updateJobResult(jobId: string, data: { resultGlbUrl?: string | null; previewImageUrl?: string | null }) {
+  const { resultGlbUrl = null, previewImageUrl = null } = data;
+  try {
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        result_glb_url: resultGlbUrl,
+        preview_image_url: previewImageUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+
+    if (error) throw error;
+  } catch (err: any) {
+    logger.error(err, "Failed to update job result");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+export async function getJob(jobId: string): Promise<JobRecord | null> {
+  try {
+    const { data, error } = await supabase.from("jobs").select("*").eq("id", jobId).single();
+    if (error) {
+      if (error.code === "PGRST116") return null; // Not found
+      throw error;
+    }
+    if (!data) return null;
+    return mapRow(data);
+  } catch (err: any) {
+    logger.error(err, "Failed to get job from database");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+/**
+ * Get a job that belongs to a specific user
+ */
+export async function getJobForUser(jobId: string, userId: string): Promise<JobRecord | null> {
+  try {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("id", jobId)
+      .or(`user_id.eq.${userId},user_id.is.null`)  // User's jobs or legacy jobs without user_id
+      .single();
+      
+    if (error) {
+      if (error.code === "PGRST116") return null;
+      throw error;
+    }
+    if (!data) return null;
+    return mapRow(data);
+  } catch (err: any) {
+    logger.error(err, "Failed to get job for user from database");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+/**
+ * List all jobs (for admin or service role)
+ */
+export async function listJobs(limit = 50): Promise<JobRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    if (!data) return [];
+    return data.map(mapRow);
+  } catch (err: any) {
+    logger.error(err, "Failed to list jobs from database");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+/**
+ * List jobs for a specific user
+ */
+export async function listJobsForUser(userId: string, limit = 50): Promise<JobRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    if (!data) return [];
+    return data.map(mapRow);
+  } catch (err: any) {
+    logger.error(err, "Failed to list jobs for user from database");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+/** Image job types, including legacy "Combined" rows from the removed combine feature. */
+const IMAGE_GENERATE_TYPES = new Set(["TextToImage", "EditImage", "Combined"]);
+
+/**
+ * Get jobs that need status sync (pending or running jobs)
+ */
+export async function getJobsToSync(): Promise<JobRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .in("status", ["WAIT", "RUN"])
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+    if (!data) return [];
+    // Water jobs are LLM-backed and image jobs come from OpenAI/Gemini — never poll the GPU gateway for them.
+    return data
+      .map(mapRow)
+      .filter(
+        (j) =>
+          j.engine !== "code_sculpt" &&
+          j.engine !== "water" &&
+          j.generateType !== "CodeSculpt" &&
+          j.generateType !== "Water" &&
+          !IMAGE_GENERATE_TYPES.has(String(j.generateType)) &&
+          j.resultKind !== "three_factory"
+      );
+  } catch (err: any) {
+    logger.error(err, "Failed to get jobs to sync from database");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+/**
+ * Delete a job (only if it belongs to the user)
+ */
+export async function deleteJob(jobId: string, userId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("jobs")
+      .delete()
+      .eq("id", jobId)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    logger.error(err, "Failed to delete job from database");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+function mapRow(row: any): JobRecord {
+  // Normalize URLs to remove expired signed URL parameters
+  const rawImageUrl = unwrapImageProxyUrl(row.image_url) || row.image_url;
+  const rawPreviewImageUrl = unwrapImageProxyUrl(row.preview_image_url) || row.preview_image_url;
+  const resultGlbUrl = row.result_glb_url;
+
+  const id = String(row.id || "");
+  const waterLike =
+    id.startsWith("wt_") ||
+    id.startsWith("cs_") ||
+    row.engine === "water" ||
+    row.engine === "code_sculpt" ||
+    row.generate_type === "Water" ||
+    row.generate_type === "CodeSculpt" ||
+    row.result_kind === "three_factory" ||
+    Boolean(row.factory_code && String(row.factory_code).length > 0);
+  
+  // Normalize image URLs
+  const imageUrl = (rawImageUrl && rawImageUrl.includes("amazonaws.com"))
+    ? rawImageUrl.split("?")[0]
+    : rawImageUrl;
+
+  const resolvedPreviewUrl = (() => {
+    if (rawPreviewImageUrl) {
+      if (String(rawPreviewImageUrl).startsWith("data:") || String(rawPreviewImageUrl).startsWith("blob:")) {
+        return rawPreviewImageUrl;
+      }
+      return normalizePreviewUrl(row.id, rawPreviewImageUrl);
+    }
+    if (imageUrl) {
+      return imageUrl;
+    }
+    return null;
+  })();
+
+  const finalGlbUrl = (() => {
+    if (waterLike) {
+      return null;
+    }
+    if (resultGlbUrl) {
+      return normalizeGlbUrl(row.id, resultGlbUrl);
+    }
+    return null;
+  })();
+
+  // Parse source_images JSONB
+  const sourceImages = (() => {
+    if (!row.source_images) {
+      return null;
+    }
+    try {
+      return typeof row.source_images === "string" ? JSON.parse(row.source_images) : row.source_images;
+    } catch {
+      return null;
+    }
+  })();
+  
+  return {
+    id: row.id,
+    userId: row.user_id || null,
+    chatId: row.chat_id || null,
+    workspaceId: row.workspace_id || null,
+    parentJobId: row.parent_job_id || null,
+    parentJobIds: [],  // Populated separately via getJobParentIds when needed
+    status: row.status,
+    prompt: row.prompt,
+    imageUrl: imageUrl,
+    sourceImages,
+    generateType: row.generate_type ?? (waterLike ? ("Water" as GenerateType) : row.generate_type),
+    enablePBR: true,
+    resultGlbUrl: finalGlbUrl,
+    previewImageUrl: resolvedPreviewUrl,
+    errorCode: row.error_code,
+    errorMessage: row.error_message,
+    creditsUsed: row.credits_used != null ? row.credits_used : 0,
+    engine: row.engine ?? (waterLike ? "water" : "trilles"),
+    resultKind: row.result_kind ?? (waterLike ? "three_factory" : "glb"),
+    llmModel: row.llm_model ?? null,
+    llmProvider: row.llm_provider ?? null,
+    factoryCode: row.factory_code ?? null,
+    sculptPass: row.sculpt_pass ?? null,
+    sculptSpec: row.sculpt_spec ?? null,
+    durationMs: typeof row.duration_ms === "number" ? row.duration_ms : null,
+    source: row.source || "web",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * Get the full lineage DAG for a job (from all roots to the given job).
+ * Uses a single recursive SQL function (get_job_lineage) instead of N+1 queries.
+ * Returns jobs in topological order (roots first, target last).
+ */
+export async function getJobLineage(jobId: string): Promise<JobRecord[]> {
+  try {
+    // Use the recursive Postgres function — 1 query instead of N+1
+    const { data, error } = await supabase.rpc("get_job_lineage", {
+      target_job_id: jobId,
+    });
+
+    if (!error && data && data.length > 0) {
+      return data.map((row: any) => {
+        const job = mapRow(row);
+        // The RPC returns parent_job_ids as an array already
+        job.parentJobIds = row.parent_job_ids || (job.parentJobId ? [job.parentJobId] : []);
+        return job;
+      });
+    }
+
+    // Fallback: if RPC fails (function not deployed yet), use the old N+1 approach
+    if (error) {
+      logger.warn({ err: error, jobId }, "get_job_lineage RPC failed, falling back to N+1 queries");
+    }
+    return getJobLineageFallback(jobId);
+  } catch (err: any) {
+    logger.warn({ err, jobId }, "getJobLineage exception, falling back to N+1 queries");
+    return getJobLineageFallback(jobId);
+  }
+}
+
+/**
+ * Fallback N+1 lineage traversal (used when the recursive SQL function isn't deployed yet).
+ */
+async function getJobLineageFallback(jobId: string): Promise<JobRecord[]> {
+  const visited = new Map<string, JobRecord>();
+  const queue: string[] = [jobId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (visited.has(currentId)) continue;
+
+    const job = await getJob(currentId);
+    if (!job) continue;
+
+    const parentIds = await getJobParentIds(currentId);
+    job.parentJobIds = parentIds.length > 0 ? parentIds : (job.parentJobId ? [job.parentJobId] : []);
+    visited.set(currentId, job);
+
+    for (const pid of job.parentJobIds) {
+      if (!visited.has(pid)) queue.push(pid);
+    }
+    if (job.parentJobId && !visited.has(job.parentJobId)) {
+      queue.push(job.parentJobId);
+    }
+  }
+
+  // Topological sort (roots first)
+  const sorted: JobRecord[] = [];
+  const inSorted = new Set<string>();
+
+  function addJob(id: string) {
+    if (inSorted.has(id)) return;
+    const job = visited.get(id);
+    if (!job) return;
+    for (const pid of job.parentJobIds) addJob(pid);
+    inSorted.add(id);
+    sorted.push(job);
+  }
+
+  addJob(jobId);
+  return sorted;
+}
