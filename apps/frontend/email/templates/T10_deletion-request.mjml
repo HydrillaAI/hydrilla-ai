@@ -1,0 +1,20 @@
+<!--
+id: T10
+name: Deletion request received
+layout: base
+kind: transactional
+sender: hi
+category: account
+topic: none
+trigger: account_deletion_requested
+phase: 1
+subject: We received your deletion request
+preheader: We'll confirm by email when your account is deleted.
+footer_reason: You're receiving this because a deletion request was made for your Hydrilla account.
+optional: false
+facts: a founder must confirm the deletion timeline before any number of days is added; retention periods in the privacy policy are still placeholders
+data: none
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>We received a request to delete your Hydrilla account and the content in it. We'll email you again when it is done.</mj-text>
+<mj-text>If you didn't make this request, reply to this email straight away so we can stop it.</mj-text>

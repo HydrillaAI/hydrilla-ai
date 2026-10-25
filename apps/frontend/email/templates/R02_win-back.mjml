@@ -1,0 +1,21 @@
+<!--
+id: R02
+name: Win-back
+layout: personal
+kind: campaign
+sender: rishi
+category: retention
+topic: news-and-tips
+trigger: segment last_seen_at more than 30 days ago; once per person
+phase: 3
+subject: Your Hydrilla account is waiting
+preheader: Your models are still where you left them.
+footer_reason: You're receiving this because you have a Hydrilla account you haven't used in a while.
+optional: true
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>It's been a while since you used Hydrilla. Your models are still in your account{% if customer.credits_remaining %}, along with {{ customer.credits_remaining | default: 0 }} credits{% endif %}.</mj-text>
+<mj-text>If you have a project coming up, everything is ready for you.</mj-text>
+<mj-text><a href="https://hydrilla.ai/app/studio">Open Studio</a></mj-text>
+<mj-text>If Hydrilla didn't fit what you needed, a one-line reply telling me why would help us a lot.</mj-text>
+<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>

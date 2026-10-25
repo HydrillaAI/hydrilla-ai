@@ -1,0 +1,21 @@
+<!--
+id: D01
+name: Payment failed
+layout: base
+kind: campaign
+sender: hi
+category: billing
+topic: none
+trigger: event payment_failed (send to unsubscribed people: on)
+phase: 2
+subject: Payment didn't go through
+preheader: Update your payment details to keep your plan active.
+footer_reason: You're receiving this because a payment for your Hydrilla plan failed.
+optional: false
+facts: confirm where people update payment details (billing_url points at the pricing page for now)
+data: event.plan_name, event.billing_url
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>We couldn't take the latest payment for your {{ event.plan_name | default: "Hydrilla" }} plan.</mj-text>
+<mj-text>Update your payment details to keep your plan active. If the payment can't be completed, your plan is put on hold and new generations stop until it is.</mj-text>
+<mj-button href="{{ event.billing_url | default: 'https://hydrilla.ai/app/pricing' }}">Update payment details</mj-button>

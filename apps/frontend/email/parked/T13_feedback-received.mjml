@@ -1,0 +1,17 @@
+<!--
+id: T13
+name: Support or feedback received
+layout: base
+sender: hi
+category: account
+topic: none
+trigger: support_feedback_submitted
+phase: 1
+subject: We received your {{ trigger.request_type | default: "message" }}
+preheader: Thanks for telling us. We'll reply if we need more detail.
+footer_reason: You're receiving this because you sent feedback or a support request from Hydrilla.
+optional: false
+data: name, request_type
+-->
+<mj-text>Hi {{ trigger.name | default: "there" }},</mj-text>
+<mj-text>Thanks for sending us your {{ trigger.request_type | default: "message" }}. We've received it and will write back from <a href="mailto:hi@hydrilla.ai">hi@hydrilla.ai</a> if we need more detail.</mj-text>

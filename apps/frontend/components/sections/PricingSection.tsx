@@ -1,0 +1,382 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
+import { Check } from "lucide-react";
+
+import { track } from "@/lib/analytics";
+import { faqByQuestions } from "@/lib/faq";
+import { FaqAnswer } from "@/components/sections/FaqAnswer";
+import {
+  checkoutHref,
+  estimateMonthlyModels,
+  isPaidPlan,
+  normalizePlanId,
+  planDisplayLabel,
+  planFeatureLines,
+  PRICING_CATALOG,
+  PRICING_FAQ_QUESTIONS,
+  PRICING_PAGE,
+  SLOT_SAVE_PERCENT,
+  type PlanId,
+  type PricingCatalogRow,
+} from "@/lib/pricing";
+
+const BACKEND_URL = (
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app"
+).replace(/\/+$/, "");
+
+type UserPlan = PlanId | null;
+
+type CtaState = {
+  label: string;
+  disabled: boolean;
+  current: boolean;
+  href?: string;
+};
+
+function getCtaState(
+  row: PricingCatalogRow,
+  userPlan: UserPlan,
+  catalogPlan: string | null,
+  loading: boolean,
+  signedIn: boolean,
+  trialEligible = true
+): CtaState {
+  const holdsSlot = catalogPlan === "slot" || catalogPlan === "slot_pro";
+  const current =
+    signedIn &&
+    !loading &&
+    ((row.kind === "slot" && catalogPlan === row.id) ||
+      (!holdsSlot &&
+        ((userPlan === null && row.id === "free") || userPlan === row.id)));
+
+  if (current) return { label: "Current plan", disabled: true, current: true };
+
+  if (holdsSlot && row.kind !== "slot" && row.id !== "free") {
+    return {
+      label: "Manage in billing",
+      disabled: false,
+      current: false,
+      href: "/app/settings?section=billing",
+    };
+  }
+
+  if (signedIn && isPaidPlan(catalogPlan) && row.kind === "slot" && catalogPlan !== row.id) {
+    return {
+      label: "Manage in billing",
+      disabled: false,
+      current: false,
+      href: "/app/settings?section=billing",
+    };
+  }
+
+  if (!loading && userPlan === "starter" && row.id === "pro") {
+    return { label: "Upgrade to Pro", disabled: false, current: false };
+  }
+
+  if (!loading && userPlan === "pro" && row.id === "starter") {
+    return { label: "Included with Pro", disabled: true, current: false };
+  }
+
+  if (signedIn && !trialEligible && row.id !== "free") {
+    const nonTrialLabels: Record<string, string> = {
+      starter: "Choose Starter",
+      pro: "Choose Pro",
+      slot: "Choose Hourly",
+      slot_pro: "Choose Hourly Pro",
+    };
+    return { label: nonTrialLabels[row.id] || "Choose Plan", disabled: false, current: false };
+  }
+
+  return { label: row.cta, disabled: false, current: false };
+}
+
+function planHref(row: PricingCatalogRow, state: CtaState): string {
+  if (state.href) return state.href;
+  if (row.id === "free") return "/app/studio";
+  return checkoutHref(row.id);
+}
+
+function PlanCta({ row, state }: { row: PricingCatalogRow; state: CtaState }) {
+  const className = "mob-pricing-cta";
+  const tone = state.current ? "current" : state.disabled ? "muted" : undefined;
+
+  if (state.disabled) {
+    return (
+      <button type="button" disabled className={className} data-tone={tone}>
+        {state.current ? (
+          <>
+            <Check className="mr-2 h-4 w-4" strokeWidth={2} aria-hidden />
+            {state.label}
+          </>
+        ) : (
+          state.label
+        )}
+      </button>
+    );
+  }
+
+  const href = planHref(row, state);
+
+  return (
+    <Link
+      href={href}
+      className={className}
+      onClick={() =>
+        track("plan_cta_clicked", {
+          plan: row.id,
+          cta_label: state.label,
+          billing: "monthly",
+        })
+      }
+    >
+      {state.label}
+    </Link>
+  );
+}
+
+function PlanCard({
+  row,
+  state,
+  trialEligible = null,
+}: {
+  row: PricingCatalogRow;
+  state: CtaState;
+  trialEligible?: boolean | null;
+}) {
+  const popular = row.id === "pro" || row.id === "slot_pro";
+  const features = planFeatureLines(row);
+  const showTrialBadge = Boolean(row.trialDays && trialEligible === true && !state.current);
+
+  return (
+    <article className="mob-pricing-card">
+      <h3 className="mob-pricing-card-name">
+        {row.label}
+        {popular ? <span className="mob-pricing-badge">Popular</span> : null}
+      </h3>
+      <p className="mob-pricing-audience">{row.audience}</p>
+      <p className="mob-pricing-price">
+        <span className="mob-pricing-price-value">${row.monthly}</span>
+        <span className="mob-pricing-price-period">per month</span>
+      </p>
+      <div className="mob-pricing-trial">
+        {showTrialBadge ? (
+          <span className="mob-pricing-trial-badge">
+            14-day free trial · $0 today
+          </span>
+        ) : row.id === "free" ? (
+          <span className="mob-pricing-trial-free">Always free</span>
+        ) : (
+          <span className="mob-pricing-trial-placeholder" aria-hidden="true" />
+        )}
+      </div>
+      <PlanCta row={row} state={state} />
+      <ul className="mob-pricing-features">
+        {features.map((line) => (
+          <li key={line}>
+            <Check size={16} strokeWidth={1.8} aria-hidden />
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+export default function PricingSection({
+  compact = false,
+  pageHeading = false,
+}: {
+  compact?: boolean;
+  pageHeading?: boolean;
+}) {
+  const { getToken, isSignedIn, isLoaded } = useAuth();
+  const [userPlan, setUserPlan] = useState<UserPlan>(null);
+  const [catalogPlan, setCatalogPlan] = useState<string | null>(null);
+  // null until known, so the trial badge never shows and then disappears.
+  const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
+  const [slotMode, setSlotMode] = useState(false);
+  const [toggleTouched, setToggleTouched] = useState(false);
+  const faq = useMemo(() => faqByQuestions([...PRICING_FAQ_QUESTIONS]), []);
+  const Heading = pageHeading ? "h1" : "h2";
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn) {
+      setPlanLoading(false);
+      setTrialEligible(true);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+        const [subRes, trialRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/payments/subscription`, { headers }),
+          fetch(`${BACKEND_URL}/api/payments/trial-eligibility`, { headers }),
+        ]);
+
+        if (subRes.ok) {
+          const { subscription } = await subRes.json();
+          const raw = typeof subscription?.plan === "string" ? subscription.plan : null;
+          setCatalogPlan(raw);
+          setUserPlan(
+            raw === "slot" || raw === "slot_pro" ? null : raw ? normalizePlanId(raw) : null
+          );
+        }
+
+        if (trialRes.ok) {
+          const trialData = await trialRes.json();
+          setTrialEligible(Boolean(trialData?.eligible));
+        } else {
+          // Checkout decides eligibility; a failed lookup must not hide the trial.
+          setTrialEligible(true);
+        }
+      } catch {
+        // Pricing remains usable when subscription status cannot be loaded.
+        setTrialEligible(true);
+      } finally {
+        setPlanLoading(false);
+      }
+    })();
+  }, [getToken, isSignedIn, isLoaded]);
+
+  useEffect(() => {
+    if (toggleTouched) {
+      return;
+    }
+    if (catalogPlan === "slot" || catalogPlan === "slot_pro") {
+      setSlotMode(true);
+    }
+  }, [catalogPlan, toggleTouched]);
+
+  const rows = useMemo(
+    () =>
+      PRICING_CATALOG.map((row) => ({
+        row,
+        state: getCtaState(row, userPlan, catalogPlan, planLoading, Boolean(isSignedIn), trialEligible !== false),
+      })),
+    [catalogPlan, isSignedIn, planLoading, trialEligible, userPlan]
+  );
+
+  const visible = rows.filter(({ row }) => (slotMode ? row.kind === "slot" : row.kind === "anytime"));
+
+  const setMode = (next: boolean) => {
+    setToggleTouched(true);
+    setSlotMode(next);
+  };
+
+  return (
+    <section
+      className="mob-pricing"
+      data-pad={pageHeading ? "page" : compact ? "compact" : "section"}
+      aria-labelledby="pricing-heading"
+    >
+      <div className="mob-pricing-inner">
+        <header className="mob-pricing-hero">
+          <Heading id="pricing-heading" className="mob-pricing-title">
+            {PRICING_PAGE.title}
+          </Heading>
+          {compact ? null : <p className="mob-pricing-subtitle">{PRICING_PAGE.subtitle}</p>}
+
+          <div
+            className="mob-pricing-switch"
+            data-slot={slotMode ? "true" : "false"}
+            role="radiogroup"
+            aria-label="Plan type"
+          >
+            <span className="mob-pricing-switch-thumb" aria-hidden />
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!slotMode}
+              onClick={() => setMode(false)}
+            >
+              {PRICING_PAGE.toggleMonthly}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={slotMode}
+              onClick={() => setMode(true)}
+            >
+              {PRICING_PAGE.toggleSlot}
+            </button>
+          </div>
+          <p className="mob-pricing-save">
+            <strong>{SLOT_SAVE_PERCENT}% off</strong> on Hourly
+          </p>
+        </header>
+
+        <div className="mob-pricing-grid" data-count={visible.length}>
+          {visible.map(({ row, state }) => (
+            <PlanCard key={row.id} row={row} state={state} trialEligible={trialEligible} />
+          ))}
+        </div>
+
+        {isSignedIn && !planLoading ? (
+          <p className="mob-pricing-meta">
+            Current plan: {planDisplayLabel(catalogPlan)} · Monthly · USD
+          </p>
+        ) : (
+          <p className="mob-pricing-meta">Monthly · USD · Cancel anytime</p>
+        )}
+
+        {pageHeading ? (
+          <>
+            <div className="mob-pricing-compare">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Plan</th>
+                    <th>Price</th>
+                    <th>Credits</th>
+                    <th>From text</th>
+                    <th>From an image</th>
+                    <th>Access</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PRICING_CATALOG.map((row) => (
+                    <tr key={row.id}>
+                      <th scope="row">{row.label}</th>
+                      <td className="tabular-nums">${row.monthly}/mo</td>
+                      <td className="tabular-nums">{row.credits.toLocaleString("en-US")}</td>
+                      <td>{estimateMonthlyModels(row.credits, "text")}</td>
+                      <td>{estimateMonthlyModels(row.credits, "image")}</td>
+                      <td>{row.access}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <caption>{PRICING_PAGE.tableCaption}</caption>
+              </table>
+            </div>
+
+            <div className="mob-pricing-faq">
+              <h2>Frequently asked questions</h2>
+              <dl>
+                {faq.map((item) => (
+                  <div key={item.question}>
+                    <dt>{item.question}</dt>
+                    <dd>
+                      <FaqAnswer text={item.answer} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            <p className="mob-pricing-foot">
+              <Link href="/enterprise">{PRICING_PAGE.enterpriseHint}</Link>
+              {" for studios beyond the public Pro plan."}
+            </p>
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}

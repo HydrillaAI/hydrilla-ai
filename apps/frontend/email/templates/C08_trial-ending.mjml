@@ -1,0 +1,20 @@
+<!--
+id: C08
+name: Trial ending
+layout: base
+kind: campaign
+sender: hi
+category: billing
+topic: none
+trigger: date attribute trial_ends_at; send 3 days before; only if plan_status = trial
+phase: 2
+subject: Your trial ends on {{ customer.trial_ends_at | date: "%-d %b %Y" | default: "soon" }}
+preheader: Here is what happens next.
+footer_reason: You're receiving this because you're on a Hydrilla trial.
+optional: false
+facts: the terms still have [TRIAL CONVERSION TERMS]; confirm that a trial converts to the paid plan unless cancelled before sending
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>Your trial ends on {{ customer.trial_ends_at | date: "%-d %b %Y" | default: "soon" }}. When it ends, your subscription continues on the paid plan unless you cancel before then.</mj-text>
+<mj-text>Nothing else changes: your models and Workspaces stay as they are.</mj-text>
+<mj-button href="https://hydrilla.ai/app/pricing">Review your plan</mj-button>

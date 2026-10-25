@@ -1,0 +1,20 @@
+<!--
+id: C02
+name: Credits out
+layout: base
+kind: campaign
+sender: hi
+category: credits
+topic: credit-alerts
+trigger: event credits_exhausted; at most once every 25 days per person
+phase: 2
+subject: You've used all your credits
+preheader: Two ways to keep generating.
+footer_reason: You're receiving this because a generation on your Hydrilla account was blocked by your credit balance.
+optional: true
+data: event.plan, event.reset_on, event.pricing_url
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>Your last generation couldn't start because there aren't enough credits left in your balance.</mj-text>
+<mj-text>You can wait until {{ event.reset_on | default: "your next reset" }}, when your credits reset, or move to a plan with more credits and keep going now.</mj-text>
+<mj-button href="{{ event.pricing_url | default: 'https://hydrilla.ai/app/pricing' }}">See plans</mj-button>

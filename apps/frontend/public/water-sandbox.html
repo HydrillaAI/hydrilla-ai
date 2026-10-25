@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hydrilla Water Preview</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://unpkg.com blob:; connect-src blob: data:; img-src data: blob:; style-src 'unsafe-inline'; worker-src blob:;"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        /* Transparent: the themed viewer frame shows through until the backdrop arrives. */
+        background: transparent;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      #c {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #err {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+        color: #991b1b;
+        background: #fef2f2;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      /* Set from the parent's look (water-look → tone). */
+      html[data-tone="dark"] #err {
+        color: #fca5a5;
+        background: #1c1214;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="err"></div>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.167.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.167.0/examples/jsm/"
+        }
+      }
+    </script>
+    <!-- Generated factories are TypeScript. Transpile inside the opaque-origin
+         sandbox before importing the resulting JavaScript blob. -->
+    <script src="https://unpkg.com/typescript@5.9.3/lib/typescript.js"></script>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+      import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
+      import { OBJExporter } from "three/addons/exporters/OBJExporter.js";
+      import { STLExporter } from "three/addons/exporters/STLExporter.js";
+
+      const canvas = document.getElementById("c");
+      const errEl = document.getElementById("err");
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true,
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      const scene = new THREE.Scene();
+      // No backdrop until the parent's look arrives, so dark mode never flashes white.
+      scene.background = null;
+      /** Backdrop color the frame loop eases toward; null when transparent. */
+      let bgTarget = null;
+      const perspCam = new THREE.PerspectiveCamera(45, 1, 0.01, 200);
+      perspCam.position.set(2.4, 1.6, 2.8);
+      const orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 200);
+      orthoCam.position.copy(perspCam.position);
+      let camera = perspCam;
+
+      const controls = new OrbitControls(camera, canvas);
+      controls.enableDamping = true;
+      controls.enableRotate = true;
+      controls.enableZoom = true;
+      controls.enablePan = true;
+      controls.target.set(0, 0.4, 0);
+      controls.minZoom = 0.3;
+      controls.maxZoom = 8;
+      controls.addEventListener("start", () => {
+        fly = null;
+      });
+      let interactive = true;
+
+      // Camera framing + preset fly-ins (mirrors components/ThreeViewer.tsx).
+      const FRAME_PADDING = 1.2;
+      const FLY_MS = 420;
+      const VIEW_DIRECTIONS = {
+        front: new THREE.Vector3(0, 0, 1),
+        side: new THREE.Vector3(1, 0, 0),
+        top: new THREE.Vector3(0, 1, 0.0001).normalize(),
+        reset: new THREE.Vector3(1, 0.75, 1).normalize(),
+      };
+      let frameSphere = { center: new THREE.Vector3(0, 0.4, 0), radius: 1 };
+      let fly = null;
+      const tanHalf = (fov) => Math.tan(THREE.MathUtils.degToRad(fov) / 2);
+      const fitDistance = (radius, fov) => (radius * FRAME_PADDING) / Math.sin(THREE.MathUtils.degToRad(fov) / 2);
+
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      let loadToken = 0;
+
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+      // Intensities arrive from the parent (lib/viewer/look.ts → water-look).
+      const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambient);
+      const hemi = new THREE.HemisphereLight(0xffffff, 0xf4f4f5, 0.55);
+      scene.add(hemi);
+      const key = new THREE.DirectionalLight(0xffffff, 1.2);
+      key.position.set(4, 8, 5);
+      key.castShadow = true;
+      key.shadow.mapSize.set(2048, 2048);
+      key.shadow.bias = -0.0005;
+      scene.add(key);
+      scene.add(key.target);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+      fill.position.set(-4, 5, -4);
+      scene.add(fill);
+      const rim = new THREE.DirectionalLight(0xffffff, 0.25);
+      rim.position.set(0, 3, -8);
+      scene.add(rim);
+
+      // White lines tinted by the material, so one helper reads on light and dark backdrops.
+      const grid = new THREE.GridHelper(8, 16, 0xffffff, 0xffffff);
+      grid.material.transparent = true;
+      grid.material.depthWrite = false;
+      grid.material.color.set(0x000000);
+      grid.material.opacity = 0.11;
+      grid.visible = false;
+      scene.add(grid);
+
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(60, 60),
+        new THREE.ShadowMaterial({ opacity: 0.16 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Selected-part highlight (spec from lib/viewer/highlight.ts via water-highlight).
+      // Kept outside `root` so exports never include it.
+      const highlightGroup = new THREE.Group();
+      scene.add(highlightGroup);
+      let highlightMats = null;
+      let highlightName = null;
+
+      function ensureHighlightMaterials(spec) {
+        if (highlightMats || !spec) return highlightMats;
+        highlightMats = {
+          rim: new THREE.ShaderMaterial({
+            uniforms: {
+              uColor: { value: new THREE.Color(spec.color) },
+              uRim: { value: spec.rimStrength },
+              uFill: { value: spec.fill },
+              uTime: { value: 0 },
+              uPeriod: { value: spec.pulsePeriod },
+            },
+            vertexShader: spec.vertexShader,
+            fragmentShader: spec.fragmentShader,
+            transparent: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
+            toneMapped: false,
+          }),
+          edge: new THREE.LineBasicMaterial({
+            color: spec.color,
+            transparent: true,
+            opacity: spec.edgeOpacity,
+            depthWrite: false,
+            toneMapped: false,
+          }),
+          edgeThreshold: spec.edgeThreshold,
+        };
+        return highlightMats;
+      }
+
+      function followMesh(overlay, mesh) {
+        overlay.matrixAutoUpdate = false;
+        overlay.matrix.copy(mesh.matrixWorld);
+        overlay.userData.follow = mesh;
+        overlay.renderOrder = 2;
+        overlay.raycast = () => {};
+        return overlay;
+      }
+
+      const EDGE_TRIANGLE_LIMIT = 200000;
+      let edgeTimer = null;
+
+      /** Crease outline built once per mesh; disposed with the model. */
+      function highlightEdges(mesh) {
+        if (mesh.userData.highlightEdges !== undefined) return mesh.userData.highlightEdges;
+        const g = mesh.geometry;
+        const triangles = ((g.index && g.index.count) || (g.attributes.position && g.attributes.position.count) || 0) / 3;
+        const edges = triangles > EDGE_TRIANGLE_LIMIT ? null : new THREE.EdgesGeometry(g, highlightMats.edgeThreshold);
+        mesh.userData.highlightEdges = edges;
+        return edges;
+      }
+
+      function applyHighlight() {
+        if (edgeTimer !== null) clearTimeout(edgeTimer);
+        edgeTimer = null;
+        highlightGroup.clear();
+        if (!root || !highlightName || !highlightMats) return;
+        root.updateMatrixWorld(true);
+        const meshes = [];
+        root.traverse((child) => {
+          if (child.isMesh && !child.isSkinnedMesh && child.name === highlightName && isShown(child)) meshes.push(child);
+        });
+        for (const mesh of meshes) highlightGroup.add(followMesh(new THREE.Mesh(mesh.geometry, highlightMats.rim), mesh));
+        // Rim shows this frame; crease outlines are O(triangles) so they follow a tick later.
+        const name = highlightName;
+        edgeTimer = setTimeout(() => {
+          edgeTimer = null;
+          if (highlightName !== name) return;
+          for (const mesh of meshes) {
+            const edges = highlightEdges(mesh);
+            if (edges) highlightGroup.add(followMesh(new THREE.LineSegments(edges, highlightMats.edge), mesh));
+          }
+        }, 0);
+      }
+
+      let root = null;
+      /** Largest model dimension / 2 — scales the ortho frustum like ThreeViewer's normalized GLBs. */
+      let modelScale = 1;
+      let resolvedLook = null;
+      /** name → { color, roughness, metalness }; meshes not listed use their authored material. */
+      let partMaterials = {};
+      /** Mesh names hidden in the viewport (mirrors components/ThreeViewer.tsx). */
+      let hiddenParts = new Set();
+      // Layers, not `visible`: exports use onlyVisible, and hidden parts must still export.
+      const HIDDEN_LAYER = 31;
+      const isShown = (mesh) => mesh.layers.isEnabled(0);
+
+      function applyPartVisibility() {
+        if (!root) return;
+        root.traverse((child) => {
+          if (child.isMesh) child.layers.set(hiddenParts.has(child.name) ? HIDDEN_LAYER : 0);
+        });
+      }
+
+      // Edges drawn over the shaded surface. Outside `root`, so exports never include them.
+      const wireGroup = new THREE.Group();
+      scene.add(wireGroup);
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: "#18181b",
+        wireframe: true,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        toneMapped: false,
+      });
+
+      function applyWireOverlay() {
+        wireGroup.clear();
+        const color = resolvedLook?.wireOverlay;
+        if (!root || !color) return;
+        wireMat.color.set(color);
+        root.updateMatrixWorld(true);
+        root.traverse((child) => {
+          if (child.isMesh && !child.isSkinnedMesh && isShown(child)) {
+            wireGroup.add(followMesh(new THREE.Mesh(child.geometry, wireMat), child));
+          }
+        });
+      }
+
+      /** Bounds of the visible meshes with this name, or null when none are shown. */
+      function partSphere(name) {
+        if (!root || !name) return null;
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3();
+        root.traverse((child) => {
+          if (child.isMesh && child.name === name && isShown(child)) box.expandByObject(child);
+        });
+        if (box.isEmpty()) return null;
+        const sphere = box.getBoundingSphere(new THREE.Sphere());
+        sphere.radius = Math.max(sphere.radius, frameSphere.radius * 0.02);
+        return sphere;
+      }
+
+      function materialsOf(mesh) {
+        if (!mesh || !mesh.material) return [];
+        return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      }
+
+      function readPartMaterial(mat) {
+        return {
+          color: mat && mat.color && mat.color.isColor ? "#" + mat.color.getHexString() : "#888888",
+          roughness: typeof mat?.roughness === "number" ? mat.roughness : 0.5,
+          metalness: typeof mat?.metalness === "number" ? mat.metalness : 0,
+        };
+      }
+
+      /** Physical is a superset of standard, so clearcoat can be dialled in later. */
+      function toPhysical(m) {
+        if (!m || !m.clone) return m;
+        if (!m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) return m.clone();
+        const physical = new THREE.MeshPhysicalMaterial();
+        THREE.MeshStandardMaterial.prototype.copy.call(physical, m);
+        physical.defines = { STANDARD: "", PHYSICAL: "" };
+        return physical;
+      }
+
+      /** Name unnamed meshes, give each mesh its own materials, and remember authored values. */
+      function prepareMeshes(obj) {
+        const authored = {};
+        let unnamed = 0;
+        obj.traverse((child) => {
+          if (!child.isMesh) return;
+          if (!child.name) child.name = `Part ${++unnamed}`;
+          child.castShadow = true;
+          const mats = materialsOf(child).map((m) => toPhysical(m));
+          if (mats.length) child.material = Array.isArray(child.material) ? mats : mats[0];
+          for (const m of mats) if (m) m.userData.base = readPartMaterial(m);
+          if (!authored[child.name] && mats[0]) authored[child.name] = readPartMaterial(mats[0]);
+        });
+        return authored;
+      }
+
+      function applyPartMaterials() {
+        if (!root) return;
+        const wire = Boolean(resolvedLook?.wireframe);
+        const pbr = resolvedLook?.pbr || {};
+        const num = (v) => (typeof v === "number" ? v : null);
+        root.traverse((child) => {
+          if (!child.isMesh) return;
+          const override = partMaterials[child.name];
+          for (const mat of materialsOf(child)) {
+            if (!mat) continue;
+            const base = mat.userData.base;
+            // Part overrides win over model-wide PBR, which wins over authored values.
+            const target =
+              override ||
+              (base && {
+                color: base.color,
+                roughness: num(pbr.roughness) ?? base.roughness,
+                metalness: num(pbr.metalness) ?? base.metalness,
+              });
+            if (target) {
+              if (mat.color && mat.color.isColor && target.color) mat.color.set(target.color);
+              if ("roughness" in mat) mat.roughness = target.roughness;
+              if ("metalness" in mat) mat.metalness = target.metalness;
+            }
+            if (mat.isMeshStandardMaterial) mat.envMapIntensity = num(pbr.reflections) ?? 1;
+            if (mat.isMeshPhysicalMaterial) {
+              mat.clearcoat = num(pbr.clearcoat) ?? 0;
+              mat.clearcoatRoughness = 0.12;
+            }
+            if ("wireframe" in mat) mat.wireframe = wire;
+            // Push surfaces back a hair so overlay edges never z-fight with them.
+            const overlay = Boolean(resolvedLook?.wireOverlay);
+            mat.polygonOffset = overlay;
+            mat.polygonOffsetFactor = overlay ? 1 : 0;
+            mat.polygonOffsetUnits = overlay ? 1 : 0;
+            mat.needsUpdate = true;
+          }
+        });
+      }
+
+      let frameLift = 0;
+
+      /** Slide the frustum down so the model sits higher, clear of the composer. */
+      function applyFrameLift(cam) {
+        const w = window.innerWidth;
+        const h = Math.max(window.innerHeight, 1);
+        if (frameLift > 0 && w > 0) {
+          cam.setViewOffset(w, h, 0, Math.round(h * frameLift), w, h);
+        } else {
+          cam.clearViewOffset();
+        }
+      }
+
+      function updateCamera() {
+        const spec = resolvedLook?.camera || { ortho: false, fov: 45, frustum: 2.2 };
+        const w = window.innerWidth;
+        const h = Math.max(window.innerHeight, 1);
+        const aspect = w / h;
+        const next = spec.ortho ? orthoCam : perspCam;
+        const target = controls.target;
+        const offset = camera.position.clone().sub(target);
+        const distance = offset.length() || 1;
+        const direction = offset.normalize();
+        // Lens changes keep the framed size instead of snapping to a fixed frustum.
+        if (next !== camera) {
+          fly = null;
+          if (next === orthoCam) {
+            orthoCam.userData.halfHeight = distance * tanHalf(perspCam.fov);
+            orthoCam.zoom = 1;
+            orthoCam.position.copy(target).addScaledVector(direction, Math.max(distance, frameSphere.radius * 4));
+          } else {
+            const half = (orthoCam.userData.halfHeight ?? spec.frustum * modelScale) / orthoCam.zoom;
+            perspCam.fov = spec.fov;
+            perspCam.position.copy(target).addScaledVector(direction, half / tanHalf(spec.fov));
+          }
+          next.up.copy(camera.up);
+          next.lookAt(target);
+          camera = next;
+          controls.object = camera;
+        } else if (camera === perspCam && camera.fov !== spec.fov) {
+          fly = null;
+          const half = distance * tanHalf(camera.fov);
+          camera.position.copy(target).addScaledVector(direction, half / tanHalf(spec.fov));
+        }
+        if (camera === orthoCam) {
+          const f = orthoCam.userData.halfHeight ?? spec.frustum * modelScale;
+          camera.left = -f * aspect;
+          camera.right = f * aspect;
+          camera.top = f;
+          camera.bottom = -f;
+        } else {
+          camera.fov = spec.fov;
+          camera.aspect = aspect;
+        }
+        camera.updateProjectionMatrix();
+        applyFrameLift(camera);
+      }
+
+      function applyLook(look) {
+        if (!look || typeof look !== "object") return;
+        resolvedLook = look;
+        renderer.toneMappingExposure = Number(look.exposure) || 1;
+        document.documentElement.dataset.tone = look.tone === "dark" ? "dark" : "light";
+        if (!look.background) {
+          scene.background = null;
+          bgTarget = null;
+        } else {
+          bgTarget = new THREE.Color(look.background);
+          const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          // From transparent (or with reduced motion) there is nothing to ease from.
+          if (!(scene.background && scene.background.isColor) || reduced) scene.background = bgTarget.clone();
+        }
+        const stage = look.stage || {};
+        if (typeof stage.gridColor === "string") grid.material.color.set(stage.gridColor);
+        if (typeof stage.gridOpacity === "number") grid.material.opacity = stage.gridOpacity;
+        if (typeof stage.shadowOpacity === "number") ground.material.opacity = stage.shadowOpacity;
+        grid.visible = Boolean(look.grid);
+        ground.visible = Boolean(look.shadow);
+        key.castShadow = Boolean(look.shadow);
+        controls.autoRotate = Boolean(look.autoRotate);
+        const lights = look.lights || {};
+        ambient.intensity = Number(lights.ambient) || 0;
+        hemi.intensity = Number(lights.hemi) || 0;
+        key.intensity = Number(lights.key) || 0;
+        fill.intensity = Number(lights.fill) || 0;
+        rim.intensity = Number(lights.rim) || 0;
+        placeLights();
+        applyPartMaterials();
+        applyWireOverlay();
+        updateCamera();
+      }
+
+      function presetPosition(view) {
+        const distance = camera === orthoCam ? frameSphere.radius * 4 : fitDistance(frameSphere.radius, perspCam.fov);
+        return frameSphere.center.clone().addScaledVector(VIEW_DIRECTIONS[view], distance);
+      }
+
+      function resetOrthoFrame() {
+        if (camera !== orthoCam) return;
+        orthoCam.userData.halfHeight = frameSphere.radius * FRAME_PADDING;
+        updateCamera();
+      }
+
+      function placeCamera(view) {
+        resetOrthoFrame();
+        camera.zoom = 1;
+        camera.updateProjectionMatrix();
+        controls.target.copy(frameSphere.center);
+        camera.position.copy(presetPosition(view));
+      }
+
+      /** Frame one part from the current viewing angle. */
+      function frameSelection(name) {
+        const part = partSphere(name);
+        if (!part) {
+          moveCamera("reset");
+          return;
+        }
+        const direction = camera.position.clone().sub(controls.target).normalize();
+        if (camera === orthoCam) {
+          orthoCam.userData.halfHeight = part.radius * FRAME_PADDING;
+          updateCamera();
+        }
+        // Ortho stays outside the whole model so near-plane clipping never cuts into it.
+        const distance = camera === orthoCam ? frameSphere.radius * 4 : fitDistance(part.radius, perspCam.fov);
+        const toPos = part.center.clone().addScaledVector(direction, distance);
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          camera.zoom = 1;
+          camera.updateProjectionMatrix();
+          controls.target.copy(part.center);
+          camera.position.copy(toPos);
+          return;
+        }
+        fly = {
+          start: performance.now(),
+          fromPos: camera.position.clone(),
+          toPos,
+          fromTarget: controls.target.clone(),
+          toTarget: part.center.clone(),
+          fromZoom: camera.zoom,
+        };
+      }
+
+      function moveCamera(view) {
+        resetOrthoFrame();
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          placeCamera(view);
+          return;
+        }
+        fly = {
+          start: performance.now(),
+          fromPos: camera.position.clone(),
+          toPos: presetPosition(view),
+          fromTarget: controls.target.clone(),
+          toTarget: frameSphere.center.clone(),
+          fromZoom: camera.zoom,
+        };
+      }
+
+      /** Sit the shadow catcher/grid under the model and fit the key light's shadow frustum. */
+      // Rig directions at 0° light rotation (mirrors LIGHT_BASE in components/ThreeViewer.tsx).
+      const LIGHT_DIRS = {
+        key: new THREE.Vector3(4, 8, 5).normalize(),
+        fill: new THREE.Vector3(-4, 5, -4).normalize(),
+        rim: new THREE.Vector3(0, 3, -8).normalize(),
+      };
+      const Y_AXIS = new THREE.Vector3(0, 1, 0);
+      const stage = { center: new THREE.Vector3(0, 0.4, 0), r: 1 };
+
+      /** Yaw the rig and the environment reflections around the model together. */
+      function placeLights() {
+        const yaw = Number(resolvedLook?.lightRotation) || 0;
+        const at = (dir, dist) => stage.center.clone().add(dir.clone().applyAxisAngle(Y_AXIS, yaw).multiplyScalar(dist));
+        key.position.copy(at(LIGHT_DIRS.key, stage.r * 3));
+        fill.position.copy(at(LIGHT_DIRS.fill, stage.r * 3));
+        rim.position.copy(at(LIGHT_DIRS.rim, stage.r * 3));
+        scene.environmentRotation.y = yaw;
+      }
+
+      function fitStage(box) {
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const r = Math.max(size.x, size.y, size.z, 0.5);
+        ground.position.y = box.min.y - 0.001;
+        grid.position.set(center.x, box.min.y, center.z);
+        grid.scale.setScalar(Math.max(1, r / 4));
+        stage.center.copy(center);
+        stage.r = r;
+        placeLights();
+        key.target.position.copy(center);
+        key.target.updateMatrixWorld();
+        const sc = key.shadow.camera;
+        sc.left = -r * 1.5;
+        sc.right = r * 1.5;
+        sc.top = r * 1.5;
+        sc.bottom = -r * 1.5;
+        sc.near = 0.01;
+        sc.far = r * 8;
+        sc.updateProjectionMatrix();
+        modelScale = r / 2;
+      }
+
+      function disposeObject(obj) {
+        if (!obj) return;
+        obj.traverse((child) => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.userData && child.userData.highlightEdges) child.userData.highlightEdges.dispose();
+          const mat = child.material;
+          if (!mat) return;
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose?.());
+          else mat.dispose?.();
+        });
+      }
+
+      function applyInstanceTransform(t) {
+        if (!root || !t) return;
+        if (Array.isArray(t.position)) root.position.fromArray(t.position);
+        if (Array.isArray(t.rotation)) root.rotation.set(t.rotation[0] || 0, t.rotation[1] || 0, t.rotation[2] || 0);
+        if (Array.isArray(t.scale)) root.scale.fromArray(t.scale);
+      }
+
+      // Select on click only — orbit drags must not change the selected part.
+      let pointerDownAt = null;
+      canvas.addEventListener("pointerdown", (ev) => {
+        pointerDownAt = [ev.clientX, ev.clientY];
+      });
+      canvas.addEventListener("pointerup", (ev) => {
+        if (!pointerDownAt) return;
+        const moved = Math.hypot(ev.clientX - pointerDownAt[0], ev.clientY - pointerDownAt[1]);
+        pointerDownAt = null;
+        if (moved > 4 || !root) return;
+        const rect = canvas.getBoundingClientRect();
+        pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hit = raycaster.intersectObject(root, true).find((h) => h.object.isMesh);
+        const name = hit?.object.name || null;
+        // Highlight here instead of waiting for the parent's round trip.
+        highlightName = name;
+        applyHighlight();
+        parent.postMessage({ type: "water-select", name }, "*");
+      });
+
+      function showError(msg) {
+        errEl.style.display = "flex";
+        errEl.textContent = msg;
+        parent.postMessage({ type: "code-sculpt-error", message: msg }, "*");
+      }
+
+      function clearError() {
+        errEl.style.display = "none";
+      }
+
+      function resize() {
+        renderer.setSize(window.innerWidth, window.innerHeight, false);
+        updateCamera();
+      }
+      window.addEventListener("resize", resize);
+      resize();
+
+      function frame(time) {
+        // Factories are static (D2). Never run userData.tick even if older jobs still emit it.
+        // Ease the backdrop toward its target so theme and swatch changes glide instead of cutting.
+        if (bgTarget && scene.background && scene.background.isColor && !scene.background.equals(bgTarget)) {
+          scene.background.lerp(bgTarget, 0.16);
+          const bg = scene.background;
+          if (Math.abs(bg.r - bgTarget.r) + Math.abs(bg.g - bgTarget.g) + Math.abs(bg.b - bgTarget.b) < 0.002) bg.copy(bgTarget);
+        }
+        if (fly) {
+          const t = Math.min(1, (performance.now() - fly.start) / FLY_MS);
+          const eased = 1 - Math.pow(1 - t, 3);
+          camera.position.lerpVectors(fly.fromPos, fly.toPos, eased);
+          controls.target.lerpVectors(fly.fromTarget, fly.toTarget, eased);
+          if (camera.zoom !== 1) {
+            camera.zoom = fly.fromZoom + (1 - fly.fromZoom) * eased;
+            camera.updateProjectionMatrix();
+          }
+          if (t === 1) fly = null;
+        }
+        if (interactive) controls.update();
+        if (highlightMats) highlightMats.rim.uniforms.uTime.value = (time || 0) / 1000;
+        for (const overlay of [...highlightGroup.children, ...wireGroup.children]) {
+          overlay.matrix.copy(overlay.userData.follow.matrixWorld);
+        }
+        renderer.render(scene, camera);
+        requestAnimationFrame(frame);
+      }
+      frame();
+
+      function captureThumbnail() {
+        return new Promise((resolve) => {
+          try {
+            interactive = false;
+            controls.enableDamping = false;
+            controls.update();
+            highlightGroup.visible = false;
+            renderer.render(scene, camera);
+            const raw = canvas.toDataURL("image/jpeg", 0.85);
+            highlightGroup.visible = true;
+            const img = new Image();
+            img.onload = () => {
+              try {
+                const max = 512;
+                const scale = Math.min(1, max / Math.max(img.width, img.height));
+                const w = Math.max(1, Math.round(img.width * scale));
+                const h = Math.max(1, Math.round(img.height * scale));
+                const off = document.createElement("canvas");
+                off.width = w;
+                off.height = h;
+                const ctx = off.getContext("2d");
+                if (!ctx) {
+                  resolve(raw);
+                } else {
+                  ctx.fillStyle = "#ffffff";
+                  ctx.fillRect(0, 0, w, h);
+                  ctx.drawImage(img, 0, 0, w, h);
+                  resolve(off.toDataURL("image/jpeg", 0.82));
+                }
+              } catch {
+                resolve(raw);
+              } finally {
+                controls.enableDamping = true;
+                interactive = true;
+              }
+            };
+            img.onerror = () => {
+              controls.enableDamping = true;
+              interactive = true;
+              resolve(raw);
+            };
+            img.src = raw;
+          } catch {
+            controls.enableDamping = true;
+            interactive = true;
+            resolve(null);
+          }
+        });
+      }
+
+      async function loadFactory(code) {
+        const token = ++loadToken;
+        clearError();
+        glbCache = null;
+        glbWarmToken += 1;
+        if (root) {
+          scene.remove(root);
+          disposeObject(root);
+          root = null;
+        }
+        applyHighlight();
+        try {
+          if (!window.ts?.transpileModule) {
+            throw new Error("TypeScript preview compiler did not load");
+          }
+
+          // Existing / LLM factories often use bare MeshStandardMaterial even when they
+          // `import * as THREE from "three"`. ES modules have no THREE globals, so inject
+          // local aliases (and strip duplicate three imports) before compile+import.
+          const prepared = prepareFactorySource(code);
+
+          const compiled = window.ts.transpileModule(prepared, {
+            compilerOptions: {
+              target: window.ts.ScriptTarget.ES2022,
+              module: window.ts.ModuleKind.ES2022,
+              isolatedModules: true,
+            },
+            reportDiagnostics: true,
+          });
+          const fatal = (compiled.diagnostics || []).filter(
+            (d) => d.category === window.ts.DiagnosticCategory.Error
+          );
+          // Don't hard-fail on type diagnostics — runtime is what matters for preview.
+          // Only block if transpile produced empty output.
+          if (!compiled.outputText || !String(compiled.outputText).trim()) {
+            const first = fatal[0];
+            throw new Error(
+              "Generated TypeScript is invalid: " +
+                (first
+                  ? window.ts.flattenDiagnosticMessageText(first.messageText, "\n")
+                  : "empty compile output")
+            );
+          }
+          const blob = new Blob([compiled.outputText], { type: "text/javascript" });
+          const url = URL.createObjectURL(blob);
+          let mod;
+          try {
+            mod = await import(/* @vite-ignore */ url);
+          }           finally {
+            URL.revokeObjectURL(url);
+          }
+          if (token !== loadToken) return;
+          const factory =
+            mod.createModel ||
+            mod.default ||
+            mod.createObjectModel ||
+            Object.values(mod).find((v) => typeof v === "function");
+          if (typeof factory !== "function") {
+            throw new Error("No createModel() export found in generated code");
+          }
+          const next = factory();
+          if (!next || !next.isObject3D) {
+            throw new Error("createModel() did not return a THREE.Object3D");
+          }
+          if (token !== loadToken) {
+            disposeObject(next);
+            return;
+          }
+          if (root) {
+            scene.remove(root);
+            disposeObject(root);
+            root = null;
+          }
+          const authored = prepareMeshes(next);
+          root = next;
+          glbCache = null;
+          glbWarmToken += 1;
+          scene.add(root);
+          applyInstanceTransform(window.__waterInstance || null);
+          applyPartMaterials();
+          applyPartVisibility();
+          applyHighlight();
+          applyWireOverlay();
+          const box = new THREE.Box3().setFromObject(root);
+          const sphere = box.getBoundingSphere(new THREE.Sphere());
+          frameSphere = { center: sphere.center.clone(), radius: Math.max(sphere.radius, 0.01) };
+          fitStage(box);
+          updateCamera();
+          // Low floor so framing a small part can get close.
+          controls.minDistance = frameSphere.radius * 0.02;
+          controls.maxDistance = frameSphere.radius * 14;
+          placeCamera("reset");
+          controls.update();
+          renderer.render(scene, camera);
+
+          function computeModelStats(obj) {
+            let vertices = 0;
+            let faces = 0;
+            let meshCount = 0;
+            let boundaryEdges = 0;
+            let nonManifoldEdges = 0;
+            let totalEdgesChecked = 0;
+
+            obj.traverse((child) => {
+              if (!child.isMesh || !child.geometry) return;
+              meshCount++;
+              const pos = child.geometry.attributes?.position;
+              if (!pos) return;
+              vertices += pos.count;
+              const index = child.geometry.index;
+              const triCount = index ? Math.floor(index.count / 3) : Math.floor(pos.count / 3);
+              faces += triCount;
+
+              if (triCount > 0 && triCount <= 100000) {
+                const edgeMap = new Map();
+                const getIdx = (vOffset) => {
+                  if (index) return String(index.getX(vOffset));
+                  const x = Math.round(pos.getX(vOffset) * 1000);
+                  const y = Math.round(pos.getY(vOffset) * 1000);
+                  const z = Math.round(pos.getZ(vOffset) * 1000);
+                  return `${x},${y},${z}`;
+                };
+                for (let t = 0; t < triCount; t++) {
+                  const i0 = getIdx(t * 3);
+                  const i1 = getIdx(t * 3 + 1);
+                  const i2 = getIdx(t * 3 + 2);
+                  const addEdge = (a, b) => {
+                    const key = a < b ? `${a}_${b}` : `${b}_${a}`;
+                    edgeMap.set(key, (edgeMap.get(key) || 0) + 1);
+                  };
+                  addEdge(i0, i1);
+                  addEdge(i1, i2);
+                  addEdge(i2, i0);
+                }
+                edgeMap.forEach((count) => {
+                  totalEdgesChecked++;
+                  if (count === 1) boundaryEdges++;
+                  else if (count > 2) nonManifoldEdges++;
+                });
+              }
+            });
+
+            const isWatertight = faces > 0 && totalEdgesChecked > 0 && boundaryEdges === 0 && nonManifoldEdges === 0;
+            return {
+              vertices,
+              faces,
+              topology: isWatertight ? "Watertight Triangles" : "Triangles",
+              isWatertight,
+              meshCount,
+            };
+          }
+
+          const modelStats = computeModelStats(root);
+          const dims = box.getSize(new THREE.Vector3());
+          modelStats.size = [dims.x, dims.y, dims.z];
+
+          parent.postMessage({
+            type: "code-sculpt-ready",
+            meshNames: Object.keys(authored),
+            parts: authored,
+            stats: modelStats,
+          }, "*");
+
+          // One stable frame later → thumbnail for library cards
+          requestAnimationFrame(async () => {
+            const dataUrl = await captureThumbnail();
+            if (dataUrl) {
+              parent.postMessage(
+                { type: "code-sculpt-thumbnail", dataUrl, cameraView: "three-quarter" },
+                "*"
+              );
+            }
+            // Warm GLB in idle time so Download GLB is near-instant.
+            scheduleGlbWarm();
+          });
+        } catch (e) {
+          if (token !== loadToken) return;
+          glbCache = null;
+          showError(e?.message || String(e));
+        }
+      }
+
+      /**
+       * Make LLM factories resilient in an ES-module sandbox:
+       * - ensure `import * as THREE from "three"`
+       * - bind common constructors as locals (MeshStandardMaterial, Mesh, Group, …)
+       * so bare `new MeshStandardMaterial()` works on refresh/reopen.
+       */
+      function prepareFactorySource(raw) {
+        let body = String(raw || "");
+        // Drop existing three imports — we inject a single canonical one.
+        body = body.replace(
+          /^\s*import\s+\*\s+as\s+THREE\s+from\s+['"]three['"]\s*;?\s*/gm,
+          ""
+        );
+        body = body.replace(
+          /^\s*import\s+\{[^}]*\}\s+from\s+['"]three['"]\s*;?\s*/gm,
+          ""
+        );
+        body = body.replace(
+          /^\s*import\s+THREE\s+from\s+['"]three['"]\s*;?\s*/gm,
+          ""
+        );
+
+        const preamble = `import * as THREE from "three";
+const {
+  MeshStandardMaterial, MeshPhysicalMaterial, MeshBasicMaterial, MeshLambertMaterial,
+  MeshPhongMaterial, MeshToonMaterial, MeshNormalMaterial, MeshDepthMaterial,
+  MeshMatcapMaterial, LineBasicMaterial, LineDashedMaterial, PointsMaterial,
+  ShaderMaterial, RawShaderMaterial, ShadowMaterial, SpriteMaterial,
+  BoxGeometry, SphereGeometry, CylinderGeometry, ConeGeometry, TorusGeometry,
+  PlaneGeometry, CircleGeometry, RingGeometry, TorusKnotGeometry, CapsuleGeometry,
+  LatheGeometry, ExtrudeGeometry, ShapeGeometry, TubeGeometry, BufferGeometry,
+  Mesh, Group, Object3D, Color, Vector2, Vector3, Vector4, Euler, Quaternion,
+  Matrix3, Matrix4, Box3, Sphere, Ray, Triangle, MathUtils,
+  BufferAttribute, Float32BufferAttribute, Uint16BufferAttribute, Uint32BufferAttribute,
+  CanvasTexture, DataTexture, Texture, Shape, Path, CurvePath,
+  CatmullRomCurve3, QuadraticBezierCurve3, CubicBezierCurve3,
+  DoubleSide, FrontSide, BackSide, RepeatWrapping, ClampToEdgeWrapping, MirroredRepeatWrapping,
+  SRGBColorSpace, LinearSRGBColorSpace, NoColorSpace,
+  AdditiveBlending, NormalBlending, MultiplyBlending, SubtractiveBlending,
+  LoopOnce, LoopRepeat, LoopPingPong
+} = THREE;
+`;
+        return preamble + "\n" + body;
+      }
+
+      const gltfExporter = new GLTFExporter();
+      const objExporter = new OBJExporter();
+      const stlExporter = new STLExporter();
+
+      /** Cached GLB so the common download path is instant after first build / idle warm. */
+      let glbCache = null; // ArrayBuffer | null
+      let glbWarmToken = 0;
+
+      function arrayBufferToBase64(ab) {
+        const bytes = new Uint8Array(ab);
+        const chunk = 0x8000;
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        return btoa(binary);
+      }
+
+      function replyExport(requestId, format, payload, transfer = []) {
+        parent.postMessage(
+          { type: "code-sculpt-export-result", requestId, format, ...payload },
+          "*",
+          transfer
+        );
+      }
+
+      /** Reply with transferable buffer + base64 fallback (cross-iframe instanceof can fail). */
+      function replyBinary(requestId, format, filename, mime, ab) {
+        const transferCopy = ab.slice(0);
+        const base64 = arrayBufferToBase64(ab);
+        replyExport(
+          requestId,
+          format,
+          {
+            ok: true,
+            filename,
+            mime,
+            buffer: transferCopy,
+            base64,
+          },
+          [transferCopy]
+        );
+      }
+
+      function objectForExport() {
+        if (!root) throw new Error("Nothing to export yet — wait for the preview to finish loading.");
+        root.updateMatrixWorld(true);
+        return root;
+      }
+
+      async function buildGlbBuffer() {
+        const object = objectForExport();
+        const result = await gltfExporter.parseAsync(object, {
+          binary: true,
+          onlyVisible: true,
+          truncateDrawRange: true,
+          embedImages: true,
+        });
+        const ab = result instanceof ArrayBuffer ? result : result.buffer;
+        // Copy so we can keep a cache AND transfer a slice to the parent.
+        const copy = ab.slice(0);
+        glbCache = ab.slice(0);
+        return copy;
+      }
+
+      function scheduleGlbWarm() {
+        const token = ++glbWarmToken;
+        const run = () => {
+          if (token !== glbWarmToken || !root) return;
+          void buildGlbBuffer().catch(() => {});
+        };
+        if (typeof requestIdleCallback === "function") {
+          requestIdleCallback(run, { timeout: 1200 });
+        } else {
+          setTimeout(run, 280);
+        }
+      }
+
+      async function exportModel(format, requestId) {
+        try {
+          const baseName = "hydrilla-water-model";
+
+          if (format === "glb") {
+            let ab = glbCache ? glbCache.slice(0) : null;
+            if (!ab) ab = await buildGlbBuffer();
+            replyBinary(requestId, format, `${baseName}.glb`, "model/gltf-binary", ab);
+            return;
+          }
+
+          if (format === "gltf") {
+            const object = objectForExport();
+            // JSON glTF with embedded buffers/images — single self-contained .gltf file.
+            const result = await gltfExporter.parseAsync(object, {
+              binary: false,
+              onlyVisible: true,
+              truncateDrawRange: true,
+              embedImages: true,
+            });
+            const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+            replyExport(requestId, format, {
+              ok: true,
+              filename: `${baseName}.gltf`,
+              mime: "model/gltf+json",
+              text,
+            });
+            return;
+          }
+
+          if (format === "obj") {
+            const text = objExporter.parse(objectForExport());
+            replyExport(requestId, format, {
+              ok: true,
+              filename: `${baseName}.obj`,
+              mime: "text/plain",
+              text,
+            });
+            return;
+          }
+
+          if (format === "stl") {
+            const result = stlExporter.parse(objectForExport(), { binary: true });
+            const ab =
+              result instanceof ArrayBuffer
+                ? result
+                : new TextEncoder().encode(String(result)).buffer.slice(0);
+            replyBinary(requestId, format, `${baseName}.stl`, "model/stl", ab);
+            return;
+          }
+
+          if (format === "png") {
+            interactive = false;
+            controls.enableDamping = false;
+            controls.update();
+            highlightGroup.visible = false;
+            renderer.render(scene, camera);
+            const blob = await new Promise((resolve, reject) => {
+              canvas.toBlob(
+                (b) => (b ? resolve(b) : reject(new Error("PNG capture failed"))),
+                "image/png"
+              );
+            });
+            highlightGroup.visible = true;
+            controls.enableDamping = true;
+            interactive = true;
+            const ab = await blob.arrayBuffer();
+            replyBinary(requestId, format, `${baseName}.png`, "image/png", ab);
+            return;
+          }
+
+          replyExport(requestId, format, {
+            ok: false,
+            error: `Unsupported export format: ${format}`,
+          });
+        } catch (e) {
+          replyExport(requestId, format, {
+            ok: false,
+            error: e?.message || String(e),
+          });
+        }
+      }
+
+      window.addEventListener("message", (ev) => {
+        const data = ev.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type === "code-sculpt-load" && typeof data.code === "string") {
+          if (data.instance) window.__waterInstance = data.instance;
+          partMaterials = {};
+          loadFactory(data.code);
+        }
+        if (data.type === "water-transform" && data.instance) {
+          window.__waterInstance = data.instance;
+          applyInstanceTransform(data.instance);
+        }
+        if (data.type === "water-parts") {
+          partMaterials = data.parts && typeof data.parts === "object" ? data.parts : {};
+          applyPartMaterials();
+        }
+        if (data.type === "water-visibility") {
+          hiddenParts = new Set(Array.isArray(data.hidden) ? data.hidden.filter((n) => typeof n === "string") : []);
+          applyPartVisibility();
+          applyHighlight();
+          applyWireOverlay();
+        }
+        if (data.type === "water-look" && data.look) {
+          applyLook(data.look);
+        }
+        if (data.type === "water-highlight") {
+          ensureHighlightMaterials(data.spec);
+          const nextName = typeof data.name === "string" ? data.name : null;
+          if (nextName !== highlightName || highlightGroup.children.length === 0) {
+            highlightName = nextName;
+            applyHighlight();
+          }
+        }
+        if (data.type === "water-view" && data.view === "selection") {
+          frameSelection(typeof data.name === "string" ? data.name : null);
+        } else if (data.type === "water-view" && VIEW_DIRECTIONS[data.view]) {
+          moveCamera(data.view);
+        }
+        if (data.type === "water-lift") {
+          const next = Number(data.lift);
+          frameLift = Number.isFinite(next) ? Math.min(Math.max(next, 0), 0.45) : 0;
+          updateCamera();
+        }
+        if (data.type === "code-sculpt-export" && data.format && data.requestId) {
+          void exportModel(String(data.format), data.requestId);
+        }
+      });
+
+      parent.postMessage({ type: "code-sculpt-boot" }, "*");
+    </script>
+  </body>
+</html>

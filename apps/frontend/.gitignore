@@ -1,0 +1,66 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Large files and directories to ignore
+public/3d-models/
+public/3dheroimages/
+public/reference/
+# Local source media (served via Cloudinary)
+public/landing-3d-assets/
+public/why-hydrilla/
+public/pricing/
+public/demo/
+# clerk configuration (can include secrets)
+/.clerk/
+/.claude/
+.env.local
+backend/
+/Users/tharak/Developer/hydrilla-ai/hyd-f/backend
+# Separate GitHub repo (dhanushyangal/admin)
+admin/
+# Separate GitHub repo (dhanushyangal/hydrilla_doc)
+hdocs/
+__pycache__/
+*.py[cod]
+backups/
+*.sql
+*.sql.gz
+C72EEEC0-*.png
+
+# Generated email templates (npm run email:build)
+email/dist/

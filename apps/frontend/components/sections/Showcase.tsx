@@ -1,0 +1,742 @@
+"use client";
+
+import React, { useState, useRef, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { SignInButton, SignedIn, SignedOut } from "@clerk/nextjs";
+import { BlurReveal } from "@/components/ui/BlurReveal";
+import { BLUEFOX_SHOWCASE } from "@/lib/cloudinary";
+import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+
+interface ShowcaseItem {
+  id: string;
+  name: string;
+  description: string;
+  image?: string;
+  video?: string;
+  /** Sequential clips. Only the visible clip is fetched. */
+  clips?: readonly string[];
+  poster?: string;
+  /** Small label above the quote. Defaults to "Create". */
+  kicker?: string;
+  images?: string[]; // For looping images
+  iconType?: 'tencent' | 'ms';
+  /** Custom mark next to the title (same layout as Tencent on Hunyuan3D-2.1) */
+  logoSrc?: string;
+  logoAlt?: string;
+}
+
+const showcaseItems: ShowcaseItem[] = [
+  {
+    id: "bluefox-1",
+    name: "BlueFox 1",
+    kicker: "In-house",
+    description: "BlueFox turns a prompt or image into a 3D model.",
+    clips: BLUEFOX_SHOWCASE.clips,
+    poster: BLUEFOX_SHOWCASE.poster,
+    logoSrc: "/hyd01.png",
+    logoAlt: "Hydrilla",
+  },
+  {
+    id: "hunyuan-2.1",
+    name: "Hunyuan3D-2.1",
+    description: "High-quality 3D model generation with advanced texture mapping",
+    video: "/hallowhydrilla.mp4",
+    iconType: 'tencent',
+  },
+  {
+    id: "meshy",
+    name: "Meshy",
+    description: "AI 3D models from text and images, with mesh generation built for creators",
+    image: "/meshy.jpg",
+    logoSrc: "/meshy-logo.png",
+    logoAlt: "Meshy",
+  },
+  {
+    id: "rodin",
+    name: "Rodin",
+    description: "Production-grade 3D generation with strong geometry and clean topology",
+    image: "/rodin.png",
+    logoSrc: "/rodin-logo.png",
+    logoAlt: "Rodin",
+  },
+  {
+    id: "trellis-2",
+    name: "Trellis 2",
+    description: "Advanced 3D mesh generation with intelligent topology optimization",
+    images: [
+      "/3d-images/89f0abbe-6ec0-4e57-81bc-0c482f4c2aa1.jpg",
+      "/3d-images/6e596451-4fdd-4221-89b5-3921b6bcb1cc.jpg",
+      "/3d-images/73cffa71-0ff3-4e31-8d96-03fd65487289.jpg",
+      "/3d-images/7ec37d29-7878-4236-bacb-3295804c6158.jpg",
+      "/3d-images/182762e0-c273-480b-8083-4874676e32c9.jpg",
+    ],
+    iconType: 'ms',
+  },
+  {
+    id: "meta-3d-gen",
+    name: "Meta 3D Gen",
+    description: "Fast text-to-3D generation with photorealistic materials and clean meshes",
+    image: "/tenc-3d.jpg",
+    logoSrc: "/meta.png",
+    logoAlt: "Meta",
+  },
+];
+
+/**
+ * One in-view clip at a time. The poster paints first; the next file
+ * is requested only after the current clip ends.
+ */
+function BlueFoxReel({
+  clips,
+  poster,
+}: {
+  clips: readonly string[];
+  poster: string;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [clip, setClip] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [motionOk, setMotionOk] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    const slow =
+      connection?.saveData === true ||
+      connection?.effectiveType === "slow-2g" ||
+      connection?.effectiveType === "2g";
+    const apply = () => setMotionOk(!media.matches && !slow);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { rootMargin: "120px 0px", threshold: 0.4 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const play = visible && motionOk;
+
+  useEffect(() => {
+    setReady(false);
+  }, [clip, play]);
+
+  return (
+    <div ref={rootRef} className="absolute inset-0 bg-black">
+      <Image
+        src={poster}
+        alt=""
+        fill
+        sizes="(max-width: 640px) 85vw, 380px"
+        className="object-cover"
+        priority
+      />
+      {play ? (
+        <video
+          key={clips[clip]}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ opacity: ready ? 1 : 0 }}
+          muted
+          playsInline
+          autoPlay
+          preload="metadata"
+          poster={poster}
+          onCanPlay={() => setReady(true)}
+          onEnded={() => {
+            setReady(false);
+            setClip((index) => (index + 1) % clips.length);
+          }}
+          onError={() => {
+            setReady(false);
+            setClip((index) => {
+              const next = index + 1;
+              if (next >= clips.length) return index;
+              return next;
+            });
+          }}
+        >
+          <source src={clips[clip]} type="video/mp4" />
+        </video>
+      ) : null}
+    </div>
+  );
+}
+
+export default function Showcase() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [imageLoopIndex, setImageLoopIndex] = useState(0);
+  const [shouldAutoplay, setShouldAutoplay] = useState(false);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
+  const [isPageLoaded, setIsPageLoaded] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const posterImageRef = useRef<HTMLDivElement>(null);
+
+  // Check if page has loaded
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Wait for initial page render to complete
+    if (document.readyState === 'complete') {
+      setIsPageLoaded(true);
+    } else {
+      window.addEventListener('load', () => setIsPageLoaded(true));
+      return () => window.removeEventListener('load', () => setIsPageLoaded(true));
+    }
+  }, []);
+
+  // Check for low-power mode and data-saver mode, and network conditions
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Check for data-saver mode
+    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const isDataSaver = connection?.saveData === true;
+    
+    // Check for reduced motion preference
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    // Check network conditions
+    const effectiveType = connection?.effectiveType;
+    const isSlowNetwork = effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
+    const isLowEndDevice = (navigator as any).hardwareConcurrency && (navigator as any).hardwareConcurrency < 4;
+    
+    // Only autoplay if not in data-saver mode, not reduced motion, and not slow network/low-end device
+    setShouldAutoplay(!isDataSaver && !prefersReducedMotion && !isSlowNetwork && !isLowEndDevice);
+  }, []);
+
+  // Lazy load video after page load and when card is in view
+  useEffect(() => {
+    if (!isPageLoaded || !videoContainerRef.current) return;
+
+    // Use Intersection Observer to load video when card is visible
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !shouldLoadVideo) {
+            // Small delay to ensure poster image is displayed first
+            setTimeout(() => {
+              setShouldLoadVideo(true);
+            }, 100);
+            observer.disconnect();
+          }
+        });
+      },
+      {
+        rootMargin: '50px', // Start loading when card is 50px away from viewport
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(videoContainerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isPageLoaded, shouldLoadVideo]);
+
+  // Calculate how many cards to show per view based on screen size
+  const getCardsPerView = () => {
+    if (typeof window === 'undefined') return 1;
+    if (window.innerWidth >= 1280) return 4; // xl
+    if (window.innerWidth >= 1024) return 3; // lg
+    if (window.innerWidth >= 640) return 2; // sm
+    return 1; // mobile
+  };
+
+  const [cardsPerView, setCardsPerView] = useState(getCardsPerView());
+  const [isMobile, setIsMobile] = useState(false);
+  const [containerPadding, setContainerPadding] = useState({ left: 'clamp(1rem, 3vw, 3rem)', right: 'clamp(1rem, 12vw, 8rem)' });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setCardsPerView(getCardsPerView());
+      const mobile = window.innerWidth < 640;
+      setIsMobile(mobile);
+      
+      // Set equal padding on mobile for centering, asymmetric on desktop
+      if (mobile) {
+        // Calculate padding to center 85vw card: (100vw - 85vw) / 2 = 7.5vw
+        setContainerPadding({ left: '7.5vw', right: '7.5vw' });
+      } else {
+        setContainerPadding({ left: 'clamp(1rem, 3vw, 3rem)', right: 'clamp(1rem, 12vw, 8rem)' });
+      }
+    };
+    if (typeof window !== 'undefined') {
+      const mobile = window.innerWidth < 640;
+      setIsMobile(mobile);
+      if (mobile) {
+        setContainerPadding({ left: '7.5vw', right: '7.5vw' });
+      }
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Allow navigation through all cards
+  const maxNavIndex = showcaseItems.length - 1;
+  const minNavIndex = 0;
+
+  const scrollToIndex = (index: number) => {
+    const clampedIndex = Math.max(minNavIndex, Math.min(index, maxNavIndex));
+    setCurrentIndex(clampedIndex);
+    
+    if (scrollContainerRef.current && cardRefs.current[clampedIndex]) {
+      const card = cardRefs.current[clampedIndex];
+      const container = scrollContainerRef.current;
+      const cardLeft = card.offsetLeft;
+      const containerRect = container.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const containerPadding = parseInt(getComputedStyle(container).paddingLeft || '0');
+      const maxScroll = container.scrollWidth - container.clientWidth;
+      
+      // On mobile, always center cards. On desktop, center all cards too for consistency
+      const cardCenter = cardLeft + cardRect.width / 2;
+      const containerCenter = containerPadding + containerRect.width / 2;
+      let scrollLeft = cardCenter - containerCenter;
+      
+      // Ensure we don't scroll past boundaries
+      scrollLeft = Math.max(0, Math.min(scrollLeft, maxScroll));
+      
+      container.scrollTo({
+        left: scrollLeft,
+        behavior: 'auto', // No smooth animation, instant scroll
+      });
+    }
+  };
+
+  const handleNext = () => {
+    if (currentIndex < maxNavIndex) {
+      scrollToIndex(currentIndex + 1);
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > minNavIndex) {
+      scrollToIndex(currentIndex - 1);
+    }
+  };
+
+  // Image loop animation for Trellis 2 card — only while carousel is in view
+  useEffect(() => {
+    const trellisItem = showcaseItems.find(item => item.id === 'trellis-2');
+    if (!trellisItem?.images) return;
+
+    const root = scrollContainerRef.current;
+    if (!root) return;
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        setImageLoopIndex((prev) => (prev + 1) % trellisItem.images!.length);
+      }, 2000);
+    };
+    const stop = () => {
+      if (!interval) return;
+      clearInterval(interval);
+      interval = null;
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) start();
+        else stop();
+      },
+      { rootMargin: "80px 0px", threshold: 0.15 }
+    );
+    observer.observe(root);
+
+    return () => {
+      observer.disconnect();
+      stop();
+    };
+  }, []);
+
+  // Scroll index updates — rAF + skip unchanged index
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    let raf = 0;
+    const handleScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        const scrollLeft = container.scrollLeft;
+        const containerPadding = parseInt(getComputedStyle(container).paddingLeft || "0");
+        const scrollPosition = scrollLeft + containerPadding;
+
+        let newIndex = 0;
+        let minDistance = Infinity;
+
+        cardRefs.current.forEach((card, index) => {
+          if (card) {
+            const cardLeft = card.offsetLeft;
+            const cardCenter = cardLeft + card.offsetWidth / 2;
+            const viewportCenter = scrollPosition + container.clientWidth / 2;
+            const distance = Math.abs(viewportCenter - cardCenter);
+
+            if (distance < minDistance) {
+              minDistance = distance;
+              newIndex = index;
+            }
+          }
+        });
+
+        const clampedIndex = Math.min(Math.max(minNavIndex, newIndex), maxNavIndex);
+        setCurrentIndex((prev) => (prev === clampedIndex ? prev : clampedIndex));
+      });
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [maxNavIndex, minNavIndex]);
+
+  // Center first card on initial load (especially important for mobile)
+  useEffect(() => {
+    if (scrollContainerRef.current && cardRefs.current[0] && isMobile) {
+      const timer = setTimeout(() => {
+        const card = cardRefs.current[0];
+        const container = scrollContainerRef.current;
+        if (card && container) {
+          const cardLeft = card.offsetLeft;
+          const cardRect = card.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const containerPadding = parseInt(getComputedStyle(container).paddingLeft || "0");
+
+          const cardCenter = cardLeft + cardRect.width / 2;
+          const containerCenter = containerPadding + containerRect.width / 2;
+          const scrollLeft = cardCenter - containerCenter;
+
+          container.scrollTo({
+            left: Math.max(0, scrollLeft),
+            behavior: "auto",
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isMobile]);
+
+  return (
+    <section className="relative w-full bg-white py-16 sm:py-20 md:py-24 pb-24 sm:pb-28 md:pb-32">
+      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
+        {/* Section heading */}
+        <div className="text-center mb-10 sm:mb-12 md:mb-14">
+          <BlurReveal
+            as="h2"
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-medium text-[#111] leading-tight tracking-tight"
+            style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
+          >
+            The Industry&apos;s Best Generative 3D Models
+          </BlurReveal>
+        </div>
+      </div>
+      <div className="w-full">
+        {/* Carousel Container - Full width, no padding */}
+        <div className="relative">
+          {/* Scrollable Cards Container - Smooth horizontal scroll with snap, asymmetric padding for cinematic flow */}
+          <div
+            ref={scrollContainerRef}
+            className="flex gap-6 sm:gap-8 md:gap-10 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              scrollBehavior: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              paddingLeft: containerPadding.left,
+              paddingRight: containerPadding.right,
+            }}
+          >
+            {showcaseItems.map((item, index) => (
+              <div
+                key={item.id}
+                ref={(el) => {
+                  cardRefs.current[index] = el;
+                }}
+                className="group relative bg-white rounded-3xl overflow-hidden border border-gray-200/30 shadow-sm flex-shrink-0 snap-start snap-always w-[85vw] sm:w-[380px]"
+                style={{
+                  scrollSnapAlign: 'center', // Always center on mobile and desktop for consistent behavior
+                }}
+              >
+                {/* Card Image Container - All hover effects clipped inside */}
+                <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
+                  {/* Background Media Layer - Video, Image, or Looping Images */}
+                  <div className="absolute inset-0 transform scale-100 group-hover:scale-[1.05] transition-transform duration-700 ease-out">
+                    {item.clips && item.poster ? (
+                      <BlueFoxReel clips={item.clips} poster={item.poster} />
+                    ) : item.video ? (
+                      <div 
+                        ref={item.id === "hunyuan-2.1" ? videoContainerRef : null}
+                        className="absolute inset-0 w-full h-full"
+                      >
+                        {/* Poster Image - Shown immediately, prevents layout shift */}
+                        <div
+                          ref={item.id === "hunyuan-2.1" ? posterImageRef : null}
+                          className="absolute inset-0 w-full h-full"
+                          style={{
+                            opacity: isVideoReady ? 0 : 1,
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <Image
+                            src="/hallowhydrilla_001.jpg"
+                            alt={item.name}
+                            fill
+                            sizes="(max-width: 640px) 85vw, 380px"
+                            className="object-cover"
+                            priority={index === 0}
+                            loading={index === 0 ? "eager" : "lazy"}
+                            style={{
+                              willChange: 'transform',
+                              contentVisibility: 'auto',
+                            }}
+                          />
+                        </div>
+                        {/* Video - Lazy loaded after page render and when in view */}
+                        {shouldLoadVideo && (
+                          <video
+                            ref={item.id === "hunyuan-2.1" ? videoRef : null}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            poster="/hallowhydrilla_001.jpg"
+                            loop
+                            muted
+                            playsInline
+                            preload="metadata"
+                            style={{
+                              willChange: 'transform',
+                              contentVisibility: 'auto',
+                              opacity: isVideoReady ? 1 : 0,
+                            }}
+                            onLoadedMetadata={(e) => {
+                              // Prevent repaint/reflow during load
+                              const video = e.currentTarget;
+                              // Wait for video to be ready to play
+                              if (video.readyState >= 2) {
+                                requestAnimationFrame(() => {
+                                  setIsVideoReady(true);
+                                  // Autoplay only when video is ready and conditions are met
+                                  if (shouldAutoplay) {
+                                    video.play().catch(() => {
+                                      // Autoplay failed, keep poster visible
+                                      setIsVideoReady(false);
+                                    });
+                                  }
+                                });
+                              }
+                            }}
+                            onCanPlay={(e) => {
+                              // Ensure smooth transition when video is ready
+                              const video = e.currentTarget;
+                              if (video.readyState >= 3 && !isVideoReady) {
+                                setIsVideoReady(true);
+                                if (shouldAutoplay) {
+                                  video.play().catch(() => {
+                                    setIsVideoReady(false);
+                                  });
+                                }
+                              }
+                            }}
+                            onError={() => {
+                              // If video fails to load, keep poster visible
+                              setIsVideoReady(false);
+                            }}
+                          >
+                            <source src={item.video} type="video/mp4" />
+                          </video>
+                        )}
+                      </div>
+                    ) : item.images ? (
+                      <Image
+                        src={item.images[imageLoopIndex]}
+                        alt={item.name}
+                        fill
+                        sizes="(max-width: 640px) 85vw, 380px"
+                        className="object-cover"
+                        priority={index === 0}
+                        loading={index === 0 ? "eager" : "lazy"}
+                        style={{
+                          willChange: 'transform',
+                          contentVisibility: 'auto',
+                        }}
+                      />
+                    ) : item.image ? (
+                      <Image
+                        src={item.image}
+                        alt={item.name}
+                        fill
+                        sizes="(max-width: 640px) 85vw, 380px"
+                        className="object-cover"
+                        priority={index === 0}
+                        loading={index === 0 ? "eager" : "lazy"}
+                        style={{
+                          willChange: 'transform',
+                          contentVisibility: 'auto',
+                        }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 opacity-20">
+                        <div className="absolute inset-0" style={{
+                          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px)`
+                        }} />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Logo/Brand Name - Top Left */}
+                  <div className="absolute top-5 left-5 sm:top-6 sm:left-6 z-10">
+                    <div className="flex items-center gap-2.5">
+                      {(item.logoSrc || item.iconType) && (
+                        <div className="relative w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                          {item.logoSrc ? (
+                            <Image
+                              src={item.logoSrc}
+                              alt={item.logoAlt || item.name}
+                              width={20}
+                              height={20}
+                              className={`w-5 h-5 object-contain${item.id === "bluefox-1" ? " drop-shadow-[0_0_1px_rgba(255,255,255,0.9)]" : ""}`}
+                            />
+                          ) : item.iconType === "tencent" ? (
+                            <Image
+                              src="/tencent.png"
+                              alt="Tencent"
+                              width={20}
+                              height={20}
+                              className="w-5 h-5 object-contain"
+                            />
+                          ) : item.iconType === "ms" ? (
+                            <Image
+                              src="/ms.png"
+                              alt="Microsoft"
+                              width={20}
+                              height={20}
+                              className="w-5 h-5 object-contain brightness-0 invert"
+                            />
+                          ) : null}
+                        </div>
+                      )}
+                      <span
+                        className="text-base sm:text-lg font-medium text-white"
+                        style={{
+                          fontFamily: SANS_FONT,
+                          fontWeight: SECTION_WEIGHT,
+                          color: "#ffffff",
+                          textShadow: "0 1px 2px rgba(0,0,0,0.9)",
+                        }}
+                      >
+                        {item.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Gradient Overlay - Subtle darkening on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 via-black/30 to-transparent group-hover:from-black/90 group-hover:via-black/55 group-hover:via-black/35 transition-all duration-500 ease-out" />
+                  
+                  {/* Card Content - Moves upward on hover when button appears, extra bottom padding on mobile for button */}
+                  <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6 md:p-7 pb-20 md:pb-7 z-10 transform translate-y-0 md:group-hover:translate-y-[-53px] transition-transform duration-500 ease-out">
+                    {/* Create Label */}
+                    <div className="mb-3 sm:mb-4">
+                      <span 
+                        className="text-xs sm:text-sm font-medium text-white uppercase tracking-widest"
+                        style={{ fontFamily: SANS_FONT, color: "#ffffff", textShadow: "0 1px 2px rgba(0,0,0,0.9)" }}
+                      >
+                        {item.kicker ?? "Create"}
+                      </span>
+                    </div>
+                    
+                    {/* Description Text - Adjusted size */}
+                    <p 
+                      className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-normal text-white leading-[1.25]"
+                      style={{
+                        fontFamily: GEIST_FONT,
+                        fontWeight: DESCRIPTION_WEIGHT,
+                        color: "#ffffff",
+                        textShadow: "0 1px 2px rgba(0,0,0,0.9)",
+                      }}
+                    >
+                      &ldquo;{item.description}&rdquo;
+                    </p>
+                  </div>
+
+                  {/* Create 3D Button - Clerk sign-in when signed out; redirect to /app/studio when signed in */}
+                  <div className="absolute bottom-0 left-0 z-20 p-4 sm:p-5 md:p-6">
+                    <SignedIn>
+                      <Link
+                        href="/app/studio"
+                        className="inline-flex items-center justify-center transform translate-y-0 md:translate-y-[calc(100%+16px)] md:group-hover:translate-y-0 transition-transform duration-500 ease-out bg-[#262626] text-white py-3 px-5 rounded-md font-medium w-fit no-underline text-base md:text-[0.8125rem] hover:bg-[#404040]"
+                        style={{ fontFamily: SANS_FONT, lineHeight: 1.2, color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
+                      >
+                        Create 3D
+                      </Link>
+                    </SignedIn>
+                    <SignedOut>
+                      <SignInButton mode="modal" forceRedirectUrl="/app/studio">
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center transform translate-y-0 md:translate-y-[calc(100%+16px)] md:group-hover:translate-y-0 transition-transform duration-500 ease-out bg-[#262626] text-white py-3 px-5 rounded-md font-medium w-fit cursor-pointer text-base md:text-[0.8125rem] hover:bg-[#404040]"
+                          style={{ fontFamily: SANS_FONT, lineHeight: 1.2, color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
+                        >
+                          Create 3D
+                        </button>
+                      </SignInButton>
+                    </SignedOut>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Navigation Buttons - Positioned below cards */}
+          <div className="absolute top-full mt-6 sm:mt-8 md:mt-10 right-4 sm:right-6 md:right-8 lg:right-12 flex gap-2 z-30">
+            <button
+              onClick={handlePrev}
+              disabled={currentIndex <= minNavIndex}
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/95 backdrop-blur-md border border-gray-300/50 shadow-md flex items-center justify-center hover:bg-white hover:shadow-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Previous"
+            >
+              <svg className="w-5 h-5 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <button
+              onClick={handleNext}
+              disabled={currentIndex >= maxNavIndex}
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/95 backdrop-blur-md border border-gray-300/50 shadow-md flex items-center justify-center hover:bg-white hover:shadow-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Next"
+            >
+              <svg className="w-5 h-5 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
+    </section>
+  );
+}
+

@@ -1,0 +1,22 @@
+<!--
+id: L02
+name: First model nudge
+layout: personal
+kind: campaign
+sender: rishi
+category: onboarding
+topic: news-and-tips
+trigger: event account_created; wait 2 days; send only if no generation_completed since
+phase: 2
+subject: Text or image? Pick the faster start
+preheader: Two ways to make your first model in Studio.
+footer_reason: You're receiving this because you signed up for Hydrilla two days ago.
+optional: true
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>You haven't made a model yet, so here is the quickest way in.</mj-text>
+<mj-text>If you have a picture of the object, use image-to-3D. One clear image on a plain background works best.</mj-text>
+<mj-text>If you don't, use text-to-3D. Describe one object, its material and its style in a sentence.</mj-text>
+<mj-text><a href="https://hydrilla.ai/app/studio">Open Studio</a></mj-text>
+<mj-text>If something stopped you, reply and tell me. I read every reply.</mj-text>
+<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>

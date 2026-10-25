@@ -1,0 +1,64 @@
+# Hydrilla AI
+
+> Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D models from text or an image with BlueFox, Hydrilla's 3D model, check them in the browser, and work with Water Agent, the AI 3D agent for artists and studios.
+
+Last updated: 2026-10-24
+
+## Names (use them exactly)
+- Hydrilla AI: the company and the AI 3D product (Studio, workspaces, credits, preview, export, integrations, API). "Hydrilla" for short. Not the aquatic plant.
+- Hawan Research Labs: Hydrilla AI's research lab, where the 3D research happens and BlueFox is built. Hydrilla AI is the main brand and the product.
+- BlueFox: Hydrilla's 3D model and its flagship model, built by Hydrilla AI. BlueFox 1 is the current version, generally available to everyone in Hydrilla.
+- Water Agent (Hydrilla Water Agent): Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use. It works in the Hydrilla app and inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin. It costs no credits and is included on every plan.
+- BlueFox is written as one word.
+
+## Product
+- [Overview](https://hydrilla.ai/features.md): what the Hydrilla workspace does, end to end, including export formats
+- [BlueFox](https://hydrilla.ai/bluefox.md): BlueFox, Hydrilla's 3D model (current version BlueFox 1); segmented meshes with UVs and PBR textures
+- [Water Agent](https://hydrilla.ai/water.md): the AI 3D agent for artists and studios; what it does, how it works, where it works, FAQ
+- [Text to 3D](https://hydrilla.ai/text-to-3d.md): prompt, then reference image, then 3D model
+- [Image to 3D](https://hydrilla.ai/image-to-3d.md): from an uploaded image to a 3D model
+- [Integrations](https://hydrilla.ai/integrations.md): Blender, Unity, Unreal, Godot, MCP, and the local Bridge
+- [Blender](https://hydrilla.ai/integrations/blender.md)
+- [Unity](https://hydrilla.ai/integrations/unity.md)
+- [Unreal Engine](https://hydrilla.ai/integrations/unreal.md)
+- [Godot 4](https://hydrilla.ai/integrations/godot.md)
+- [MCP server](https://hydrilla.ai/integrations/mcp.md): lets your own AI agent drive Hydrilla (Water Agent is the agent inside Hydrilla)
+- [REST API](https://hydrilla.ai/api.md): submit a job, poll its status, download the mesh and maps
+- [Pricing](https://hydrilla.ai/pricing.md): Free, Starter, Pro, Hourly, and Hourly Pro; credits per model; 14-day trial; Water Agent with no credits on every plan
+
+## Solutions
+- [All solutions](https://hydrilla.ai/solutions.md)
+- [Game development](https://hydrilla.ai/solutions/games.md)
+- [Film and animation](https://hydrilla.ai/solutions/film.md)
+- [Architecture and interiors](https://hydrilla.ai/solutions/architecture.md)
+- [XR](https://hydrilla.ai/solutions/xr.md)
+- [Product visualization](https://hydrilla.ai/solutions/product.md)
+- [Enterprise](https://hydrilla.ai/enterprise.md): seats, API concurrency, custom plans, pipeline support
+
+## Resources
+- [Docs](https://hydrilla.ai/docs.md): from sign-up to first export
+- [FAQ](https://hydrilla.ai/faq.md): licensing, accounts, support
+- [Changelog](https://hydrilla.ai/changelog.md)
+- [Blog](https://hydrilla.ai/blog.md)
+- [Reference images for image to 3D](https://hydrilla.ai/blog/reference-images.md)
+- [Importing AI meshes into game engines](https://hydrilla.ai/blog/import-ai-meshes.md)
+- [Compare](https://hydrilla.ai/compare.md): how Hydrilla writes comparisons
+- [How to choose an AI 3D generator](https://hydrilla.ai/compare/how-to-choose.md)
+- [Hydrilla vs Meshy](https://hydrilla.ai/compare/meshy.md): two separate products, compared factually
+- [Hydrilla vs Tripo](https://hydrilla.ai/compare/tripo.md): two separate products, compared factually
+- [Hydrilla vs Hyper3D](https://hydrilla.ai/compare/hyper3d.md): two separate products, compared factually
+
+## Company
+- [About](https://hydrilla.ai/about.md): Hydrilla AI, the company behind the Hydrilla workspace and BlueFox
+- [Research](https://hydrilla.ai/research.md): Hawan Research Labs and the BlueFox 1 model card
+- [Team](https://hydrilla.ai/team.md)
+- [Careers](https://hydrilla.ai/careers.md)
+- [Contact](https://hydrilla.ai/contact.md)
+- [Security](https://hydrilla.ai/security.md): account and workspace protection; customer data isn't used for training
+
+## Optional
+- [Home](https://hydrilla.ai/index.md)
+- [Privacy Policy](https://hydrilla.ai/privacy.md)
+- [Terms of Service](https://hydrilla.ai/terms.md)
+- [Cookie Policy](https://hydrilla.ai/cookies.md)
+- [Full text of every page](https://hydrilla.ai/llms-full.txt)

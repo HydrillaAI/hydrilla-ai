@@ -1,0 +1,23 @@
+<!--
+id: INT02
+name: GPU offline (internal)
+layout: base
+kind: transactional
+sender: hi
+category: internal
+topic: none
+trigger: a user hits the GPU offline error; at most one alert every 10 minutes per server instance
+phase: 1
+subject: GPU offline reported
+preheader: Generation is failing for users. Check the GPU gateway.
+footer_reason: Internal alert for the Hydrilla team.
+optional: false
+data: user_id, user_email, error_message, reported_at
+-->
+<mj-text>A user hit the GPU offline error, so generation is likely down. Check the GPU instance in the admin app.</mj-text>
+<mj-text font-size="14px">
+  <strong>User:</strong> {{ trigger.user_email | default: "unknown" | escape }} ({{ trigger.user_id | default: "anonymous" | escape }})<br />
+  <strong>Reported:</strong> {{ trigger.reported_at | default: "" }}
+</mj-text>
+<mj-text font-size="14px" container-background-color="#f1f5fb" padding="14px 16px">{{ trigger.error_message | default: "" | escape }}</mj-text>
+<mj-button href="https://admin.hydrilla.ai/gpu">Open GPU admin</mj-button>

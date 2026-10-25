@@ -1,0 +1,28 @@
+<!--
+id: T02
+name: Model ready
+layout: base
+kind: campaign
+sender: hi
+category: jobs
+topic: model-alerts
+trigger: event generation_completed, filter notify = true
+phase: 1
+subject: Your model is ready
+preheader: Open it in Studio or download the GLB.
+footer_reason: You're receiving this because a generation on your Hydrilla account finished.
+optional: true
+send_rule: the backend sets notify = true only when the job ran 3 minutes or more, so people waiting on the page get no email
+data: event.kind, event.prompt, event.thumbnail_url, event.studio_url, event.download_url
+-->
+<mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
+<mj-text>Your {{ event.kind | default: "3D" }} generation has finished.</mj-text>
+<mj-raw>{% if event.thumbnail_url %}</mj-raw>
+<mj-image src="{{ event.thumbnail_url | default: '' }}" alt="Preview of your model" border-radius="8px" />
+<mj-raw>{% endif %}{% if event.prompt %}</mj-raw>
+<mj-text css-class="muted" font-size="14px">Prompt: {{ event.prompt | default: "" | escape | truncate: 140 }}</mj-text>
+<mj-raw>{% endif %}</mj-raw>
+<mj-button href="{{ event.studio_url | default: 'https://hydrilla.ai/app/studio' }}">Open in Studio</mj-button>
+<mj-raw>{% if event.download_url %}</mj-raw>
+<mj-text><a href="{{ event.download_url | default: '' }}">Download the GLB</a></mj-text>
+<mj-raw>{% endif %}</mj-raw>

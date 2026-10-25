@@ -1,0 +1,104 @@
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+// Routes that require an authenticated user. Unauthenticated visitors hitting
+// these will be redirected to the sign-in page by Clerk.
+const isProtectedRoute = createRouteMatcher([
+  "/app(.*)",
+  "/workspace(.*)",
+  "/generate(.*)",
+  "/generations(.*)",
+  "/library(.*)",
+  "/checkout(.*)",
+  "/rigging(.*)",
+]);
+
+/** Valid Next.js Server Action IDs are ~40+ hex chars; short values are scanners. */
+function isMalformedNextActionHeader(req: NextRequest): boolean {
+  if (req.method !== "POST") return false;
+  const nextAction = req.headers.get("next-action");
+  if (!nextAction) return false;
+  return nextAction.length < 40;
+}
+
+function withSkewProtectionCookie(
+  req: NextRequest,
+  response: NextResponse
+): NextResponse {
+  // Pin long-lived sessions (workspace tabs) to the deployment that served them
+  // so Clerk/Next Server Actions keep resolving after a production rollout.
+  // Requires Skew Protection enabled in the Vercel project settings.
+  // https://vercel.com/docs/skew-protection#extending-skew-protection-for-long-lived-sessions
+  const deploymentId = process.env.VERCEL_DEPLOYMENT_ID;
+  if (!deploymentId || req.cookies.get("__vdpl")) return response;
+
+  response.cookies.set("__vdpl", deploymentId, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+  });
+  return response;
+}
+
+export default clerkMiddleware(async (auth, req) => {
+  if (isMalformedNextActionHeader(req)) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  // Strip legacy ?category= and ?page= query params on /blog in a single 301 hop
+  // (next.config.js redirects append source query params by default).
+  if (
+    (req.nextUrl.pathname === "/blog" || req.nextUrl.pathname === "/blog/") &&
+    (req.nextUrl.searchParams.has("category") || req.nextUrl.searchParams.has("page"))
+  ) {
+    const cleanUrl = new URL("/blog", req.url);
+    return NextResponse.redirect(cleanUrl, 301);
+  }
+
+  if (isProtectedRoute(req)) {
+    // Always send expired/missing sessions to /sign-in (not marketing home),
+    // and preserve the intended destination so post-login lands in the app.
+    const signInUrl = new URL("/sign-in", req.url);
+    const returnTo = `${req.nextUrl.pathname}${req.nextUrl.search}`;
+    if (returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+      signInUrl.searchParams.set("redirect_url", returnTo);
+    }
+    await auth.protect({
+      unauthenticatedUrl: signInUrl.toString(),
+    });
+    // Skew pin only for app shells — avoid Set-Cookie on marketing `/` (CDN/TTFB).
+    return withSkewProtectionCookie(req, NextResponse.next());
+  }
+
+  return NextResponse.next();
+});
+
+export const config = {
+  // Auth middleware only where needed. Marketing `/` skips Clerk edge work → better TTFB.
+  // Client ClerkProvider still hydrates auth on public pages.
+  matcher: [
+    "/app",
+    "/app/(.*)",
+    "/workspace",
+    "/workspace/(.*)",
+    "/generate",
+    "/generate/(.*)",
+    "/generations",
+    "/generations/(.*)",
+    "/library",
+    "/library/(.*)",
+    "/checkout",
+    "/checkout/(.*)",
+    "/rigging",
+    "/rigging/(.*)",
+    "/sign-in",
+    "/sign-in/(.*)",
+    "/sign-up",
+    "/sign-up/(.*)",
+    "/blog",
+    "/api/(.*)",
+    "/trpc/(.*)",
+  ],
+};
