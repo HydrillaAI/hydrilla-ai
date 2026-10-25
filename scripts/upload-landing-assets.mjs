@@ -66,6 +66,7 @@ const assets = [
 
 const videoAssets = [
   ["public/herohydrilla.mp4", "hydrilla-landing/hero/backdrop"],
+  ["public/demo/Hydrilla-Demo.mp4", "hydrilla-landing/workflow/hydrilla-demo"],
   ["public/models-industry-landingpage/sw.webm", "hydrilla-landing/showcase/bluefox-sw"],
   ["public/models-industry-landingpage/warmachine.webm", "hydrilla-landing/showcase/bluefox-warmachine"],
   ["public/models-industry-landingpage/spidy.webm", "hydrilla-landing/showcase/bluefox-spidy"],

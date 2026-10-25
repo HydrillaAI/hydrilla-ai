@@ -216,3 +216,17 @@ export const PRICING_IMAGES = {
   starter: pricingPlanImage("pricing-1"),
   pro: pricingPlanImage("pricing-2"),
 } as const;
+
+/**
+ * Workflow demo video and WebP poster.
+ * Pre-transcoded with Cloudinary eager transformations (WebM VP9 + MP4 H.264, WebP poster).
+ * Uses c_limit,w_1280,q_auto,vc_auto to conserve bandwidth on Cloudinary free tier.
+ */
+const WORKFLOW_FOLDER = "hydrilla-landing/workflow";
+
+export const WORKFLOW_DEMO = {
+  webm: `${CLOUDINARY_VIDEO_BASE}/c_limit,q_auto,vc_auto,w_1280/${VERSION}/${WORKFLOW_FOLDER}/hydrilla-demo.webm`,
+  mp4: `${CLOUDINARY_VIDEO_BASE}/c_limit,q_auto,vc_auto,w_1280/${VERSION}/${WORKFLOW_FOLDER}/hydrilla-demo.mp4`,
+  poster: `${CLOUDINARY_VIDEO_BASE}/c_limit,q_auto,so_0,w_1280/${VERSION}/${WORKFLOW_FOLDER}/hydrilla-demo.webp`,
+} as const;
+

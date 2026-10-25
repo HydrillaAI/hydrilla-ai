@@ -44,6 +44,7 @@ public/reference/
 public/landing-3d-assets/
 public/why-hydrilla/
 public/pricing/
+public/demo/
 # clerk configuration (can include secrets)
 /.clerk/
 /.claude/
