@@ -119,10 +119,7 @@ export function PuppetStage({ className }: { className?: string }) {
       if (disposed) return;
 
       const coarse = window.matchMedia("(pointer: coarse)").matches;
-      /* Decode geometry off the main thread so scrolling stays smooth. */
-      (MeshoptDecoder as typeof MeshoptDecoder & { useWorkers: (count: number) => void }).useWorkers(
-        coarse ? 1 : 2
-      );
+      /* Don't enable MeshoptDecoder.useWorkers: it rebuilds its worker from function names, which minified production builds rename, so decoding never finishes. */
       const host = navigator as Navigator & {
         connection?: { saveData?: boolean };
         deviceMemory?: number;
