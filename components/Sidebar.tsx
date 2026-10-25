@@ -80,7 +80,7 @@ export function Sidebar({
                         aria-current={isActive ? "page" : undefined}
                         className="sidebar-link"
                       >
-                        <span className="truncate">{item.title}</span>
+                        <span className="min-w-0 flex-1 break-words">{item.title}</span>
                         {item.method && <MethodBadge method={item.method} />}
                       </Link>
                     </li>

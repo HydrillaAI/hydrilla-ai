@@ -28,9 +28,9 @@ export const metadata: Metadata = {
     "Official developer documentation for Hydrilla AI: 3D reconstruction, text-to-3D and image-to-3D pipelines, 2D concept generation, and account APIs.",
   applicationName: "Hydrilla API Docs",
   icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    icon: "/favicon.png?v=2",
+    shortcut: "/favicon.png?v=2",
+    apple: "/favicon.png?v=2",
   },
   openGraph: {
     type: "website",
@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" data-theme="light" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="icon" href="/favicon.png?v=2" type="image/png" />
       </head>
       <body className={sans.className}>
         <DocsChrome>{children}</DocsChrome>

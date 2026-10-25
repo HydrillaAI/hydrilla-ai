@@ -124,7 +124,7 @@ export const API_SPECS: Record<string, ApiEndpointSpec> = {
       "Reconstruct a production-ready 3D mesh (.glb) from a single concept image. Supports either JSON image URL or multipart file upload.",
     creditCost: "2 credits (1024) / 4 credits (1536)",
     creditChip: "2 credits · 1024 / 4 credits · 1536",
-    authHeader: "Authorization: Bearer hyd_live_...",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
     contentType: "application/json or multipart/form-data",
     bodyParams: [
       {
@@ -223,7 +223,7 @@ console.log("Task ID:", data.id);`,
     // CONTENT-FLAG: 3 (1024) / 5 (1536) credits disagrees with the Models page table (2 / 4 credits).
     creditCost: "3 credits (1024) / 5 credits (1536)",
     creditChip: "3 credits · 1024 / 5 credits · 1536",
-    authHeader: "Authorization: Bearer hyd_live_...",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
     contentType: "application/json",
     bodyParams: [
       {
@@ -352,7 +352,7 @@ console.log("Task ID:", data.id);`,
       "Poll the current progress and download URLs of an asynchronous 3D reconstruction or image generation job.",
     creditCost: "Free (0 credits)",
     creditChip: "Free · 0 credits",
-    authHeader: "Authorization: Bearer hyd_live_...",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
     queryParams: [
       {
         name: "taskId",
@@ -431,7 +431,7 @@ const pollTask = async () => {
       "Render high-fidelity 2D concept art and orthographic visual references using leading vision models (OpenAI Flare / Sunburst or Google Gemini Flash / Pro Image).",
     creditCost: "1 credit",
     creditChip: "1 credit",
-    authHeader: "Authorization: Bearer hyd_live_...",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
     contentType: "application/json",
     bodyParams: [
       {
@@ -512,7 +512,7 @@ console.log("Rendered Image:", data.image_url);`,
     description: "Modify an existing concept render using natural language prompts and optional masks.",
     creditCost: "1 credit",
     creditChip: "1 credit",
-    authHeader: "Authorization: Bearer hyd_live_...",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
     contentType: "application/json",
     bodyParams: [
       {
@@ -592,7 +592,7 @@ console.log("Edited Image:", data.image_url);`,
       "Returns all currently available 3D reconstruction and 2D concept generation models, active versions, and credit costs.",
     creditCost: "Free (0 credits)",
     creditChip: "Free · 0 credits",
-    authHeader: "Authorization: Bearer hyd_live_...",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
     curlExample: `curl -X GET https://api.hydrilla.co/v1/models \\
   -H "Authorization: Bearer hyd_live_your_api_key_here"`,
     pythonExample: `import requests
@@ -645,7 +645,7 @@ console.table(models);`,
     description: "Inspect your developer account credentials, active tier, and remaining credit balance.",
     creditCost: "Free (0 credits)",
     creditChip: "Free · 0 credits",
-    authHeader: "Authorization: Bearer hyd_live_...",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
     curlExample: `curl -X GET https://api.hydrilla.co/v1/user/me \\
   -H "Authorization: Bearer hyd_live_your_api_key_here"`,
     pythonExample: `import requests

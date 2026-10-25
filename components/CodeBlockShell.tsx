@@ -17,7 +17,7 @@ export function CodeBlockShell({
   showLines?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
-  const [wrap, setWrap] = useState(false);
+  const [wrap, setWrap] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const collapsible = lineCount > 30;
 

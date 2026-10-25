@@ -164,11 +164,11 @@ export function TryItConsole({ method, path, bodyParams = [], queryParams = [], 
   const busy = state === "sending";
 
   return (
-    <section id="try-it" aria-labelledby="try-it-heading" className="rounded border border-line bg-subtle">
-      <h2 id="try-it-heading" className="doc-h2 !mt-0 border-t-0 pt-0">
+    <section id="try-it" aria-labelledby="try-it-heading" className="overflow-hidden rounded-[20px] border border-line bg-subtle">
+      <h2 id="try-it-heading" className="doc-h2 !mt-0 !text-h2 border-t-0 pt-0">
         <button
           type="button"
-          className="flex w-full items-center justify-between gap-2 text-left"
+          className="flex w-full items-center justify-between gap-2 px-5 py-4 text-left"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
@@ -178,7 +178,7 @@ export function TryItConsole({ method, path, bodyParams = [], queryParams = [], 
       </h2>
 
       {open && (
-        <div className="mt-4 space-y-5 p-4">
+        <div className="space-y-5 border-t border-line px-5 pb-6 pt-5">
           <div>
             <label htmlFor="try-key" className="block text-small font-medium text-ink">
               API key
@@ -332,7 +332,7 @@ export function TryItConsole({ method, path, bodyParams = [], queryParams = [], 
             <div className="rounded border border-line bg-surface p-3">
               <div className="flex items-center gap-3">
                 <span
-                  className="mono rounded px-2 py-0.5 text-small font-semibold"
+                  className="mono rounded-md px-2 py-0.5 text-small font-semibold"
                   style={{
                     background: state === "success" ? "color-mix(in srgb, var(--success) 16%, transparent)" : "color-mix(in srgb, var(--danger) 14%, transparent)",
                     color: state === "success" ? "var(--success)" : "var(--danger)",

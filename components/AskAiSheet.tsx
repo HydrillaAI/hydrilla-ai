@@ -286,7 +286,7 @@ export function AskAiSheet({
             <span className="text-[14px] font-semibold tracking-[-0.011em] text-ink">
               Assistant
             </span>
-            <span className="rounded border border-line bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-ink-3">
+            <span className="rounded-md border border-line bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-ink-3">
               ⌘I
             </span>
           </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Github } from "lucide-react";
 import { getPrevNext } from "@/lib/docsData";
@@ -64,7 +65,10 @@ export function Footer({ pathname }: { pathname: string }) {
         </div>
         <div className="flex items-center gap-4">
           <StatusIndicator withLabel />
-          <span>Hydrilla API Docs</span>
+          <span className="inline-flex items-center gap-2">
+            <Image src="/hyd01.png" alt="" width={20} height={19} className="h-5 w-auto" />
+            Hydrilla API Docs
+          </span>
         </div>
       </div>
     </footer>
