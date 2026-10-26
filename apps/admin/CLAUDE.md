@@ -1,1 +1,4 @@
 @AGENTS.md
+
+# Admin rules
+
