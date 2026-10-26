@@ -2,7 +2,7 @@
  * Verifies the decision layers: compile screening, routing, admission, scoring, and the
  * refine controller. Pure logic — no DB, no network, no GPU.
  *
- *   npm run verify:pipeline
+ *   pnpm run verify:pipeline
  */
 
 import { admitReference, unavailableRembg, type RembgAdapter } from "../src/lib/create/admission.js";

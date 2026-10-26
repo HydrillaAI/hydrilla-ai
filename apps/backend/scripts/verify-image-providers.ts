@@ -2,7 +2,7 @@
  * Verify OpenAI / Gemini image request payloads against the provider docs.
  *
  * Pure in-memory checks — no network, no API keys. Run with:
- *   npm run verify:images
+ *   pnpm run verify:images
  *
  * Docs:
  *   https://developers.openai.com/api/docs/guides/image-generation

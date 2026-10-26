@@ -4,7 +4,7 @@
  *
  * No DB, no network, no GPU. Every fixture is generated in memory.
  *
- *   npm run verify:mesh
+ *   pnpm run verify:mesh
  */
 
 import { runMeshPostGate, hardFailCodes } from "../src/lib/create/mesh/gate.js";

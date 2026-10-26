@@ -3,7 +3,7 @@
  * character boundaries, deduplication, and error validation (Linear HYD-51).
  *
  * Run with:
- *   npm run test:image-prompts
+ *   pnpm run test:image-prompts
  */
 
 import dotenv from "dotenv";

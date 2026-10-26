@@ -14,7 +14,7 @@
  * 10. Retry behavior after failure (Refund validation, clean state, non-double-charge retry)
  *
  * Run with:
- *   npx tsx scripts/qa-generation-production-flows.ts
+ *   pnpm exec tsx scripts/qa-generation-production-flows.ts
  */
 
 import dotenv from "dotenv";

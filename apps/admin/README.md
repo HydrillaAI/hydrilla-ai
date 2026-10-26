@@ -8,9 +8,9 @@ Lives at `hydrilla/admin` (sibling of `frontend/` and `backend/`).
 
 ```bash
 cd hydrilla/admin
-npm install
+pnpm install
 cp .env.example .env.local
-npm run dev   # http://localhost:3001
+pnpm run dev   # http://localhost:3001
 ```
 
 Use the same Clerk application as the main frontend (or a dedicated admin instance). Add these origins in Clerk:

@@ -14,10 +14,10 @@ Official developer documentation web application for the Hydrilla AI platform, b
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start local dev server on port 3001
-npm run dev
+pnpm run dev
 
 # Open http://localhost:3001
 ```
@@ -25,8 +25,8 @@ npm run dev
 ## Production Build
 
 ```bash
-npm run build
-npm run start
+pnpm run build
+pnpm run start
 ```
 
 ## Vercel Deployment

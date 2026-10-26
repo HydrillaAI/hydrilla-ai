@@ -32,9 +32,9 @@ Next.js (App Router) · TypeScript · React · Tailwind · Clerk · Three.js · 
 
 ```bash
 cd hydrilla/frontend
-npm install
+pnpm install
 # Create .env.local with the vars below (no committed .env.example yet)
-npm run dev                  # http://localhost:3000
+pnpm run dev                  # http://localhost:3000
 ```
 
 Required env (typical):
@@ -50,8 +50,8 @@ Backend (local):
 
 ```bash
 cd ../backend
-npm install
-npm run dev   # Express on :4000
+pnpm install
+pnpm run dev   # Express on :4000
 ```
 
 ## Key routes

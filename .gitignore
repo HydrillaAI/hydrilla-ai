@@ -156,6 +156,6 @@ __pycache__/
 # Personal Claude Code rules
 CLAUDE.local.md
 
-# Repo uses npm; ignore stray lockfiles from other package managers
-pnpm-lock.yaml
+# Repo uses pnpm (single root pnpm-lock.yaml); ignore stray lockfiles from other package managers
+package-lock.json
 yarn.lock

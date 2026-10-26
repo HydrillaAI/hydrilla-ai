@@ -39,9 +39,9 @@ const nextConfig = {
   // in `redirects()` fire in a single hop for both `/path` and `/path/`.
   skipTrailingSlashRedirect: true,
   transpilePackages: ["dialkit"],
-  // Use this directory as workspace root so Turbopack doesn't warn about multiple lockfiles
+  // Monorepo root: pnpm links dependencies from the root node_modules/.pnpm
   turbopack: {
-    root: __dirname,
+    root: require("path").join(__dirname, "../.."),
   },
   // Skew protection (stale Server Action IDs after deploy):
   // 1. Enable in Vercel → Project → Settings → Advanced → Skew Protection

@@ -2,7 +2,7 @@
  * Verify the Create harness contracts (Phase 0).
  *
  * Pure in-memory checks — no DB, no network, no API keys. Run with:
- *   npm run verify:create
+ *   pnpm run verify:create
  *
  * Guards asserted here are the ones the rest of the harness depends on. If any fail,
  * a later phase can silently promote a broken mesh.
