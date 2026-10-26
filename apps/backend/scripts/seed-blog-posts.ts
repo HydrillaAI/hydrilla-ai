@@ -2,7 +2,7 @@
  * One-time seed: migrate frontend/content/blog/*.md into blog_posts.
  * Run after applying sql/009_blog_posts.sql in Supabase.
  *
- *   cd backend && npx tsx scripts/seed-blog-posts.ts
+ *   cd backend && pnpm exec tsx scripts/seed-blog-posts.ts
  */
 import fs from "node:fs";
 import path from "node:path";

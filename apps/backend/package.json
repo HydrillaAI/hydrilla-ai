@@ -15,7 +15,7 @@
     "verify:images": "tsx scripts/verify-image-providers.ts",
     "test:image-prompts": "tsx scripts/test-image-prompts-stress.ts",
     "test:qa-generation": "tsx scripts/qa-generation-production-flows.ts",
-    "verify:all": "npm run verify:create && npm run verify:mesh && npm run verify:pipeline && npm run verify:agents"
+    "verify:all": "pnpm run verify:create && pnpm run verify:mesh && pnpm run verify:pipeline && pnpm run verify:agents"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.46",

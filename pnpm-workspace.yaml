@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - apps/frontend/agent
+  - apps/frontend/plugins/mcp
+
+# Dependency install scripts pnpm may run. Native binaries need theirs;
+# the others only print notices.
+allowBuilds:
+  '@clerk/shared': false
+  core-js: false
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

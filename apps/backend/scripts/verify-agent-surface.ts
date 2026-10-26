@@ -8,7 +8,7 @@
  *
  * This reads the actual files on disk rather than a list someone maintains by hand.
  *
- *   npm run verify:agents
+ *   pnpm run verify:agents
  */
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";

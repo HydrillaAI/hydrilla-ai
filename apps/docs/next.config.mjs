@@ -32,7 +32,8 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  outputFileTracingRoot: projectRoot,
+  // Monorepo root: pnpm links dependencies from the root node_modules/.pnpm
+  outputFileTracingRoot: path.join(projectRoot, "../.."),
   async rewrites() {
     return [
       {

@@ -3,7 +3,7 @@
  * so /discover isn't empty on day one. Only use models whose owners agreed to share them.
  * Run after applying sql/027_community_profiles_and_posts.sql in Supabase.
  *
- *   npx tsx scripts/seed-community.ts <jobId>[:Title] [<jobId>[:Title] ...]
+ *   pnpm exec tsx scripts/seed-community.ts <jobId>[:Title] [<jobId>[:Title] ...]
  *
  * Each post is attributed to the job's own owner. Jobs that are not finished GLB
  * models, or are already in a post, are skipped.
@@ -25,7 +25,7 @@ const supabase = createClient(url, key, { auth: { persistSession: false, autoRef
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error("Usage: npx tsx scripts/seed-community.ts <jobId>[:Title] ...");
+    console.error("Usage: pnpm exec tsx scripts/seed-community.ts <jobId>[:Title] ...");
     process.exit(1);
   }
 

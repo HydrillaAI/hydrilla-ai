@@ -4,8 +4,8 @@ Stdio MCP server for Hydrilla developer API.
 
 ```bash
 cd plugins/mcp
-npm install
-npm run build
+pnpm install
+pnpm run build
 HYDRILLA_API_KEY=hyd_live_… node dist/index.js
 ```
 

@@ -41,9 +41,9 @@ backend/
 
 ```bash
 cd hydrilla/backend
-npm install
+pnpm install
 cp .env.example .env   # or copy from your secrets store
-npm run dev            # default :4000 + background job sync
+pnpm run dev            # default :4000 + background job sync
 ```
 
 Prerequisites: Node 18+, Supabase project, Clerk, S3 (or local uploads in dev), GPU API URL for cloud jobs.
@@ -77,7 +77,7 @@ CORS origins are configured via env (`config.corsOrigins`) — include `http://l
 
 ## Deployment
 
-Vercel project from this folder. Local `npm run dev` runs background `syncAllJobs`; serverless relies on request-driven / `waitUntil` patterns for long work.
+Vercel project from this folder. Local `pnpm run dev` runs background `syncAllJobs`; serverless relies on request-driven / `waitUntil` patterns for long work.
 
 ## License
 

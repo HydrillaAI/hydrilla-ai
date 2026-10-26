@@ -31,28 +31,23 @@ git clone https://github.com/HydrillaAI/hydrilla-ai.git .
 
 ---
 
-### 2. How npm install Works in this Setup
+### 2. Install Dependencies (pnpm workspaces)
 
-Because we used the **independent multi-app structure**, each app in `apps/` has its own isolated `package.json` and its own `node_modules`.
+The repo is a **pnpm workspace** (`pnpm-workspace.yaml`). Each app in `apps/` keeps its own `package.json`, but there is a single `pnpm-lock.yaml` at the root, and packages shared between apps are stored once.
 
-You **don't** need any special monorepo CLI or complex tooling installed. Plain **Node.js** and **npm** are all that are needed.
-
-#### Option A: Install folder by folder
+Enable pnpm once (it ships with Node via Corepack; the version is pinned in the root `package.json`):
 
 ```bash
-cd apps/frontend && npm install
-cd ../backend && npm install
-cd ../admin && npm install
-cd ../docs && npm install
+corepack enable
 ```
 
-#### Option B: Single one-liner from the root folder
-
-From the root `hydrilla` directory, run:
+Then install everything from the repo root:
 
 ```bash
-npm run install:all
+pnpm install
 ```
+
+To add a dependency to one app, run it from the root with a filter, e.g. `pnpm --filter hydrilla-frontend add <pkg>`, or run `pnpm add <pkg>` inside that app's folder. Don't use `npm install`; it would create a `package-lock.json` (ignored by git) and a separate `node_modules` layout.
 
 ---
 
@@ -79,13 +74,13 @@ Run each app from the repo root, in separate terminal tabs:
 
 | App | Command (from root) | Local URL |
 | :--- | :--- | :--- |
-| **Frontend** | `npm run dev:frontend` | [http://localhost:3000](http://localhost:3000) |
-| **Backend** | `npm run dev:backend` | [http://localhost:4000](http://localhost:4000) |
-| **Admin** | `npm run dev:admin` | [http://localhost:3001](http://localhost:3001) |
-| **Docs** | `npm run dev:docs` | [http://localhost:3002](http://localhost:3002) |
+| **Frontend** | `pnpm dev:frontend` | [http://localhost:3000](http://localhost:3000) |
+| **Backend** | `pnpm dev:backend` | [http://localhost:4000](http://localhost:4000) |
+| **Admin** | `pnpm dev:admin` | [http://localhost:3001](http://localhost:3001) |
+| **Docs** | `pnpm dev:docs` | [http://localhost:3002](http://localhost:3002) |
 
 > [!TIP]
-> **💡 Port Tip:** `apps/docs` defaults to port 3001, the same as `apps/admin`, so `npm run dev:docs` runs it on **3002** so both can run at the same time.
+> **💡 Port Tip:** `apps/docs` defaults to port 3001, the same as `apps/admin`, so `pnpm dev:docs` runs it on **3002** so both can run at the same time.
 
 ---
 
@@ -93,14 +88,14 @@ Run each app from the repo root, in separate terminal tabs:
 
 ```bash
 # 1. Start Frontend (Tab 1)
-npm run dev:frontend
+pnpm dev:frontend
 
 # 2. Start Backend API (Tab 2)
-npm run dev:backend
+pnpm dev:backend
 
 # 3. Start Admin Dashboard (Tab 3)
-npm run dev:admin
+pnpm dev:admin
 
 # 4. Start Documentation (Tab 4)
-npm run dev:docs
+pnpm dev:docs
 ```

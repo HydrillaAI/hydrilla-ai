@@ -3,7 +3,7 @@
 > **Status: PARKED.** Nothing in the product calls these agents. Water generation and
 > follow-up edits run in the backend on the Vercel AI SDK (`generateText` for the harness,
 > `ToolLoopAgent` for the director) — see [`docs/WATER_ORCHESTRATION.md`](../docs/WATER_ORCHESTRATION.md).
-> eve is kept compiling (`npm run typecheck`, `eve info`) so it can come back. The likely
+> eve is kept compiling (`pnpm run typecheck`, `eve info`) so it can come back. The likely
 > first use is the follow-up director, once it needs durable multi-turn sessions. Why
 > it's parked, and when to revisit, is in the comments in `agents/create-water/agent/agent.ts`
 > and in the backend's `orchestrator/routeCreate.ts`. Also note `job_submit` returns 501 by design.
@@ -68,17 +68,17 @@ agent/                             # eve workspace root
 
 ```bash
 cd agent
-npm install
-npm run info:cloud   # eve info --agent create-cloud — compile status, skill/tool counts
-npm run dev:cloud    # eve dev --agent create-cloud
-npm run dev:water    # eve dev --agent create-water
-npm run typecheck    # tsc
+pnpm install
+pnpm run info:cloud   # eve info --agent create-cloud — compile status, skill/tool counts
+pnpm run dev:cloud    # eve dev --agent create-cloud
+pnpm run dev:water    # eve dev --agent create-water
+pnpm run typecheck    # tsc
 ```
 
 Set `ANTHROPIC_API_KEY`, `HYDRILLA_RUN_API`, and `HYDRILLA_RUN_API_TOKEN` first — see
 `.env.example`.
 
-**Verified against `eve@0.54.3`:** `npm install` and `npm run typecheck` both pass, and
+**Verified against `eve@0.54.3`:** `pnpm install` and `pnpm run typecheck` both pass, and
 `eve info` reports `Compile ready`, `0 errors, 0 warnings`, **11 skills** and **22 tools**
 (our 12 plus 10 framework tools) for each agent. `defineAgent` from `eve` and `defineTool`
 from `eve/tools` are the real signatures. Note that `eve`'s published `.d.ts` re-exports

@@ -101,7 +101,7 @@ backend/
 
 2. **Install dependencies:**
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. **Set up environment variables:**
@@ -120,13 +120,13 @@ backend/
 
 **Development mode (with hot reload):**
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 **Production build:**
 ```bash
-npm run build
-npm start
+pnpm run build
+pnpm start
 ```
 
 Server will start on `http://localhost:4000`
@@ -663,7 +663,7 @@ RLS policies ensure users can only access their own data:
 ### Manual Deployment
 
 ```bash
-npm run build
+pnpm run build
 # Deploy dist/ directory to your server
 ```
 
@@ -711,7 +711,7 @@ npm run build
 ### Image Generation
 
 - **Check providers**: `GET /api/3d/health` → `providers.openai` / `providers.gemini`
-- **Payload check**: `npm run verify:images` validates request bodies against the provider docs
+- **Payload check**: `pnpm run verify:images` validates request bodies against the provider docs
 
 ### Payment Issues
 
@@ -719,8 +719,8 @@ See [Payment Integration - Troubleshooting](#troubleshooting-payments) section a
 
 ### Build Errors
 
-- **TypeScript errors**: Run `npm run build` locally to see errors
-- **Missing dependencies**: Run `npm install`
+- **TypeScript errors**: Run `pnpm run build` locally to see errors
+- **Missing dependencies**: Run `pnpm install`
 - **Environment variables**: Ensure all required variables are set
 - **Vercel build logs**: Check deployment logs in Vercel dashboard
 
@@ -730,10 +730,10 @@ See [Payment Integration - Troubleshooting](#troubleshooting-payments) section a
 
 ### Project Scripts
 
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build TypeScript to JavaScript
-- `npm start` - Start production server
-- `npm run lint` - Run linter (if configured)
+- `pnpm run dev` - Start development server with hot reload
+- `pnpm run build` - Build TypeScript to JavaScript
+- `pnpm start` - Start production server
+- `pnpm run lint` - Run linter (if configured)
 
 ### Code Structure
 
