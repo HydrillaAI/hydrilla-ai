@@ -152,3 +152,6 @@ C72EEEC0-*.png
 # Python caches (if any local scripting used)
 __pycache__/
 *.py[cod]
+
+# Personal Claude Code rules
+CLAUDE.local.md

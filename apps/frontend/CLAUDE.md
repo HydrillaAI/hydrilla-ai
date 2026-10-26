@@ -1,1 +1,4 @@
 @AGENTS.md
+
+# Frontend rules
+
