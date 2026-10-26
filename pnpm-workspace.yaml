@@ -5,6 +5,12 @@ packages:
 
 # Dependency install scripts pnpm may run. Native binaries need theirs;
 # the others only print notices.
+# One @types/react for the whole workspace. Next's styled-jsx types augment
+# whichever copy pnpm hoists, so two versions break `<style jsx>` type checks
+# depending on which apps are installed.
+overrides:
+  '@types/react': 19.2.18
+
 allowBuilds:
   '@clerk/shared': false
   core-js: false

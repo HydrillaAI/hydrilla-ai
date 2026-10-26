@@ -4,6 +4,6 @@
   "regions": ["iad1"],
   "buildCommand": "pnpm run build",
   "devCommand": "pnpm run dev",
-  "installCommand": "pnpm install",
+  "installCommand": "pnpm install --filter hydrilla-frontend...",
   "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- ."
 }
