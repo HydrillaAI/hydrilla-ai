@@ -51,7 +51,7 @@ cd ../docs && npm install
 From the root `hydrilla` directory, run:
 
 ```bash
-(cd apps/frontend && npm i) && (cd apps/backend && npm i) && (cd apps/admin && npm i) && (cd apps/docs && npm i)
+npm run install:all
 ```
 
 ---
@@ -75,17 +75,17 @@ Git does not track `.env` or `.env.local` files for security. Before starting th
 
 ### 4. How to Run Each App (Ports & Commands)
 
-You run each app from its respective folder in separate terminal tabs:
+Run each app from the repo root, in separate terminal tabs:
 
-| App | Directory | Command | Local URL |
-| :--- | :--- | :--- | :--- |
-| **Frontend** | `apps/frontend` | `npm run dev` | [http://localhost:3000](http://localhost:3000) |
-| **Backend** | `apps/backend` | `npm run dev` | [http://localhost:4000](http://localhost:4000) |
-| **Admin** | `apps/admin` | `npm run dev` | [http://localhost:3001](http://localhost:3001) |
-| **Docs** | `apps/docs` | `npm run dev -- -p 3002` | [http://localhost:3002](http://localhost:3002) |
+| App | Command (from root) | Local URL |
+| :--- | :--- | :--- |
+| **Frontend** | `npm run dev:frontend` | [http://localhost:3000](http://localhost:3000) |
+| **Backend** | `npm run dev:backend` | [http://localhost:4000](http://localhost:4000) |
+| **Admin** | `npm run dev:admin` | [http://localhost:3001](http://localhost:3001) |
+| **Docs** | `npm run dev:docs` | [http://localhost:3002](http://localhost:3002) |
 
 > [!TIP]
-> **💡 Port Tip:** Notice that `apps/admin` runs on port **3001**. Because `apps/docs` default script also has 3001 configured, if you run both at the same time, give Docs port **3002** (`npm run dev -- -p 3002`) so they don't fight for the same port!
+> **💡 Port Tip:** `apps/docs` defaults to port 3001, the same as `apps/admin`, so `npm run dev:docs` runs it on **3002** so both can run at the same time.
 
 ---
 
@@ -93,14 +93,14 @@ You run each app from its respective folder in separate terminal tabs:
 
 ```bash
 # 1. Start Frontend (Tab 1)
-cd apps/frontend && npm run dev
+npm run dev:frontend
 
 # 2. Start Backend API (Tab 2)
-cd apps/backend && npm run dev
+npm run dev:backend
 
 # 3. Start Admin Dashboard (Tab 3)
-cd apps/admin && npm run dev
+npm run dev:admin
 
 # 4. Start Documentation (Tab 4)
-cd apps/docs && npm run dev -- -p 3002
+npm run dev:docs
 ```

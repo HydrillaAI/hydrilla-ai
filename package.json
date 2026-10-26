@@ -1,0 +1,11 @@
+{
+  "name": "hydrilla-ai",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npm --prefix apps/frontend run dev",
+    "dev:backend": "npm --prefix apps/backend run dev",
+    "dev:admin": "npm --prefix apps/admin run dev",
+    "dev:docs": "npm --prefix apps/docs run dev -- -p 3002",
+    "install:all": "npm --prefix apps/frontend install && npm --prefix apps/backend install && npm --prefix apps/admin install && npm --prefix apps/docs install"
+  }
+}
