@@ -13,3 +13,13 @@ Use pnpm, never npm or yarn (`pnpm --filter <package-name> add <dep>` to add a d
   browser tools. Verify UI another way (read the component, typecheck, tests)
   and say what was not checked in a browser.
 - Never read out, print, or commit `.env*`, `gcp-key.json`, or `uploads/`.
+
+## Git workflow
+- **Never commit or push to `main`.** `main` is protected and only changes
+  through merged pull requests.
+- For any change, create a branch from the latest `main` first
+  (`git checkout main && git pull && git checkout -b <type>/<short-name>`,
+  e.g. `fix/credits-balance`, `chore/vercel-installs`), commit there, push
+  that branch, and open a PR into `main`.
+- If you are already on `main` with uncommitted changes, move them to a new
+  branch before committing.
