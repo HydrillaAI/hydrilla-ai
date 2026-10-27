@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { useTheme } from "next-themes";
 import { Plus } from "lucide-react";
 import { CreateEnginePicker } from "../../components/CreateEnginePicker";
@@ -28,6 +28,7 @@ import { InspectorPanel } from "../../components/workspace/inspector/InspectorPa
 import { LibraryPanel } from "../../components/workspace/library/LibraryPanel";
 import { LibraryRail } from "../../components/workspace/library/LibraryRail";
 import { LibraryOptionsBar } from "../../components/workspace/library/LibraryOptionsBar";
+import { PolyRunnerCard } from "../../components/workspace/PolyRunnerGame";
 import { LIBRARY_BAR } from "../../lib/library-bar";
 import { COMPOSER_SIZE } from "../../lib/composer-size";
 import { useSlotStatus } from "../../hooks/useSlotStatus";
@@ -264,6 +265,7 @@ export default function WorkspacePageWrapper() {
 
 function WorkspacePage() {
   const { isSignedIn, getToken, isLoaded } = useAuth();
+  const { user } = useUser();
   const slotStatus = useSlotStatus(getToken, !!isSignedIn);
   const router = useRouter();
   const pathname = usePathname();
@@ -1876,6 +1878,7 @@ function WorkspacePage() {
       setError(null);
       setLeftLibraryTab("3d");
       markMobileGenerationStart();
+      const generationStartedAt = Date.now();
       setLoading(true);
       setCodeFactoryCode(null);
       setCodeSculptPass("assessment");
@@ -1891,6 +1894,13 @@ function WorkspacePage() {
         imageUrl: referenceImageUrl,
         parentJobId: parentId,
         parentJobIds: parentId ? [parentId] : [],
+      });
+      setCurrentGenerating({
+        jobId: pendingId,
+        status: "generating",
+        progress: 8,
+        estimatedTotalSeconds: 120,
+        startTime: generationStartedAt,
       });
       promptHistory.record(description, "water");
       clearComposerDraft();
@@ -1927,7 +1937,7 @@ function WorkspacePage() {
           status: "generating",
           progress: 20,
           estimatedTotalSeconds: 120,
-          startTime: Date.now(),
+          startTime: generationStartedAt,
         });
         loadJobInfo({
           id: result.job_id,
@@ -2169,6 +2179,7 @@ function WorkspacePage() {
         has_local_file: !!localFile,
         has_preview_id: !!previewId,
       });
+      const generationStartedAt = Date.now();
       const tokenGetter = async () => await getToken();
       setLeftLibraryTab("3d"); // Switch to 3D tab so result will show in 3D section below search
       markMobileGenerationStart();
@@ -2184,6 +2195,13 @@ function WorkspacePage() {
         prompt: targetPrompt,
         parentJobId: previewId ?? null,
         parentJobIds: previewId ? [previewId] : [],
+      });
+      setCurrentGenerating({
+        jobId: pendingId,
+        status: "generating",
+        progress: 0,
+        estimatedTotalSeconds: 840,
+        startTime: generationStartedAt,
       });
       loadJobInfo({
         id: pendingId,
@@ -2213,6 +2231,7 @@ function WorkspacePage() {
         }
         await waitMobileGpuOfflineMinimum(msg, userFacing);
         mobileGenStartedAtRef.current = null;
+        setCurrentGenerating(null);
         setCenterView({ type: "error", message: userFacing, refunded: true });
         removePendingJob(pendingId);
         setLoading(false);
@@ -2244,7 +2263,7 @@ function WorkspacePage() {
           status: "generating",
           progress: 0,
           estimatedTotalSeconds: estimatedTotal,
-          startTime: Date.now(),
+          startTime: generationStartedAt,
           queueInfo: queueInfo || undefined,
         });
         loadJobInfo({
@@ -2278,6 +2297,7 @@ function WorkspacePage() {
         const userFacing = toUserFacingGpuError(msg);
         await waitMobileGpuOfflineMinimum(msg, userFacing);
         mobileGenStartedAtRef.current = null;
+        setCurrentGenerating(null);
         setCenterView({ type: "error", message: userFacing, refunded: !isPaywallError(msg) });
         removePendingJob(pendingId);
         refreshCredits();
@@ -3346,6 +3366,13 @@ function WorkspacePage() {
 
     if (job.id.startsWith("pending-")) {
       setLeftLibraryTab("3d");
+      setCurrentGenerating({
+        jobId: job.id,
+        status: "generating",
+        progress: 10,
+        estimatedTotalSeconds: 840,
+        startTime: Number.isFinite(Date.parse(job.createdAt)) ? Date.parse(job.createdAt) : Date.now(),
+      });
       setCenterView({
         type: "generating",
         progress: 10,
@@ -3529,6 +3556,44 @@ function WorkspacePage() {
   };
 
   const isGenerating = loading || generatingPreview || (currentGenerating?.status === "generating");
+  const polyRunnerGenerationStart =
+    currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
+  const [polyRunnerVisible, setPolyRunnerVisible] = useState(false);
+  const polyRunnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The game follows only the real 3D generation state. A new start time gives
+  // every generation a fresh two-second grace period, while progress updates
+  // for the same job do not restart the timer.
+  useEffect(() => {
+    if (polyRunnerTimerRef.current) {
+      clearTimeout(polyRunnerTimerRef.current);
+      polyRunnerTimerRef.current = null;
+    }
+    setPolyRunnerVisible(false);
+
+    if (currentGenerating?.status !== "generating" || polyRunnerGenerationStart === null) {
+      return;
+    }
+
+    const remaining = Math.max(0, 2_000 - (Date.now() - polyRunnerGenerationStart));
+    if (remaining === 0) {
+      setPolyRunnerVisible(true);
+      return;
+    }
+
+    polyRunnerTimerRef.current = setTimeout(() => {
+      polyRunnerTimerRef.current = null;
+      setPolyRunnerVisible(true);
+    }, remaining);
+
+    return () => {
+      if (polyRunnerTimerRef.current) {
+        clearTimeout(polyRunnerTimerRef.current);
+        polyRunnerTimerRef.current = null;
+      }
+    };
+  }, [currentGenerating?.status, polyRunnerGenerationStart]);
+
   const waterEditParentId = resolveWaterEditParentId();
   const waterEditParentJob =
     (waterEditParentId && library3DAssets.find((j) => j.id === waterEditParentId)) ||
@@ -4297,6 +4362,18 @@ function WorkspacePage() {
               </div>
             </div>
           ) : null}
+          {polyRunnerVisible && !fullView ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute right-3 top-[clamp(5rem,calc(50%_-_20rem),11rem)] z-20 sm:right-10",
+                inspectorVisible && !isCompact && "lg:right-[320px]",
+              )}
+            >
+              <div className="pointer-events-auto">
+                <PolyRunnerCard userKey={user?.id ?? null} />
+              </div>
+            </div>
+          ) : null}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {(centerView.type === "3d" || centerView.type === "code") && !accountFloat && (
             <ViewerToolbar
@@ -4333,7 +4410,11 @@ function WorkspacePage() {
               progress={generatingProgress}
               water={showWaterPassRail ? { tier: waterQualityTier, pass: codeSculptPass } : null}
               queueInfo={currentGenerating?.status === "generating" ? currentGenerating.queueInfo ?? null : null}
-              onCancel={currentGenerating?.jobId ? () => void handleCancelGeneration() : null}
+              onCancel={
+                currentGenerating?.jobId && !currentGenerating.jobId.startsWith("pending-")
+                  ? () => void handleCancelGeneration()
+                  : null
+              }
             />
           )}
 

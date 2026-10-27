@@ -19,6 +19,7 @@ import {
   Coins,
   X,
   UserRound,
+  Box,
 } from "lucide-react";
 import { useSlotStatus } from "../../hooks/useSlotStatus";
 import { cn } from "../../lib/utils";
@@ -37,6 +38,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: "Create",
     items: [
       { href: "/app/studio", label: "Studio", icon: LayoutDashboard },
+      { href: "/app/my-world", label: "My World", icon: Box },
       { href: "/app/assets", label: "Assets", icon: FolderOpen },
     ],
   },
