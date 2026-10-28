@@ -68,6 +68,7 @@ export const NAV_PRIMARY: NavGroup[] = [
         heading: "Generate",
         items: [
           { label: "BlueFox", href: "/bluefox", description: "The flagship model", icon: "bluefox" },
+          { label: "World Models", href: "/world-models", description: "Explore Hydrilla's model stack", icon: "bluefox" },
           { label: "Text to 3D", href: "/text-to-3d", description: "Describe it, get a model", icon: "text" },
           { label: "Image to 3D", href: "/image-to-3d", description: "Turn a reference into a mesh", icon: "image" },
           { label: "Water Agent", href: "/water", description: "AI 3D agent for studios", icon: "water" },
@@ -201,6 +202,7 @@ export const FOOTER_NAV: Array<{
     links: [
       { label: "Overview", href: "/features" },
       { label: "BlueFox", href: "/bluefox" },
+      { label: "World Models", href: "/world-models" },
       { label: "Water Agent", href: "/water" },
       { label: "Text to 3D", href: "/text-to-3d" },
       { label: "Image to 3D", href: "/image-to-3d" },
