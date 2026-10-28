@@ -202,6 +202,17 @@ function WorldScene({
     grid.position.y = 0.006;
     scene.add(grid);
 
+    const updateTheme = () => {
+      const nextCanvas = cssColor("--app-canvas", "#f1f5fb");
+      const nextMist = cssColor("--hyd-mist", "#d6e5fa");
+      scene.background = new THREE.Color(nextCanvas);
+      scene.fog?.color.set(nextCanvas);
+      renderer.setClearColor(nextCanvas, 1);
+      (floor.material as THREE.MeshStandardMaterial).color.set(nextMist);
+    };
+    const themeObserver = new MutationObserver(updateTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+
     const models = new THREE.Group();
     models.name = "my-world-models";
     scene.add(models);
@@ -248,6 +259,7 @@ function WorldScene({
     return () => {
       window.cancelAnimationFrame(animationFrame);
       observer.disconnect();
+      themeObserver.disconnect();
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       controls.dispose();

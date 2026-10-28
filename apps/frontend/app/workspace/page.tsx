@@ -1613,6 +1613,7 @@ function WorkspacePage() {
           track("3d_generation_completed", {
             model: selectedModel,
           });
+          setPolyRunnerCompletion(true);
           const glbUrl = getGlbUrl(status);
           setCurrentGenerating(null);
           setLoading(false);
@@ -1645,6 +1646,7 @@ function WorkspacePage() {
           };
           loadJobInfo(completed3DJob);
         } else if (status.status === "failed") {
+          setPolyRunnerCompletion(false);
           if (progressIntervalRef.current) {
             clearInterval(progressIntervalRef.current);
             progressIntervalRef.current = null;
@@ -3596,6 +3598,7 @@ function WorkspacePage() {
   const polyRunnerGenerationStart =
     currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
   const [polyRunnerVisible, setPolyRunnerVisible] = useState(false);
+  const [polyRunnerCompletion, setPolyRunnerCompletion] = useState(false);
   const polyRunnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The game follows only the real 3D generation state. A new start time gives
@@ -3611,6 +3614,7 @@ function WorkspacePage() {
     if (currentGenerating?.status !== "generating" || polyRunnerGenerationStart === null) {
       return;
     }
+    setPolyRunnerCompletion(false);
 
     const remaining = Math.max(0, 2_000 - (Date.now() - polyRunnerGenerationStart));
     if (remaining === 0) {
@@ -4399,7 +4403,7 @@ function WorkspacePage() {
               </div>
             </div>
           ) : null}
-          {polyRunnerVisible && !fullView ? (
+          {(polyRunnerVisible || polyRunnerCompletion) && !fullView ? (
             <div
               className={cn(
                 "pointer-events-none absolute right-3 top-[clamp(5rem,calc(50%_-_20rem),11rem)] z-20 sm:right-10",
@@ -4407,7 +4411,11 @@ function WorkspacePage() {
               )}
             >
               <div className="pointer-events-auto">
-                <PolyRunnerCard userKey={user?.id ?? null} />
+                <PolyRunnerCard
+                  userKey={user?.id ?? null}
+                  generationComplete={polyRunnerCompletion}
+                  onViewGeneratedModel={() => setPolyRunnerCompletion(false)}
+                />
               </div>
             </div>
           ) : null}

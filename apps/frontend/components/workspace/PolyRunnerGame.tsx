@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Pause, Play, RotateCcw, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type PolyRunnerGameProps = {
   userKey?: string | null;
   className?: string;
+  generationComplete?: boolean;
+  onViewGeneratedModel?: () => void;
 };
 
 type RunnerObstacle = {
@@ -15,10 +17,20 @@ type RunnerObstacle = {
   hue: number;
 };
 
+type RunnerCollectible = {
+  lane: -1 | 0 | 1;
+  z: number;
+  spin: number;
+};
+
 type RunnerState = {
   lane: -1 | 0 | 1;
+  lanePosition: number;
   obstacles: RunnerObstacle[];
+  collectibles: RunnerCollectible[];
   score: number;
+  elapsed: number;
+  rotation: number;
   running: boolean;
   gameOver: boolean;
   lastTime: number;
@@ -67,8 +79,12 @@ function readRunnerPalette(): RunnerPalette {
 function makeRunnerState(): RunnerState {
   return {
     lane: 0,
+    lanePosition: 0,
     obstacles: [],
+    collectibles: [],
     score: 0,
+    elapsed: 0,
+    rotation: 0,
     running: false,
     gameOver: false,
     lastTime: 0,
@@ -113,6 +129,32 @@ function drawWireBox(
   context.lineTo(backLeft, backTop + backHeight);
   context.moveTo(frontLeft + width, frontTop + height);
   context.lineTo(backLeft + backWidth, backTop + backHeight);
+  context.stroke();
+  context.restore();
+}
+
+function drawPolyGem(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  spin: number,
+  palette: RunnerPalette,
+) {
+  context.save();
+  context.translate(x, y - size * 0.45);
+  context.rotate(spin);
+  context.fillStyle = palette.sky;
+  context.strokeStyle = palette.ink;
+  context.globalAlpha = 0.9;
+  context.lineWidth = Math.max(1, size / 10);
+  context.beginPath();
+  context.moveTo(0, -size);
+  context.lineTo(size * 0.72, 0);
+  context.lineTo(0, size);
+  context.lineTo(-size * 0.72, 0);
+  context.closePath();
+  context.fill();
   context.stroke();
   context.restore();
 }
@@ -188,13 +230,24 @@ function drawScene(
     drawWireBox(context, x, y, boxWidth, boxHeight, boxWidth * 0.48, 0.35 + progress * 0.55, obstacle.hue);
   }
 
+  for (const collectible of state.collectibles) {
+    const progress = clamp(1 - collectible.z, 0, 1);
+    const laneGap = width * (0.12 + progress * 0.17);
+    const x = centerX + collectible.lane * laneGap;
+    const y = horizonY + Math.pow(progress, 1.08) * (floorBottom - horizonY) - 12;
+    drawPolyGem(context, x, y, 7 + progress * 8, collectible.spin, palette);
+  }
+
   const playerProgress = 0.9;
   const playerLaneGap = width * (0.12 + playerProgress * 0.17);
-  const playerX = centerX + state.lane * playerLaneGap;
-  const playerY = height * 0.82;
+  const playerX = centerX + state.lanePosition * playerLaneGap;
+  const playerY = height * 0.82 + Math.sin(state.elapsed * 9) * 2.5;
   const radius = Math.max(12, Math.min(21, width * 0.046));
 
   context.save();
+  context.translate(playerX, playerY);
+  context.rotate(state.rotation);
+  context.translate(-playerX, -playerY);
   context.fillStyle = "rgba(40, 52, 89, 0.22)";
   context.filter = "blur(5px)";
   context.beginPath();
@@ -220,7 +273,7 @@ function drawScene(
   context.restore();
 }
 
-export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
+export function PolyRunnerCard({ userKey, className, generationComplete = false, onViewGeneratedModel }: PolyRunnerGameProps) {
   const cardRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -234,6 +287,7 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
   const [highScore, setHighScore] = useState(0);
   const [running, setRunning] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [swipeStart, setSwipeStart] = useState<number | null>(null);
 
   const paintHighScore = useCallback((nextScore: number) => {
     setHighScore((previous) => {
@@ -322,19 +376,46 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
       state.lastTime = time;
 
       if (state.running && !state.gameOver) {
+        state.elapsed += delta;
+        state.lanePosition += (state.lane - state.lanePosition) * Math.min(1, delta * 12);
+        state.rotation += delta * (2.2 + Math.min(2, state.elapsed / 30));
         state.spawnTime += delta;
-        if (state.spawnTime > 0.8) {
+        const spawnInterval = Math.max(0.42, 0.9 - state.elapsed * 0.006);
+        if (state.spawnTime > spawnInterval) {
           state.spawnTime = 0;
           const lane = LANE_VALUES[Math.floor(Math.random() * LANE_VALUES.length)];
           state.obstacles.push({ lane, z: 1.08, hue: 205 + Math.round(Math.random() * 45) });
+          if (state.elapsed > 10 && Math.random() > 0.68) {
+            const secondLane = LANE_VALUES.filter((value) => value !== lane)[Math.floor(Math.random() * 2)];
+            state.obstacles.push({ lane: secondLane, z: 1.08, hue: 180 + Math.round(Math.random() * 35) });
+          }
+          if (Math.random() > 0.48) {
+            const gemLane = LANE_VALUES[Math.floor(Math.random() * LANE_VALUES.length)];
+            state.collectibles.push({ lane: gemLane, z: 1.18, spin: 0 });
+          }
         }
-        const speed = 0.42 + Math.min(0.16, state.score / 12000);
+        const speed = 0.42 + Math.min(0.55, state.elapsed * 0.008);
         for (const obstacle of state.obstacles) obstacle.z -= delta * speed;
+        for (const collectible of state.collectibles) {
+          collectible.z -= delta * speed;
+          collectible.spin += delta * 4;
+        }
         state.obstacles = state.obstacles.filter((obstacle) => obstacle.z > 0.02);
+        const collected = state.collectibles.filter(
+          (collectible) => collectible.z < 0.16 && collectible.z > 0.02 && Math.abs(collectible.lane - state.lanePosition) < 0.42,
+        ).length;
+        state.collectibles = state.collectibles.filter(
+          (collectible) => !(collectible.z < 0.16 && collectible.z > 0.02 && Math.abs(collectible.lane - state.lanePosition) < 0.42) && collectible.z > 0.02,
+        );
         state.score += delta * 115;
+        if (collected) {
+          state.score += collected * 100;
+          setScore(Math.floor(state.score));
+          paintHighScore(Math.floor(state.score));
+        }
 
         const collision = state.obstacles.some(
-          (obstacle) => obstacle.z < 0.145 && obstacle.z > 0.02 && obstacle.lane === state.lane,
+          (obstacle) => obstacle.z < 0.145 && obstacle.z > 0.02 && Math.abs(obstacle.lane - state.lanePosition) < 0.38,
         );
         if (collision) {
           state.running = false;
@@ -388,6 +469,17 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [movePlayer, togglePlay]);
 
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") setSwipeStart(event.clientX);
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (swipeStart === null) return;
+    const delta = event.clientX - swipeStart;
+    if (Math.abs(delta) > 22) movePlayer(delta > 0 ? 1 : -1);
+    setSwipeStart(null);
+  };
+
   return (
     <section
       ref={cardRef}
@@ -429,7 +521,7 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
             {gameOver ? "Game over" : running ? "Running" : "Paused"}
           </span>
         </div>
-        <div ref={surfaceRef} className="relative h-[218px] w-full overflow-hidden max-[720px]:h-[180px]">
+        <div ref={surfaceRef} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} className="relative h-[218px] w-full touch-none overflow-hidden max-[720px]:h-[180px]">
           <canvas ref={canvasRef} className="block h-full w-full" aria-label="PolyRunner game canvas" />
           {!running && !gameOver ? (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -448,6 +540,19 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
                 <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.2} />
                 Run again
               </button>
+            </div>
+          ) : null}
+          {generationComplete ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-[var(--app-canvas)]/80 p-4 text-center backdrop-blur-[2px]">
+              <div>
+                <p className="text-[12px] font-semibold text-[var(--hyd-ink)]">Your model is ready</p>
+                <p className="mt-1 text-[10px] text-[var(--hyd-ink)] opacity-65">Open it in the workspace viewer.</p>
+                {onViewGeneratedModel ? (
+                  <button type="button" onClick={onViewGeneratedModel} className="mt-2 rounded-full bg-[var(--hyd-ink)] px-3.5 py-2 text-[11px] font-semibold text-[var(--app-canvas)] transition hover:opacity-80">
+                    View model
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>
