@@ -492,7 +492,10 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="footer-bottom">
           <div className="footer-bottom-meta">
-            <span className="footer-copy">© Hydrilla</span>
+            <span className="footer-copy">© Hydrilla AI Pvt Ltd</span>
+            <span className="footer-company-address">
+              Registered office: 5-40A, Ullipatteda, Muthyal Reddy Palli, Tirupati, Andhra Pradesh
+            </span>
             {FOOTER_LEGAL_LINKS.map((item) => (
               <Link key={item.href} href={item.href} className="footer-link">
                 {item.label}
@@ -835,6 +838,13 @@ export default function Footer() {
           margin: 0;
           font-size: 0.875rem;
           font-weight: 400;
+          line-height: 1.4;
+          color: #55534e;
+        }
+
+        .footer-company-address {
+          max-width: 32rem;
+          font-size: 0.8125rem;
           line-height: 1.4;
           color: #55534e;
         }
