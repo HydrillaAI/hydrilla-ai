@@ -169,7 +169,6 @@ const SAMPLE_DATA: Record<string, Record<string, unknown>> = {
   "T10_deletion-request": {},
   "T11_contact-received": { name: "Alex", message: "This is a test message from the admin Emails page." },
   "T12_enterprise-received": { name: "Alex", company: "Example Studio" },
-  "CL01_claim-link": { name: "Alex", amount: 250, reason: "Beta tester thanks", claim_url: "https://hydrilla.ai/claim/test", expires_on: "30 Nov 2026" },
   "T01_welcome": {},
   "INT01_new-message": { kind: "contact", name: "Alex", email: "alex@example.com", message: "Test alert.", details: "" },
   "INT02_gpu-offline": { user_id: "user_test", user_email: "alex@example.com", error_message: "Test alert.", reported_at: new Date().toISOString() },

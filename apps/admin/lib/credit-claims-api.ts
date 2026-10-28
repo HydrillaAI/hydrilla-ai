@@ -68,24 +68,6 @@ export async function createCreditClaimLink(
   return body as { success: boolean; link: CreditClaimLink; claimUrl: string };
 }
 
-/** Rishi emails the claim link to one person. A restricted link only goes to its allowed email. */
-export async function sendCreditClaimLink(
-  id: string,
-  params: { to?: string; name?: string },
-  getToken: () => Promise<string | null>
-): Promise<{ success: boolean; sentTo: string }> {
-  const res = await fetch(`${backendBase()}/api/admin/credit-claims/${encodeURIComponent(id)}/send`, {
-    method: "POST",
-    headers: await authHeaders(getToken),
-    body: JSON.stringify(params),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error((body as { error?: string }).error || "Failed to send claim link");
-  }
-  return body as { success: boolean; sentTo: string };
-}
-
 export async function updateCreditClaimLink(
   id: string,
   params: {
@@ -106,4 +88,39 @@ export async function updateCreditClaimLink(
     throw new Error((body as { error?: string }).error || "Failed to update claim link");
   }
   return body as { success: boolean; link: CreditClaimLink };
+}
+
+export type CreditClaimant = {
+  id: string;
+  userId: string;
+  email: string | null;
+  name: string | null;
+  amount: number;
+  claimedAt: string;
+  linkId: string;
+  linkToken: string | null;
+  linkReason: string | null;
+  /** Null when the claimed credits never expire. */
+  expiresAt: string | null;
+  expiredAt: string | null;
+  expiredAmount: number;
+  /** Unspent credits left from this claim; null when the credits never expire (not tracked). */
+  remaining: number | null;
+};
+
+/** Everyone who claimed through a claim link, newest first. Pass linkId for one link. */
+export async function fetchCreditClaimants(
+  linkId: string | null,
+  getToken: () => Promise<string | null>
+): Promise<CreditClaimant[]> {
+  const query = linkId ? `?linkId=${encodeURIComponent(linkId)}` : "";
+  const res = await fetch(`${backendBase()}/api/admin/credit-claims/claims${query}`, {
+    headers: await authHeaders(getToken),
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as { error?: string }).error || "Failed to load claims");
+  }
+  return (body as { claims: CreditClaimant[] }).claims || [];
 }

@@ -110,7 +110,7 @@ All of this is in workspace "Hydrilla AI" (218428, US region). Full ID tables ar
   3. Weekly recap
   4. News and tips
 - **Transactional messages (2–12):**
-  - T01 Welcome, CL01 Claim link and T08 Credits added, all from Rishi.
+  - T01 Welcome and T08 Credits added, both from Rishi.
   - T04, T06, T09, T10, T11 and T12, from `hi@`.
   - INT01 and INT02, the internal alerts.
 - **Automations (8–18), all in draft:**

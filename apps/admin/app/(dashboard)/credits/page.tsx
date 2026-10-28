@@ -3,25 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink, Gift, Mail, Plus } from "lucide-react";
+import { Check, Copy, ExternalLink, Gift, Plus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ClaimedByPanel } from "@/components/credits/ClaimedByPanel";
 import {
   fetchCreditClaimLinks,
   createCreditClaimLink,
-  sendCreditClaimLink,
   updateCreditClaimLink,
   type CreditClaimLink,
 } from "@/lib/credit-claims-api";
@@ -42,7 +34,7 @@ function formatWhen(value: string | null): string {
 export default function CreditClaimsPage() {
   const { getToken } = useAuth();
   const [links, setLinks] = useState<CreditClaimLink[]>([]);
-  const [filter, setFilter] = useState<"all" | "active" | "disabled">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "disabled" | "claimed">("all");
   const [loading, setLoading] = useState<boolean>(true);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   // Taken when the list loads so expired badges are computed outside render.
@@ -57,20 +49,16 @@ export default function CreditClaimsPage() {
   const [allowedEmail, setAllowedEmail] = useState<string>("");
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [lastCreatedUrl, setLastCreatedUrl] = useState<string | null>(null);
-  const [emailAfterCreate, setEmailAfterCreate] = useState<boolean>(true);
 
-  // "Send by email" dialog: Rishi emails the link through Customer.io.
-  const [sendLink, setSendLink] = useState<CreditClaimLink | null>(null);
-  const [sendTo, setSendTo] = useState<string>("");
-  const [sendName, setSendName] = useState<string>("");
-  const [isSending, setIsSending] = useState<boolean>(false);
+  // "Claimed by" tab: which link to show claims for (null = all links).
+  const [claimsLinkId, setClaimsLinkId] = useState<string | null>(null);
 
   const token = useCallback(async () => (await getToken()) ?? null, [getToken]);
 
   const loadLinks = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchCreditClaimLinks(filter, token);
+      const data = await fetchCreditClaimLinks(filter === "claimed" ? "all" : filter, token);
       setLinks(data);
       setNowMs(Date.now());
     } catch (err) {
@@ -141,14 +129,6 @@ export default function CreditClaimsPage() {
 
       toast.success(`Claim link created for ${parsedAmount} credits!`);
       setLastCreatedUrl(res.claimUrl);
-      if (emailAfterCreate && allowedEmail.trim()) {
-        try {
-          const sent = await sendCreditClaimLink(res.link.id, {}, token);
-          toast.success(`Rishi emailed the link to ${sent.sentTo}`);
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Link created, but the email was not sent");
-        }
-      }
       setReason("");
       setAllowedEmail("");
       setExpiresAt("");
@@ -159,26 +139,6 @@ export default function CreditClaimsPage() {
       toast.error(err instanceof Error ? err.message : "Failed to create claim link");
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  const openSend = (link: CreditClaimLink) => {
-    setSendLink(link);
-    setSendTo(link.allowed_email || "");
-    setSendName("");
-  };
-
-  const handleSend = async () => {
-    if (!sendLink) return;
-    setIsSending(true);
-    try {
-      const res = await sendCreditClaimLink(sendLink.id, { to: sendTo.trim(), name: sendName.trim() || undefined }, token);
-      toast.success(`Rishi emailed the link to ${res.sentTo}`);
-      setSendLink(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send claim link");
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -296,16 +256,6 @@ export default function CreditClaimsPage() {
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                 {isCreating ? "Generating Link..." : "Generate Claim Link"}
               </Button>
-              {allowedEmail.trim() ? (
-                <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={emailAfterCreate}
-                    onChange={(e) => setEmailAfterCreate(e.target.checked)}
-                  />
-                  Email it to {allowedEmail.trim()} from Rishi
-                </label>
-              ) : null}
             </div>
           </form>
 
@@ -365,199 +315,161 @@ export default function CreditClaimsPage() {
             >
               Disabled
             </Button>
+            <Button
+              variant={filter === "claimed" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => {
+                setClaimsLinkId(null);
+                setFilter("claimed");
+              }}
+            >
+              <Users className="mr-1.5 h-3.5 w-3.5" />
+              Claimed by
+            </Button>
           </div>
         </div>
 
-        <div className="rounded-xl border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Claim Link / Token</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Claims</TableHead>
-                <TableHead>Restricted Email</TableHead>
-                <TableHead>Link Expires</TableHead>
-                <TableHead>Credits Expire</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {links.map((link) => {
-                const creditsExpired =
-                  !!link.credits_expire_at && new Date(link.credits_expire_at).getTime() <= nowMs;
-                const isExpired =
-                  (!!link.expires_at && new Date(link.expires_at).getTime() <= nowMs) || creditsExpired;
-                const isExhausted = link.claims_used >= link.max_claims;
+        {filter === "claimed" ? (
+          <ClaimedByPanel links={links} linkId={claimsLinkId} onLinkChange={setClaimsLinkId} getToken={token} />
+        ) : (
+          <div className="rounded-xl border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Claim Link / Token</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Claims</TableHead>
+                  <TableHead>Restricted Email</TableHead>
+                  <TableHead>Link Expires</TableHead>
+                  <TableHead>Credits Expire</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {links.map((link) => {
+                  const creditsExpired =
+                    !!link.credits_expire_at && new Date(link.credits_expire_at).getTime() <= nowMs;
+                  const isExpired =
+                    (!!link.expires_at && new Date(link.expires_at).getTime() <= nowMs) || creditsExpired;
+                  const isExhausted = link.claims_used >= link.max_claims;
 
-                return (
-                  <TableRow key={link.id}>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-medium">
-                            {link.token.slice(0, 10)}...{link.token.slice(-6)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            title="Copy claim link"
-                            onClick={() => handleCopy(link.claimUrl, link.token)}
-                          >
-                            {copiedToken === link.token ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-500" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
-                          </Button>
-                          <a
-                            href={link.claimUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-foreground"
-                            title="Open link in new tab"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
+                  return (
+                    <TableRow key={link.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-medium">
+                              {link.token.slice(0, 10)}...{link.token.slice(-6)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Copy claim link"
+                              onClick={() => handleCopy(link.claimUrl, link.token)}
+                            >
+                              {copiedToken === link.token ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                            </Button>
+                            <a
+                              href={link.claimUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-foreground"
+                              title="Open link in new tab"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
+                          {link.reason ? (
+                            <p className="text-xs text-muted-foreground">{link.reason}</p>
+                          ) : null}
                         </div>
-                        {link.reason ? (
-                          <p className="text-xs text-muted-foreground">{link.reason}</p>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold text-emerald-500 tabular-nums">
-                        +{link.amount}
-                      </span>
-                    </TableCell>
-                    <TableCell className="tabular-nums text-sm">
-                      <span className={isExhausted ? "text-rose-500 font-semibold" : ""}>
-                        {link.claims_used}
-                      </span>
-                      {" / "}
-                      {link.max_claims}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {link.allowed_email ? (
-                        <span className="font-mono">{link.allowed_email}</span>
-                      ) : (
-                        <span className="italic">Anyone</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {isExpired ? (
-                        <span className="text-rose-500">Expired ({formatWhen(link.expires_at)})</span>
-                      ) : (
-                        formatWhen(link.expires_at)
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {creditsExpired ? (
-                        <span className="text-rose-500">Expired ({formatWhen(link.credits_expire_at)})</span>
-                      ) : (
-                        formatWhen(link.credits_expire_at)
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {link.status === "disabled" ? (
-                        <Badge variant="destructive">Disabled</Badge>
-                      ) : isExpired ? (
-                        <Badge variant="outline" className="border-rose-500 text-rose-500">Expired</Badge>
-                      ) : isExhausted ? (
-                        <Badge variant="secondary">Exhausted</Badge>
-                      ) : (
-                        <Badge className="bg-emerald-600/10 text-emerald-500 hover:bg-emerald-600/20">Active</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {link.status === "active" && !isExpired && !isExhausted ? (
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold text-emerald-500 tabular-nums">
+                          +{link.amount}
+                        </span>
+                      </TableCell>
+                      <TableCell className="tabular-nums text-sm">
+                        <span className={isExhausted ? "text-rose-500 font-semibold" : ""}>
+                          {link.claims_used}
+                        </span>
+                        {" / "}
+                        {link.max_claims}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {link.allowed_email ? (
+                          <span className="font-mono">{link.allowed_email}</span>
+                        ) : (
+                          <span className="italic">Anyone</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {isExpired ? (
+                          <span className="text-rose-500">Expired ({formatWhen(link.expires_at)})</span>
+                        ) : (
+                          formatWhen(link.expires_at)
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {creditsExpired ? (
+                          <span className="text-rose-500">Expired ({formatWhen(link.credits_expire_at)})</span>
+                        ) : (
+                          formatWhen(link.credits_expire_at)
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {link.status === "disabled" ? (
+                          <Badge variant="destructive">Disabled</Badge>
+                        ) : isExpired ? (
+                          <Badge variant="outline" className="border-rose-500 text-rose-500">Expired</Badge>
+                        ) : isExhausted ? (
+                          <Badge variant="secondary">Exhausted</Badge>
+                        ) : (
+                          <Badge className="bg-emerald-600/10 text-emerald-500 hover:bg-emerald-600/20">Active</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
                           <Button
-                            variant="ghost"
+                            variant={link.status === "active" ? "ghost" : "outline"}
                             size="sm"
-                            className="h-7 gap-1 text-xs"
-                            onClick={() => openSend(link)}
-                            title="Rishi emails this link"
+                            className="h-7 text-xs"
+                            onClick={() => handleToggleStatus(link)}
                           >
-                            <Mail className="h-3 w-3" />
-                            Send
+                            {link.status === "active" ? "Disable" : "Enable"}
                           </Button>
-                        ) : null}
-                        <Button
-                          variant={link.status === "active" ? "ghost" : "outline"}
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => handleToggleStatus(link)}
-                        >
-                          {link.status === "active" ? "Disable" : "Enable"}
-                        </Button>
-                      </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+
+                {!loading && links.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-sm text-muted-foreground text-center py-6">
+                      No claim links found for this filter.
                     </TableCell>
                   </TableRow>
-                );
-              })}
+                ) : null}
 
-              {!loading && links.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-sm text-muted-foreground text-center py-6">
-                    No claim links found for this filter.
-                  </TableCell>
-                </TableRow>
-              ) : null}
-
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-sm text-muted-foreground text-center py-6">
-                    Loading claim links...
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <Dialog open={!!sendLink} onOpenChange={(open) => (!open ? setSendLink(null) : undefined)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Email this claim link</DialogTitle>
-            <DialogDescription>
-              Rishi sends {sendLink ? `${sendLink.amount} credits` : "the link"} from rishi@mail.hydrilla.ai. Replies go to
-              rishi@hydrilla.ai.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="send-to">Recipient email</Label>
-              <Input
-                id="send-to"
-                type="email"
-                value={sendTo}
-                disabled={!!sendLink?.allowed_email}
-                onChange={(e) => setSendTo(e.target.value)}
-                placeholder="person@example.com"
-              />
-              {sendLink?.allowed_email ? (
-                <p className="text-xs text-muted-foreground">This link only works for this address.</p>
-              ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="send-name">First name (optional)</Label>
-              <Input id="send-name" value={sendName} onChange={(e) => setSendName(e.target.value)} placeholder="Used in “Hi …”" />
-            </div>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-sm text-muted-foreground text-center py-6">
+                      Loading claim links...
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setSendLink(null)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={() => void handleSend()} disabled={isSending || !sendTo.trim()}>
-              <Mail className="mr-1.5 h-3.5 w-3.5" />
-              {isSending ? "Sending..." : "Send email"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
     </div>
   );
 }

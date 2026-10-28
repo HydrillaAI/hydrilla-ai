@@ -4,7 +4,6 @@ import { supabase } from "../db.js";
 import { logger } from "../logger.js";
 import { config } from "../config.js";
 import { clerk, optionalAuth, requireAuth } from "../middleware/auth.js";
-import { sendClaimLink } from "../services/notifications.js";
 
 export const adminCreditClaimsRouter = Router();
 export const publicCreditClaimsRouter = Router();
@@ -203,65 +202,86 @@ adminCreditClaimsRouter.patch("/:id", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/admin/credit-claims/:id/send — Rishi emails the claim link to one person.
- * Body: { to?: string, name?: string }. A link restricted to one address can only go to that address.
+ * Claims made through claim links, newest first, with the account that claimed, the link it
+ * came from, and what is left of credits that expire. Pass linkId to limit to one link.
  */
-adminCreditClaimsRouter.post("/:id/send", async (req: Request, res: Response) => {
+async function listClaims(linkId?: string) {
+  const baseQuery = supabase
+    .from("credit_ledger")
+    .select("id, user_id, delta, created_at, claim_link_id")
+    .eq("source", "claim_link")
+    .not("claim_link_id", "is", null);
+  const { data: rows, error } = await (linkId ? baseQuery.eq("claim_link_id", linkId) : baseQuery)
+    .order("created_at", { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    throw error;
+  }
+
+  const claims = rows || [];
+  const userIds = [...new Set(claims.map((row) => row.user_id))];
+  const linkIds = [...new Set(claims.map((row) => String(row.claim_link_id)))];
+  const ledgerIds = claims.map((row) => row.id);
+
+  const [usersRes, linksRes, grantsRes] = await Promise.all([
+    userIds.length
+      ? supabase.from("users").select("id, email, first_name, last_name").in("id", userIds)
+      : Promise.resolve({ data: [], error: null }),
+    linkIds.length
+      ? supabase.from("credit_claim_links").select("id, token, reason").in("id", linkIds)
+      : Promise.resolve({ data: [], error: null }),
+    ledgerIds.length
+      ? supabase
+          .from("credit_grants")
+          .select("ledger_id, remaining, expires_at, expired_at, expired_amount")
+          .in("ledger_id", ledgerIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (usersRes.error || linksRes.error || grantsRes.error) {
+    logger.warn(
+      { usersError: usersRes.error, linksError: linksRes.error, grantsError: grantsRes.error, linkId },
+      "Partial data while listing credit claims"
+    );
+  }
+
+  const userById = new Map((usersRes.data || []).map((user) => [user.id, user]));
+  const linkById = new Map((linksRes.data || []).map((link) => [String(link.id), link]));
+  const grantByLedgerId = new Map((grantsRes.data || []).map((grant) => [String(grant.ledger_id), grant]));
+
+  return claims.map((row) => {
+    const user = userById.get(row.user_id);
+    const link = linkById.get(String(row.claim_link_id));
+    const grant = grantByLedgerId.get(String(row.id));
+    return {
+      id: row.id,
+      userId: row.user_id,
+      email: user?.email ?? null,
+      name: [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() || null,
+      amount: Number(row.delta) || 0,
+      claimedAt: row.created_at,
+      linkId: String(row.claim_link_id),
+      linkToken: link?.token ?? null,
+      linkReason: link?.reason ?? null,
+      expiresAt: grant?.expires_at ?? null,
+      expiredAt: grant?.expired_at ?? null,
+      expiredAmount: Number(grant?.expired_amount) || 0,
+      remaining: grant ? Number(grant.remaining) || 0 : null,
+    };
+  });
+}
+
+/** GET /api/admin/credit-claims/claims?linkId= — who claimed, across all links or one. */
+adminCreditClaimsRouter.get("/claims", async (req: Request, res: Response) => {
   try {
-    const { data: link, error } = await supabase
-      .from("credit_claim_links")
-      .select("*")
-      .eq("id", req.params.id)
-      .maybeSingle();
-    if (error || !link) {
-      return res.status(404).json({ error: "Claim link not found" });
-    }
-    if (link.status !== "active") {
-      return res.status(400).json({ error: "This link is disabled" });
-    }
-    if (isPast(link.expires_at) || isPast(link.credits_expire_at)) {
-      return res.status(400).json({ error: "This link has expired" });
-    }
-    if (link.claims_used >= link.max_claims) {
-      return res.status(400).json({ error: "This link has no claims left" });
-    }
-
-    const requested = typeof req.body?.to === "string" ? req.body.to.trim().toLowerCase() : "";
-    const restricted = link.allowed_email ? String(link.allowed_email).trim().toLowerCase() : null;
-    const to = requested || restricted || "";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      return res.status(400).json({ error: "Enter a valid email address" });
-    }
-    if (restricted && to !== restricted) {
-      return res.status(400).json({ error: `This link only works for ${restricted}` });
-    }
-
-    const name = typeof req.body?.name === "string" ? req.body.name.trim() || null : null;
-    const result = await sendClaimLink({
-      to,
-      name,
-      amount: Number(link.amount) || 0,
-      reason: link.reason,
-      claimUrl: `${claimLinkBase()}/claim/${link.token}`,
-      expiresAt: link.expires_at,
-      restrictedTo: restricted,
-    });
-    if (!result.ok) {
-      return res.status(502).json({ error: `Email not sent: ${result.error}` });
-    }
-    logger.info({ linkId: link.id, to, by: req.userEmail }, "Claim link emailed");
-    return res.json({ success: true, sentTo: to, deliveryId: result.deliveryId });
+    const linkId = typeof req.query.linkId === "string" && req.query.linkId ? req.query.linkId : undefined;
+    return res.json({ claims: await listClaims(linkId) });
   } catch (err: any) {
-    logger.error({ err, id: req.params.id }, "POST /api/admin/credit-claims/:id/send failed");
-    return res.status(500).json({ error: "Failed to send claim link" });
+    logger.error({ err }, "GET /api/admin/credit-claims/claims failed");
+    return res.status(500).json({ error: "Failed to list claims" });
   }
 });
-
-/** Emailed links must open the live site even when the admin runs against a local backend. */
-function claimLinkBase(): string {
-  const base = config.frontendUrl.replace(/\/+$/, "");
-  return /localhost|127\.0\.0\.1/.test(base) ? "https://hydrilla.ai" : base;
-}
 
 // ============================================================
 // Public / User Routes (mounted under /api/credits/claim)

@@ -282,40 +282,6 @@ export async function sendCreditsGranted(
   }
 }
 
-export type ClaimLinkEmail = {
-  to: string;
-  name?: string | null;
-  amount: number;
-  reason?: string | null;
-  claimUrl: string;
-  expiresAt?: string | null;
-  /** Set when the link only works for this address. */
-  restrictedTo?: string | null;
-};
-
-/** Rishi sends a claim link. Awaited so the admin sees whether it went. */
-export async function sendClaimLink(c: ClaimLinkEmail): Promise<SendResult> {
-  if (!c.claimUrl) return { ok: false, error: "Claim link URL is missing" };
-  try {
-    return await sendTransactional({
-      template: "CL01_claim-link",
-      to: c.to,
-      identifiers: { email: c.to.toLowerCase() },
-      sender: "rishi",
-      data: {
-        name: c.name || null,
-        amount: c.amount,
-        reason: c.reason || null,
-        claim_url: c.claimUrl,
-        expires_on: formatDate(c.expiresAt) ?? null,
-        email: c.restrictedTo || null,
-      },
-    });
-  } catch (err: any) {
-    return { ok: false, error: err?.message || "Send failed" };
-  }
-}
-
 // ---------------------------------------------------------------- security
 
 export function onApiKeyCreated(userId: string, keyName: string | null): void {
