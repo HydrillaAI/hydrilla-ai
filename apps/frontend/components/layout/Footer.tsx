@@ -491,37 +491,42 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="footer-bottom">
+          <div className="footer-bottom-actions">
+            <nav className="footer-legal-links" aria-label="Legal links">
+              {FOOTER_LEGAL_LINKS.map((item) => (
+                <Link key={item.href} href={item.href} className="footer-link">
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="footer-socials" aria-label="Social links">
+              {SOCIAL_LINKS.map((s) => (
+                <a
+                  key={s.label}
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={s.label}
+                  className="footer-social-btn"
+                >
+                  {s.icon}
+                </a>
+              ))}
+            </div>
+          </div>
+
           <div className="footer-bottom-meta">
             <span className="footer-copy">© Hydrilla AI Private Limited</span>
             <span className="footer-company-address">
               Registered office: 5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar, Tirupati, Andhra Pradesh 517502, India
             </span>
-            {FOOTER_LEGAL_LINKS.map((item) => (
-              <Link key={item.href} href={item.href} className="footer-link">
-                {item.label}
-              </Link>
-            ))}
             <span className="footer-touch">
               <span>Get in touch</span>{" "}
               <a href={`mailto:${CONTACT_EMAIL}`} className="footer-link">
                 {CONTACT_EMAIL}
               </a>
             </span>
-          </div>
-
-          <div className="footer-socials" aria-label="Social links">
-            {SOCIAL_LINKS.map((s) => (
-              <a
-                key={s.label}
-                href={s.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={s.label}
-                className="footer-social-btn"
-              >
-                {s.icon}
-              </a>
-            ))}
           </div>
         </div>
 
@@ -775,22 +780,32 @@ export default function Footer() {
           border-top: 1px solid var(--_theme--appearance---border);
           padding-top: 2.25rem;
           display: flex;
-          flex-wrap: wrap;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+
+        .footer-bottom-actions {
+          display: flex;
           align-items: center;
           justify-content: space-between;
-          column-gap: 1.5rem;
-          row-gap: 1.25rem;
+          gap: 1.5rem;
+        }
+
+        .footer-legal-links {
+          display: flex;
+          align-items: center;
+          gap: 1.35rem;
         }
 
         .footer-bottom-meta {
-          flex: 1 1 auto;
-          min-width: 0;
           display: flex;
           flex-wrap: wrap;
           align-items: center;
+          justify-content: center;
           gap: 0.75rem 1.35rem;
           font-size: 0.875rem;
           color: var(--_theme--appearance---paragraph);
+          text-align: center;
         }
 
         .footer-touch {
@@ -846,6 +861,7 @@ export default function Footer() {
 
         .footer-company-address {
           max-width: 32rem;
+          text-align: center;
           font-size: 0.8125rem;
           line-height: 1.4;
           color: #55534e;
@@ -951,16 +967,11 @@ export default function Footer() {
           }
 
           .footer-bottom {
-            grid-template-columns: 1fr;
-            justify-items: center;
-            text-align: center;
-            row-gap: 1.25rem;
             padding-top: 1.75rem;
           }
 
-          .footer-bottom-meta {
-            flex: 0 1 100%;
-            justify-content: center;
+          .footer-bottom-actions {
+            align-items: center;
           }
 
           .footer-brand {
@@ -1036,8 +1047,18 @@ export default function Footer() {
             row-gap: 1.15rem;
           }
 
-          .footer-bottom-meta {
-            flex-basis: 100%;
+          .footer-bottom-actions {
+            flex-direction: column;
+            gap: 1rem;
+          }
+
+          .footer-legal-links {
+            justify-content: center;
+          }
+
+          .footer-socials {
+            margin-left: 0;
+            justify-content: center;
           }
 
           .footer-brand-mark {
