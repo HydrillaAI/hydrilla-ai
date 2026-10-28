@@ -415,16 +415,35 @@ adminUsersRouter.get("/:userId", async (req, res) => {
     const userId = String(req.params.userId || "");
     await expireCreditGrants(userId);
     const [{ users, payments, subs, credits }, slots] = await Promise.all([loadBillingTables(), loadSlotBookings()]);
+    // Test accounts from the local Clerk instance stay out of the users list, but a page opened
+    // for one directly (for example from "Claimed by") still loads.
     const localIds = await localClerkUserIds();
-    if (localIds.has(userId)) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    const user = users.find((row) => row.id === userId);
+    // The bulk tables only hold the newest rows, so load this user's own rows directly when missing.
+    const user =
+      users.find((row) => row.id === userId) ??
+      ((
+        await supabase
+          .from("users")
+          .select("id, email, first_name, last_name, has_used_trial, created_at")
+          .eq("id", userId)
+          .maybeSingle()
+      ).data as UserRow | null);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    const visiblePayments = payments.filter((row) => !row.user_id || !localIds.has(row.user_id));
-    const credit = credits.find((row) => row.user_id === userId);
+    const visiblePayments = payments.filter(
+      (row) => !row.user_id || row.user_id === userId || !localIds.has(row.user_id)
+    );
+    const credit =
+      credits.find((row) => row.user_id === userId) ??
+      ((
+        await supabase
+          .from("user_credits")
+          .select("user_id, plan, credits_total, credits_used, credits_bonus, reset_at, subscription_id")
+          .eq("user_id", userId)
+          .maybeSingle()
+      ).data as CreditRow | null) ??
+      undefined;
     const summary = summarize(user, visiblePayments, subs, credit, slots.get(userId));
     const history = paymentsForUser(user, visiblePayments).map(publicPayment);
     const subscriptions = subsForUser(user, subs).map(publicSubscription);
