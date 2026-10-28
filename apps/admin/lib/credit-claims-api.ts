@@ -17,6 +17,7 @@ export type CreditClaimLink = {
   amount: number;
   reason: string | null;
   expires_at: string | null;
+  credits_expire_at: string | null;
   max_claims: number;
   claims_used: number;
   status: "active" | "disabled";
@@ -49,6 +50,7 @@ export async function createCreditClaimLink(
     amount: number;
     reason?: string;
     expiresAt?: string | null;
+    creditsExpireAt?: string | null;
     maxClaims?: number;
     allowedEmail?: string | null;
   },
@@ -89,6 +91,7 @@ export async function updateCreditClaimLink(
   params: {
     status?: "active" | "disabled";
     expiresAt?: string | null;
+    creditsExpireAt?: string | null;
     maxClaims?: number;
   },
   getToken: () => Promise<string | null>

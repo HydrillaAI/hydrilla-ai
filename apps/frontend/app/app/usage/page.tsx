@@ -55,6 +55,7 @@ type CreditsData = {
   total: number;
   remaining: number;
   bonus?: number;
+  expiring?: { amount: number; expiresAt: string }[];
   plan: string | null;
   resetAt?: string | null;
 };
@@ -210,6 +211,13 @@ export default function UsagePage() {
       : Math.max(0, credits.total - credits.used)
     : 0;
   const resetStr = formatResetDate(credits?.resetAt);
+  const nextExpiring = credits?.expiring?.[0] ?? null;
+  const bonus = credits?.bonus ?? 0;
+  const remainingNote = !nextExpiring
+    ? bonus > 0
+      ? `Includes ${bonus.toLocaleString()} bonus credits that carry over`
+      : "Credits available to spend now"
+    : `Includes ${bonus.toLocaleString()} bonus credits · ${nextExpiring.amount.toLocaleString()} expire ${formatResetDate(nextExpiring.expiresAt)}`;
   const planLabel = planDisplayLabel(credits?.plan);
 
   const now = Date.now();
@@ -322,9 +330,7 @@ export default function UsagePage() {
               </p>
             )}
             <p className="mt-5 text-[12px] leading-relaxed text-neutral-500">
-              {!loading && (credits?.bonus ?? 0) > 0
-                ? `Includes ${(credits?.bonus ?? 0).toLocaleString()} bonus credits that carry over`
-                : "Credits available to spend now"}
+              {loading ? "Credits available to spend now" : remainingNote}
             </p>
           </div>
 

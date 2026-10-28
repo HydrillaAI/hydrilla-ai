@@ -90,7 +90,15 @@ export type CreditLedgerEntry = {
   delta: number;
   balance_total_after: number;
   balance_used_after: number;
-  source: "admin_grant" | "admin_remove" | "claim_link" | "system";
+  source:
+    | "admin_grant"
+    | "admin_remove"
+    | "claim_link"
+    | "system"
+    | "spend"
+    | "refund"
+    | "period_reset"
+    | "expired";
   reason: string | null;
   admin_user_id: string | null;
   admin_email: string | null;

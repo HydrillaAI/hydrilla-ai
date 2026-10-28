@@ -33,6 +33,22 @@ async function getUserDetails(userId: string): Promise<{ email: string | null; n
   }
 }
 
+/** Optional ISO date from a request body: null when empty, "invalid" when it does not parse. */
+function parseOptionalDate(value: unknown): string | null | "invalid" {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) {
+    return "invalid";
+  }
+  return date.toISOString();
+}
+
+function isPast(iso: string | null | undefined): boolean {
+  return Boolean(iso) && new Date(iso as string).getTime() <= Date.now();
+}
+
 // ============================================================
 // Admin Routes (mounted under /api/admin/credit-claims)
 // ============================================================
@@ -41,7 +57,8 @@ adminCreditClaimsRouter.post("/", async (req: Request, res: Response) => {
   try {
     const amount = Number(req.body.amount);
     const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : null;
-    const expiresAt = req.body.expiresAt ? new Date(req.body.expiresAt).toISOString() : null;
+    const expiresAt = parseOptionalDate(req.body.expiresAt);
+    const creditsExpireAt = parseOptionalDate(req.body.creditsExpireAt);
     const maxClaims = Number(req.body.maxClaims);
     const claimsLimit = Number.isInteger(maxClaims) && maxClaims > 0 ? maxClaims : 1;
     const rawAllowedEmail = typeof req.body.allowedEmail === "string" ? req.body.allowedEmail.trim() : "";
@@ -49,6 +66,15 @@ adminCreditClaimsRouter.post("/", async (req: Request, res: Response) => {
 
     if (!Number.isFinite(amount) || amount <= 0) {
       return res.status(400).json({ error: "Amount must be a positive number" });
+    }
+    if (expiresAt === "invalid" || creditsExpireAt === "invalid") {
+      return res.status(400).json({ error: "Invalid date" });
+    }
+    if (isPast(creditsExpireAt)) {
+      return res.status(400).json({ error: "Credit expiry must be in the future" });
+    }
+    if (expiresAt && creditsExpireAt && new Date(creditsExpireAt) < new Date(expiresAt)) {
+      return res.status(400).json({ error: "Credits cannot expire before the link stops accepting claims" });
     }
 
     const token = crypto.randomBytes(16).toString("hex");
@@ -60,6 +86,7 @@ adminCreditClaimsRouter.post("/", async (req: Request, res: Response) => {
         amount,
         reason,
         expires_at: expiresAt,
+        credits_expire_at: creditsExpireAt,
         max_claims: claimsLimit,
         claims_used: 0,
         status: "active",
@@ -128,7 +155,19 @@ adminCreditClaimsRouter.patch("/:id", async (req: Request, res: Response) => {
       patchPayload.status = req.body.status;
     }
     if (req.body.expiresAt !== undefined) {
-      patchPayload.expires_at = req.body.expiresAt ? new Date(req.body.expiresAt).toISOString() : null;
+      const expiresAt = parseOptionalDate(req.body.expiresAt);
+      if (expiresAt === "invalid") {
+        return res.status(400).json({ error: "Invalid date" });
+      }
+      patchPayload.expires_at = expiresAt;
+    }
+    // Applies to future claims only; credits already claimed keep the date they were claimed with.
+    if (req.body.creditsExpireAt !== undefined) {
+      const creditsExpireAt = parseOptionalDate(req.body.creditsExpireAt);
+      if (creditsExpireAt === "invalid" || isPast(creditsExpireAt)) {
+        return res.status(400).json({ error: "Credit expiry must be a future date" });
+      }
+      patchPayload.credits_expire_at = creditsExpireAt;
     }
     if (typeof req.body.maxClaims === "number" && req.body.maxClaims > 0) {
       patchPayload.max_claims = req.body.maxClaims;
@@ -180,7 +219,7 @@ adminCreditClaimsRouter.post("/:id/send", async (req: Request, res: Response) =>
     if (link.status !== "active") {
       return res.status(400).json({ error: "This link is disabled" });
     }
-    if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
+    if (isPast(link.expires_at) || isPast(link.credits_expire_at)) {
       return res.status(400).json({ error: "This link has expired" });
     }
     if (link.claims_used >= link.max_claims) {
@@ -248,51 +287,41 @@ publicCreditClaimsRouter.get("/:token", optionalAuth, async (req: Request, res: 
       });
     }
 
-    if (link.status === "disabled") {
-      return res.json({
-        status: "disabled",
-        amount: link.amount,
-        reason: link.reason,
-        expiresAt: link.expires_at,
-      });
-    }
+    const base = {
+      amount: link.amount,
+      reason: link.reason,
+      expiresAt: link.expires_at,
+      creditsExpireAt: link.credits_expire_at ?? null,
+    };
 
-    if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
-      return res.json({
-        status: "expired",
-        amount: link.amount,
-        reason: link.reason,
-        expiresAt: link.expires_at,
-      });
-    }
-
-    if (link.claims_used >= link.max_claims) {
-      return res.json({
-        status: "exhausted",
-        amount: link.amount,
-        reason: link.reason,
-        expiresAt: link.expires_at,
-      });
-    }
-
+    // Checked first so someone who used up a single-use link sees "already claimed", not "exhausted".
     if (req.userId) {
       const { data: alreadyClaimed } = await supabase
         .from("credit_ledger")
         .select("id")
         .eq("claim_link_id", link.id)
         .eq("user_id", req.userId)
-        .maybeSingle();
+        .eq("source", "claim_link")
+        .limit(1);
 
-      if (alreadyClaimed) {
-        return res.json({
-          status: "exhausted",
-          amount: link.amount,
-          reason: link.reason,
-          expiresAt: link.expires_at,
-          alreadyClaimedByUser: true,
-        });
+      if (alreadyClaimed && alreadyClaimed.length > 0) {
+        return res.json({ ...base, status: "exhausted", alreadyClaimedByUser: true });
       }
+    }
 
+    if (link.status === "disabled") {
+      return res.json({ ...base, status: "disabled" });
+    }
+
+    if (isPast(link.expires_at) || isPast(link.credits_expire_at)) {
+      return res.json({ ...base, status: "expired" });
+    }
+
+    if (link.claims_used >= link.max_claims) {
+      return res.json({ ...base, status: "exhausted" });
+    }
+
+    if (req.userId) {
       if (link.allowed_email) {
         const userDetails = await getUserDetails(req.userId);
         const linkEmail = link.allowed_email.trim().toLowerCase();
@@ -300,31 +329,18 @@ publicCreditClaimsRouter.get("/:token", optionalAuth, async (req: Request, res: 
 
         if (!userEmail || userEmail !== linkEmail) {
           return res.json({
+            ...base,
             status: "email_mismatch",
-            amount: link.amount,
-            reason: link.reason,
             allowedEmail: link.allowed_email,
             userEmail: userDetails.email,
           });
         }
       }
 
-      return res.json({
-        status: "ok",
-        amount: link.amount,
-        reason: link.reason,
-        expiresAt: link.expires_at,
-        requiresAuth: false,
-      });
+      return res.json({ ...base, status: "ok", requiresAuth: false });
     }
 
-    return res.json({
-      status: "ok",
-      amount: link.amount,
-      reason: link.reason,
-      expiresAt: link.expires_at,
-      requiresAuth: true,
-    });
+    return res.json({ ...base, status: "ok", requiresAuth: true });
   } catch (err: any) {
     logger.error({ err, token: req.params.token }, "GET /api/credits/claim/:token failed");
     return res.status(500).json({ error: "Failed to inspect claim link", status: "not_found" });
@@ -401,6 +417,7 @@ publicCreditClaimsRouter.post("/:token", requireAuth, async (req: Request, res: 
       remaining,
       total: Number(row.total) || 0,
       bonus: Number(row.bonus) || 0,
+      creditsExpireAt: row.credits_expire_at ?? null,
     });
   } catch (err: any) {
     logger.error({ err, token: req.params.token }, "POST /api/credits/claim/:token failed");

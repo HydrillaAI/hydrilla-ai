@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import { requireDeveloperAuth } from "../../middleware/developerAuth.js";
-import { availableCredits, deductCredit, refundCredit, getCreditsRow } from "../../services/credits.js";
+import { availableCredits, deductCredit, refundCredit, getCreditsRow, expireCreditGrants } from "../../services/credits.js";
 import {
   submitImageTo3dGpu,
   fetchGpuJobStatus,
@@ -993,6 +993,7 @@ developerV1Router.get("/models", requireDeveloperAuth, async (req: Request, res:
 // ============================================================================
 developerV1Router.get("/user/me", requireDeveloperAuth, async (req: Request, res: Response) => {
   const userId = req.developerUserId!;
+  await expireCreditGrants(userId);
   const creditsRow = await getCreditsRow(userId);
 
   const total = creditsRow?.credits_total ?? 0;

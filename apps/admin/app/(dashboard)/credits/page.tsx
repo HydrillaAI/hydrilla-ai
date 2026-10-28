@@ -45,11 +45,14 @@ export default function CreditClaimsPage() {
   const [filter, setFilter] = useState<"all" | "active" | "disabled">("all");
   const [loading, setLoading] = useState<boolean>(true);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  // Taken when the list loads so expired badges are computed outside render.
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   // Form states
   const [amount, setAmount] = useState<string>("50");
   const [reason, setReason] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<string>("");
+  const [creditsExpireAt, setCreditsExpireAt] = useState<string>("");
   const [maxClaims, setMaxClaims] = useState<string>("1");
   const [allowedEmail, setAllowedEmail] = useState<string>("");
   const [isCreating, setIsCreating] = useState<boolean>(false);
@@ -69,6 +72,7 @@ export default function CreditClaimsPage() {
     try {
       const data = await fetchCreditClaimLinks(filter, token);
       setLinks(data);
+      setNowMs(Date.now());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load claim links");
     } finally {
@@ -111,6 +115,16 @@ export default function CreditClaimsPage() {
       return;
     }
 
+    if (creditsExpireAt && new Date(creditsExpireAt).getTime() <= Date.now()) {
+      toast.error("Credit expiry must be in the future");
+      return;
+    }
+
+    if (creditsExpireAt && expiresAt && new Date(creditsExpireAt) < new Date(expiresAt)) {
+      toast.error("Credits cannot expire before the link stops accepting claims");
+      return;
+    }
+
     setIsCreating(true);
     try {
       const res = await createCreditClaimLink(
@@ -118,6 +132,7 @@ export default function CreditClaimsPage() {
           amount: parsedAmount,
           reason: reason.trim() || undefined,
           expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+          creditsExpireAt: creditsExpireAt ? new Date(creditsExpireAt).toISOString() : null,
           maxClaims: parsedMaxClaims,
           allowedEmail: allowedEmail.trim() || null,
         },
@@ -137,6 +152,7 @@ export default function CreditClaimsPage() {
       setReason("");
       setAllowedEmail("");
       setExpiresAt("");
+      setCreditsExpireAt("");
       setMaxClaims("1");
       await loadLinks();
     } catch (err) {
@@ -194,7 +210,7 @@ export default function CreditClaimsPage() {
             Create New Claim Link
           </CardTitle>
           <CardDescription>
-            Specify credit allotment, optional recipient restriction, expiration, and claim limits.
+            Specify credit allotment, optional recipient restriction, link and credit expiry, and claim limits.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -228,17 +244,31 @@ export default function CreditClaimsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="expiresAt">Expiration Date (Optional)</Label>
+                <Label htmlFor="expiresAt">Link Expires (Optional)</Label>
                 <Input
                   id="expiresAt"
                   type="datetime-local"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">Last moment the link can be claimed.</p>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="creditsExpireAt">Credits Expire (Optional)</Label>
+                <Input
+                  id="creditsExpireAt"
+                  type="datetime-local"
+                  value={creditsExpireAt}
+                  onChange={(e) => setCreditsExpireAt(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Unused claimed credits are removed on this date. Empty means they never expire.
+                </p>
+              </div>
+
               <div className="space-y-1.5">
                 <Label htmlFor="reason">Reason / Promotion Campaign (Optional)</Label>
                 <Input
@@ -346,14 +376,18 @@ export default function CreditClaimsPage() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Claims</TableHead>
                 <TableHead>Restricted Email</TableHead>
-                <TableHead>Expires</TableHead>
+                <TableHead>Link Expires</TableHead>
+                <TableHead>Credits Expire</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {links.map((link) => {
-                const isExpired = link.expires_at && new Date(link.expires_at).getTime() <= Date.now();
+                const creditsExpired =
+                  !!link.credits_expire_at && new Date(link.credits_expire_at).getTime() <= nowMs;
+                const isExpired =
+                  (!!link.expires_at && new Date(link.expires_at).getTime() <= nowMs) || creditsExpired;
                 const isExhausted = link.claims_used >= link.max_claims;
 
                 return (
@@ -418,6 +452,13 @@ export default function CreditClaimsPage() {
                         formatWhen(link.expires_at)
                       )}
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {creditsExpired ? (
+                        <span className="text-rose-500">Expired ({formatWhen(link.credits_expire_at)})</span>
+                      ) : (
+                        formatWhen(link.credits_expire_at)
+                      )}
+                    </TableCell>
                     <TableCell>
                       {link.status === "disabled" ? (
                         <Badge variant="destructive">Disabled</Badge>
@@ -459,7 +500,7 @@ export default function CreditClaimsPage() {
 
               {!loading && links.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-sm text-muted-foreground text-center py-6">
+                  <TableCell colSpan={8} className="text-sm text-muted-foreground text-center py-6">
                     No claim links found for this filter.
                   </TableCell>
                 </TableRow>
@@ -467,7 +508,7 @@ export default function CreditClaimsPage() {
 
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-sm text-muted-foreground text-center py-6">
+                  <TableCell colSpan={8} className="text-sm text-muted-foreground text-center py-6">
                     Loading claim links...
                   </TableCell>
                 </TableRow>
