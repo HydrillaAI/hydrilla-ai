@@ -233,9 +233,10 @@ BEGIN
     END IF;
   END IF;
 
-  SELECT id INTO v_already
-  FROM credit_ledger
-  WHERE claim_link_id = v_link.id AND user_id = p_user_id
+  -- Qualify with the alias: the OUT column claim_link_id is also a PL/pgSQL variable (42702).
+  SELECT cl.id INTO v_already
+  FROM credit_ledger cl
+  WHERE cl.claim_link_id = v_link.id AND cl.user_id = p_user_id
   LIMIT 1;
 
   IF v_already IS NOT NULL THEN
