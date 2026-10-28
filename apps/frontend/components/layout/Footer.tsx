@@ -519,10 +519,12 @@ export default function Footer() {
           <div className="footer-bottom-meta">
             <span className="footer-copy">© Hydrilla AI Private Limited</span>
             <span className="footer-company-address">
-              Registered office: 5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar, Tirupati, Andhra Pradesh 517502, India
+              5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar, Tirupati, Andhra Pradesh 517502, India
             </span>
             <span className="footer-touch">
-              <span>Get in touch</span>{" "}
+              <svg className="footer-mail-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5 8.25 6 8.25-6M3.25 18l5.5-5m12 5-5.5-5" />
+              </svg>
               <a href={`mailto:${CONTACT_EMAIL}`} className="footer-link">
                 {CONTACT_EMAIL}
               </a>
@@ -811,7 +813,19 @@ export default function Footer() {
         .footer-touch {
           display: inline-flex;
           align-items: center;
-          gap: 0.45rem;
+          gap: 0.5rem;
+          white-space: nowrap;
+        }
+
+        .footer-mail-icon {
+          width: 1rem;
+          height: 1rem;
+          flex: 0 0 auto;
+          fill: none;
+          stroke: currentColor;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-width: 1.6;
         }
 
         .footer-brand {
