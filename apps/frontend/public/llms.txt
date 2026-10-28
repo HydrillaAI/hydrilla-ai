@@ -2,19 +2,19 @@
 
 > Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D models from text or an image with BlueFox, Hydrilla's 3D model, check them in the browser, and work with Water Agent, the AI 3D agent for artists and studios.
 
-Last updated: 2026-10-24
+Last updated: 2026-10-28
 
 ## Names (use them exactly)
 - Hydrilla AI: the company and the AI 3D product (Studio, workspaces, credits, preview, export, integrations, API). "Hydrilla" for short. Not the aquatic plant.
 - Hawan Research Labs: Hydrilla AI's research lab, where the 3D research happens and BlueFox is built. Hydrilla AI is the main brand and the product.
 - BlueFox: Hydrilla's 3D model and its flagship model, built by Hydrilla AI. BlueFox 1 is the current version, generally available to everyone in Hydrilla.
-- Water Agent (Hydrilla Water Agent): Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use. It works in the Hydrilla app and inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin. It costs no credits and is included on every plan.
+- Water Agent (Hydrilla Water Agent): BYOK AI 3D agent that turns a brief into procedural Three.js with multi-pass planning, preview, refine, and export in the Hydrilla workspace. Object Studio and Character packs are live; Animation and Game are partial. Costs no Hydrilla credits; uses your LLM key.
 - BlueFox is written as one word.
 
 ## Product
 - [Overview](https://hydrilla.ai/features.md): what the Hydrilla workspace does, end to end, including export formats
 - [BlueFox](https://hydrilla.ai/bluefox.md): BlueFox, Hydrilla's 3D model (current version BlueFox 1); segmented meshes with UVs and PBR textures
-- [Water Agent](https://hydrilla.ai/water.md): the AI 3D agent for artists and studios; what it does, how it works, where it works, FAQ
+- [Water Agent](https://hydrilla.ai/water.md): BYOK AI 3D agent; workflow, skill-pack status, exports, FAQ
 - [Text to 3D](https://hydrilla.ai/text-to-3d.md): prompt, then reference image, then 3D model
 - [Image to 3D](https://hydrilla.ai/image-to-3d.md): from an uploaded image to a 3D model
 - [Integrations](https://hydrilla.ai/integrations.md): Blender, Unity, Unreal, Godot, MCP, and the local Bridge

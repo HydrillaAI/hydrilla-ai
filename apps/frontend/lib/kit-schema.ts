@@ -58,7 +58,7 @@ const model = {
 const NAMES: Record<string, string> = {
   "/features": "AI 3D Workspace for Studios and Artists",
   "/bluefox": "BlueFox: Hydrilla's AI 3D Model",
-  "/water": "Water Agent: The AI 3D Agent for Studios",
+  "/water": "Water Agent: BYOK AI 3D Agent for Artists & Studios",
   "/text-to-3d": "Text to 3D: Generate a 3D Model from a Prompt",
   "/image-to-3d": "Image to 3D: Turn a Picture into a 3D Model",
   "/integrations": "Integrations: Blender, Unity, Unreal, Godot",
@@ -314,44 +314,61 @@ export function getKitJsonLd(path: string) {
       name: "Water Agent",
       alternateName: "Hydrilla Water Agent",
       description:
-        "Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use.",
+        "Hydrilla Water Agent is a BYOK AI 3D agent that turns a brief into procedural Three.js with multi-pass planning, preview, refine, and export.",
       url: "https://hydrilla.ai/water",
       applicationCategory: "DesignApplication",
       operatingSystem: "Web",
       isPartOf: { "@id": SOFTWARE },
       provider: { "@id": ORG },
       featureList: [
-        "Build 3D asset sets from a brief, in conversation",
-        "Revise piece by piece",
-        "Works inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin",
+        "Plan a sculpt from a text brief and optional reference image",
+        "Multi-pass build with Fast, Standard, and Studio quality tiers",
+        "Preview a TypeScript Three.js factory in the browser sandbox",
+        "Refine via director chat, then export GLB, GLTF, OBJ, STL, PNG, or .ts",
+        "Zero Hydrilla credits with bring-your-own LLM key",
       ],
       offers: {
         "@type": "Offer",
         price: "0",
         priceCurrency: "USD",
-        description: "Included on every Hydrilla plan, no credits",
+        description: "Included on every Hydrilla plan; uses your LLM provider key, no Hydrilla credits",
       },
     });
     nodes.push(
-      howTo("https://hydrilla.ai/water#howto", "From brief to finished set", [
-        "Write the brief like a creative director: the pieces, the style, and where the assets will be used.",
-        "Review the plan and adjust it until it matches your intent.",
-        "Water Agent builds the set to the direction you gave it.",
-        "Check each piece, ask for changes in the conversation, and take the finished set into your project.",
+      howTo("https://hydrilla.ai/water#howto", "From brief to export with Water Agent", [
+        "Write a brief with optional reference image, pick a BYOK model, and choose Fast, Standard, or Studio quality.",
+        "Review the sculpt plan before generation continues.",
+        "Water Agent builds through unlocked passes for the selected quality tier.",
+        "Preview the TypeScript createModel() factory in the browser sandbox.",
+        "Refine with director chat for scene edits or a rebuild child job.",
+        "Export GLB, GLTF, OBJ, STL, PNG, or the .ts source into your project.",
       ]),
     );
     nodes.push(
       faq("https://hydrilla.ai/water#faq", [
-        ["What does Water Agent cost?", "Water Agent costs no credits and is included on every plan."],
-        ["Who is it for?", "3D artists, art leads, and studio teams who brief whole sets of assets and need them to hold together."],
-        ["Can a brief be a single asset?", "Yes. A brief can be one prop or a whole scene, and Water Agent plans only what you ask for."],
+        [
+          "What does Water Agent cost?",
+          "Water Agent costs no Hydrilla credits and is included on every plan. You bring your own LLM API key; that provider bills usage.",
+        ],
+        [
+          "Who is it for?",
+          "3D artists, art leads, game developers, and studio teams who want directed, multi-pass procedural assets they can preview and refine in conversation.",
+        ],
+        [
+          "Can a brief be a single asset?",
+          "Yes. A brief can be one prop or a character. The planner scopes only what you ask for.",
+        ],
         [
           "When should I use text to 3D instead?",
-          "When you already know the one model you want. Text to 3D starts from a prompt, and image to 3D starts from a reference.",
+          "When you want a Cloud mesh from a single prompt. Text to 3D and image to 3D use BlueFox. Water is the BYOK code-sculpt agent.",
         ],
         [
           "How is Water Agent different from the MCP server?",
-          "Water Agent is the agent inside Hydrilla. The MCP server lets your own AI agent drive Hydrilla from outside.",
+          "Water Agent is the in-app agent inside Hydrilla workspace. The MCP server lets your own AI agent drive Hydrilla from outside.",
+        ],
+        [
+          "Which skill packs are fully live?",
+          "Object Studio and Character are live. Animation Ready and Game Ready are partial. Environment and World are not selectable yet.",
         ],
       ]),
     );

@@ -2,13 +2,13 @@
 
 Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D models from text or an image with BlueFox, Hydrilla's 3D model, check them in the browser, and work with Water Agent, the AI 3D agent for artists and studios.
 
-Last updated: 2026-10-24
+Last updated: 2026-10-28
 
 ## Names
 - Hydrilla AI is the product and company; Hawan Research Labs is its research lab. https://hydrilla.ai/about
 - Hawan Research Labs is Hydrilla AI's research lab, where the 3D research happens and BlueFox is built. https://hydrilla.ai/research
 - BlueFox, Hydrilla's 3D model, is built by Hydrilla AI. Its current version is BlueFox 1, generally available to everyone in Hydrilla. https://hydrilla.ai/bluefox
-- Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use. https://hydrilla.ai/water
+- Hydrilla Water Agent is a BYOK AI 3D agent that turns a brief into procedural Three.js with multi-pass planning, preview, refine, and export in the Hydrilla workspace. https://hydrilla.ai/water
 - Hydrilla here is the AI 3D company, not the aquatic plant.
 
 ## Key facts
@@ -16,14 +16,14 @@ Last updated: 2026-10-24
 - Credits don't roll over. At default quality, a model from text costs 45 credits and from an uploaded image 30.
 - Start on the Free plan, or try any Monthly or Hourly plan, Pro included, free for 14 days. The trial needs a card.
 - Every plan, Free included, exports every format. Formats: https://hydrilla.ai/features#exports
-- Water Agent costs no credits and is included on every plan. It works in the Hydrilla app and inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin.
+- Water Agent costs no Hydrilla credits and is included on every plan. It uses your LLM key and runs in the Hydrilla workspace.
 - Hydrilla doesn't use customer data to train its models. https://hydrilla.ai/security
 - Contact: founders@hydrilla.ai. Demos: https://cal.com/hydrilla
 
 ## Pages
 - https://hydrilla.ai/text-to-3d: text to 3D with BlueFox
 - https://hydrilla.ai/image-to-3d: image to 3D with BlueFox
-- https://hydrilla.ai/water: Water Agent, the AI 3D agent for artists and studios
+- https://hydrilla.ai/water: Water Agent, the BYOK AI 3D agent for artists and studios
 - https://hydrilla.ai/features: what the Hydrilla workspace does, end to end
 - https://hydrilla.ai/bluefox: BlueFox, Hydrilla's 3D model
 - https://hydrilla.ai/integrations: plugins, the local Bridge, MCP, and REST
@@ -120,50 +120,53 @@ Image to 3D uses your reference to follow its silhouette, materials, and style. 
 
 URL: https://hydrilla.ai/water
 
-## Water Agent, the AI 3D agent for artists and studios
+## Water Agent, the BYOK AI 3D agent for artists and studios
 
-Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use.
+Water Agent turns a creative brief into procedural Three.js you can preview, refine, and export—using your own LLM key, with no Hydrilla credit spend. It runs in the [Hydrilla workspace](https://hydrilla.ai/workspace).
 
-Brief it as you would brief your team: the look, the pieces, the scene. It plans the set, builds it, and revises with you until it's right.
+### Direct the sculpt, pass by pass
 
-### Direct the set, piece by piece
+- **Turn a brief into a plan.** Text, optional reference image; plan before codegen.
+- **Multi-pass build quality.** Fast, Standard, or Studio unlocks more passes.
+- **Refine in conversation.** Director scene edits or a rebuild child job.
+- **Preview and export.** Browser sandbox; GLB, GLTF, OBJ, STL, PNG, or .ts.
 
-- **Turn a brief into a plan.** Describe what the scene needs, and Water Agent plans the set with you before it builds.
-- **Direct the look.** Set the style in your brief, and keep refining it in the same conversation.
-- **Revise piece by piece.** Ask for a taller lantern or a darker crate, and the rest of the set stays as it is.
-- **Work inside your tools.** Brief and revise from your engine or DCC, and each piece lands in the project you have open.
+### From brief to export
 
-### From brief to finished set
+1. Brief — prompt, optional image, BYOK model, quality tier.
+2. Plan — sculpt spec before generation.
+3. Multi-pass build — blockout through materials; Studio continues through surface, lighting, interaction, optimization.
+4. Preview — TypeScript createModel() factory in the sandbox.
+5. Refine — director chat.
+6. Export — GLB, GLTF, OBJ, STL, PNG, or .ts.
 
-1. Write the brief like a creative director: the pieces, the style, and where the assets will be used.
-2. Review the plan and adjust it until it matches your intent.
-3. Water Agent builds the set to the direction you gave it.
-4. Check each piece, ask for changes in the conversation, and take the finished set into your project.
+### Skill packs
 
-### Where Water Agent works
-
-Water Agent works in the Hydrilla app, and inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin. [Set up the plugin](https://hydrilla.ai/integrations)
+Object Studio and Character are live. Animation Ready and Game Ready are partial. Environment and World are not selectable yet.
 
 ### Questions about Water Agent
 
 **What does Water Agent cost?**
-Water Agent costs no credits and is included on every plan.
+Water Agent costs no Hydrilla credits and is included on every plan. You bring your own LLM API key; that provider bills usage.
 
 **Who is it for?**
-3D artists, art leads, and studio teams who brief whole sets of assets and need them to hold together.
+3D artists, art leads, game developers, and studio teams who want directed, multi-pass procedural assets they can preview and refine in conversation.
 
 **Can a brief be a single asset?**
-Yes. A brief can be one prop or a whole scene, and Water Agent plans only what you ask for.
+Yes. A brief can be one prop or a character. The planner scopes only what you ask for.
 
 **When should I use text to 3D instead?**
-When you already know the one model you want. [Text to 3D](https://hydrilla.ai/text-to-3d) starts from a prompt, and [image to 3D](https://hydrilla.ai/image-to-3d) starts from a reference.
+When you want a Cloud mesh from a single prompt. [Text to 3D](https://hydrilla.ai/text-to-3d) and [image to 3D](https://hydrilla.ai/image-to-3d) use BlueFox. Water is the BYOK code-sculpt agent.
 
 **How is Water Agent different from the MCP server?**
-Water Agent is the agent inside Hydrilla. The MCP server lets your own AI agent drive Hydrilla from outside. [MCP server](https://hydrilla.ai/integrations/mcp)
+Water Agent is the in-app agent inside Hydrilla workspace. The MCP server lets your own AI agent drive Hydrilla from outside. [MCP server](https://hydrilla.ai/integrations/mcp)
+
+**Which skill packs are fully live?**
+Object Studio and Character are live. Animation Ready and Game Ready are partial. Environment and World are not selectable yet.
 
 ### Bring your next brief
 
-Open Water Agent with the brief for your next set.
+Open Water Agent in workspace with the brief for your next prop or character.
 
 ---
 
@@ -710,7 +713,7 @@ Every tool assumes its own unit and up axis. A mesh in meters arrives a hundred 
 
 ### Water Agent
 
-Open Water Agent in the Hydrilla app, or through the Hydrilla plugin inside Blender, Unity, Unreal, or Godot. Describe your brief, review the plan, and revise piece by piece until the set is right. [What Water Agent does](https://hydrilla.ai/water)
+Open Water Agent in the [Hydrilla workspace](https://hydrilla.ai/workspace). Describe your brief, review the plan, build through quality passes, preview the Three.js factory, and refine until the asset is right. Water uses your LLM key and spends no Hydrilla credits. [What Water Agent does](https://hydrilla.ai/water)
 
 Running jobs from code? See the [REST API](https://hydrilla.ai/api). Account questions are in the [FAQ](https://hydrilla.ai/faq).
 
