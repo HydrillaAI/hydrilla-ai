@@ -21,6 +21,17 @@ import {
   type ClaimCreditsResponse,
 } from "@/lib/api";
 
+function formatExpiry(iso: string | null | undefined): string | null {
+  if (!iso) {
+    return null;
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export default function ClaimTokenPage() {
   const params = useParams<{ token: string }>();
   const rawToken = typeof params?.token === "string" ? params.token : "";
@@ -125,6 +136,12 @@ export default function ClaimTokenPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
               <p className="text-xs text-neutral-400 uppercase tracking-wider font-mono">New Credit Balance</p>
               <p className="text-2xl font-bold text-white mt-1">{claimResult.remaining} Credits</p>
+              {formatExpiry(claimResult.creditsExpireAt) ? (
+                <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-amber-300">
+                  <Clock className="h-3 w-3" />
+                  These {claimResult.amount} credits expire on {formatExpiry(claimResult.creditsExpireAt)}
+                </p>
+              ) : null}
             </div>
 
             <div className="pt-2 flex flex-col gap-3">
@@ -282,6 +299,12 @@ export default function ClaimTokenPage() {
                   You have received free credits to generate 3D models on Hydrilla.
                 </p>
               )}
+              {formatExpiry(claimInfo.creditsExpireAt) ? (
+                <p className="inline-flex items-center gap-1.5 text-xs text-amber-300">
+                  <Clock className="h-3 w-3" />
+                  Use them by {formatExpiry(claimInfo.creditsExpireAt)}. Unused credits expire then.
+                </p>
+              ) : null}
             </div>
 
             {claimError ? (

@@ -681,14 +681,35 @@ export async function editImage(
   };
 }
 
+/** Claimed credits that are still unused and will be removed on expiresAt. */
+export interface ExpiringCredits {
+  amount: number;
+  expiresAt: string;
+}
+
 /** Credits info from GET /api/payments/credits */
 export interface CreditsInfo {
   used: number;
   total: number;
   remaining: number;
   bonus?: number;
+  /** Soonest first; part of bonus. */
+  expiring?: ExpiringCredits[];
   plan: string | null;
   resetAt?: string | null;
+}
+
+export function normalizeExpiringCredits(raw: unknown): ExpiringCredits[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .filter((row): row is Record<string, unknown> => !!row && typeof row === "object")
+    .map((row) => ({
+      amount: Number(row.amount) || 0,
+      expiresAt: typeof row.expiresAt === "string" ? row.expiresAt : "",
+    }))
+    .filter((row) => row.amount > 0 && row.expiresAt);
 }
 
 function normalizeCreditsPayload(raw: unknown): CreditsInfo | null {
@@ -712,6 +733,7 @@ function normalizeCreditsPayload(raw: unknown): CreditsInfo | null {
     total,
     remaining,
     bonus,
+    expiring: normalizeExpiringCredits(c.expiring),
     plan: typeof c.plan === "string" ? c.plan : null,
     resetAt:
       typeof c.resetAt === "string" || c.resetAt === null
@@ -766,6 +788,12 @@ export interface CreditRewardRow {
   reason: string | null;
   source: "claim_link" | "admin_grant" | "system" | string;
   createdAt: string;
+  /** Set when these credits expire; null means they never do. */
+  expiresAt: string | null;
+  /** Set once the expiry has run. */
+  expiredAt: string | null;
+  /** Unused credits removed at expiry. */
+  expiredAmount: number;
 }
 
 /**
@@ -802,6 +830,9 @@ export async function getCreditRewardsHistory(
       reason: typeof row.reason === "string" ? row.reason : null,
       source: typeof row.source === "string" ? row.source : "system",
       createdAt: typeof row.createdAt === "string" ? row.createdAt : "",
+      expiresAt: typeof row.expiresAt === "string" ? row.expiresAt : null,
+      expiredAt: typeof row.expiredAt === "string" ? row.expiredAt : null,
+      expiredAmount: Number(row.expiredAmount) || 0,
     }))
     .filter((row) => row.id && row.amount > 0 && row.createdAt);
 }
@@ -2589,6 +2620,7 @@ export interface ClaimInfoResponse {
   amount?: number;
   reason?: string | null;
   expiresAt?: string | null;
+  creditsExpireAt?: string | null;
   requiresAuth?: boolean;
   allowedEmail?: string | null;
   userEmail?: string | null;
@@ -2601,6 +2633,7 @@ export interface ClaimCreditsResponse {
   amount: number;
   remaining: number;
   total: number;
+  creditsExpireAt?: string | null;
   error?: string;
 }
 

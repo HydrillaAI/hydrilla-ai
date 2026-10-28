@@ -165,11 +165,62 @@ export async function applyFreePeriodResetIfDue(userId: string): Promise<Credits
 }
 
 /**
+ * Remove what is left of claimed credits whose expiry date has passed.
+ * Omit userId to sweep every user. Returns the number of credits expired.
+ * Spends also expire inside deduct_user_credits, so a failure here only delays what balances show.
+ */
+export async function expireCreditGrants(userId?: string): Promise<number> {
+  const { data, error } = await supabase.rpc("expire_credit_grants", {
+    p_user_id: userId ?? null,
+  });
+  if (error) {
+    logger.warn({ error, userId }, "[Credits] expire_credit_grants RPC failed");
+    return 0;
+  }
+  const expired = Number(data) || 0;
+  if (expired > 0) {
+    logger.info({ userId, expired }, "[Credits] Expired claimed credits");
+  }
+  return expired;
+}
+
+export type ExpiringCredits = { amount: number; expiresAt: string };
+
+/**
+ * Open (not yet expired) claimed credits, soonest first. Each amount is capped so the
+ * running total never exceeds the bonus the user actually holds.
+ */
+export async function listExpiringCredits(userId: string, bonus: number): Promise<ExpiringCredits[]> {
+  const { data, error } = await supabase
+    .from("credit_grants")
+    .select("remaining, expires_at")
+    .eq("user_id", userId)
+    .is("expired_at", null)
+    .gt("remaining", 0)
+    .order("expires_at", { ascending: true });
+
+  if (error) {
+    logger.warn({ error, userId }, "[Credits] Failed to fetch credit_grants");
+    return [];
+  }
+
+  const budget = { left: Math.max(0, bonus) };
+  return (data || [])
+    .map((grant) => {
+      const amount = Math.min(Number(grant.remaining) || 0, budget.left);
+      budget.left -= amount;
+      return { amount, expiresAt: String(grant.expires_at) };
+    })
+    .filter((grant) => grant.amount > 0);
+}
+
+/**
  * Ensure a user has a credits row. Creates free-tier (100 credits) with reset_at if missing.
  */
 export async function ensureCreditsRow(userId: string): Promise<CreditsRow | null> {
   const existing = await getCreditsRow(userId);
   if (existing) {
+    await expireCreditGrants(userId);
     return applyFreePeriodResetIfDue(userId);
   }
 
@@ -395,7 +446,8 @@ export interface CreditLedgerRow {
     | "system"
     | "spend"
     | "refund"
-    | "period_reset";
+    | "period_reset"
+    | "expired";
   reason: string | null;
   admin_user_id: string | null;
   admin_email: string | null;
@@ -566,6 +618,71 @@ export async function removeCredits(
     bonus: newBonus,
     removed: actualRemoved,
   };
+}
+
+export type CreditReward = {
+  id: string;
+  amount: number;
+  reason: string | null;
+  source: string;
+  createdAt: string;
+  expiresAt: string | null;
+  expiredAt: string | null;
+  expiredAmount: number;
+};
+
+const USER_REWARD_SOURCES = ["claim_link", "admin_grant", "system"];
+
+/**
+ * Credits a user received (claim links, admin and system grants), newest first, with the
+ * expiry of each claim. Queried by source so spend rows cannot push rewards out of the page.
+ */
+export async function listCreditRewards(userId: string): Promise<CreditReward[]> {
+  const { data, error } = await supabase
+    .from("credit_ledger")
+    .select("id, delta, reason, source, created_at")
+    .eq("user_id", userId)
+    .in("source", USER_REWARD_SOURCES)
+    .gt("delta", 0)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    logger.warn({ error, userId }, "[Credits] Failed to fetch credit rewards");
+    return [];
+  }
+
+  const rows = data || [];
+  const ledgerIds = rows.map((row) => row.id);
+  const grantsResult = ledgerIds.length
+    ? await supabase
+        .from("credit_grants")
+        .select("ledger_id, expires_at, expired_at, expired_amount")
+        .eq("user_id", userId)
+        .in("ledger_id", ledgerIds)
+    : { data: [], error: null };
+
+  if (grantsResult.error) {
+    logger.warn({ error: grantsResult.error, userId }, "[Credits] Failed to fetch credit_grants for rewards");
+  }
+
+  const grantByLedgerId = new Map(
+    (grantsResult.data || []).map((grant) => [String(grant.ledger_id), grant])
+  );
+
+  return rows.map((row) => {
+    const grant = grantByLedgerId.get(String(row.id));
+    return {
+      id: row.id,
+      amount: Number(row.delta) || 0,
+      reason: row.reason,
+      source: row.source,
+      createdAt: row.created_at,
+      expiresAt: grant?.expires_at ?? null,
+      expiredAt: grant?.expired_at ?? null,
+      expiredAmount: Number(grant?.expired_amount) || 0,
+    };
+  });
 }
 
 /**

@@ -300,6 +300,25 @@ function formatCharge(amount: number, currency: string): string {
   }
 }
 
+/** Expiry cell for a reward: never, the date it expires, or what was removed when it did. */
+function RewardExpiry({ reward, fmtDate }: { reward: CreditRewardRow; fmtDate: (iso: string) => string }) {
+  if (reward.expiredAt) {
+    return (
+      <span className="flex flex-col items-start gap-1">
+        <Pill tone="red">Expired</Pill>
+        <span className="text-[11px] tabular-nums text-neutral-400">
+          {fmtDate(reward.expiredAt)}
+          {reward.expiredAmount > 0 ? ` · ${reward.expiredAmount.toLocaleString()} unused removed` : " · all used"}
+        </span>
+      </span>
+    );
+  }
+  if (reward.expiresAt) {
+    return <span className="whitespace-nowrap tabular-nums text-neutral-600">{fmtDate(reward.expiresAt)}</span>;
+  }
+  return <span className="text-neutral-400">Never</span>;
+}
+
 function rewardSourceLabel(source: string): string {
   if (source === "claim_link") {
     return "Reward link";
@@ -550,6 +569,8 @@ function BillingSection() {
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
+  const nextExpiring = credits?.expiring?.[0] ?? null;
+
   return (
     <>
       {error && <ErrorBanner message={error} />}
@@ -688,6 +709,12 @@ function BillingSection() {
       </SettingsSection>
 
       <SettingsSection title="Rewards & grants" description="Bonus credits from reward links and the Hydrilla team.">
+        {!loading && nextExpiring ? (
+          <p className="mb-3 text-[13px] text-amber-700">
+            {nextExpiring.amount.toLocaleString()} unused reward credit{nextExpiring.amount !== 1 ? "s" : ""} expire on{" "}
+            {fmtDate(nextExpiring.expiresAt)}. They are spent before your other bonus credits.
+          </p>
+        ) : null}
         <div className="app-panel overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-neutral-500">
@@ -700,16 +727,18 @@ function BillingSection() {
             <div className="overflow-x-auto p-2 sm:p-3">
               <table className={TABLE}>
                 <colgroup>
-                  <col className="w-[26%]" />
                   <col className="w-[20%]" />
-                  <col className="w-[36%]" />
-                  <col className="w-[18%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[28%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[15%]" />
                 </colgroup>
                 <thead>
                   <tr>
                     <th className={TH}>Date</th>
                     <th className={TH}>Source</th>
                     <th className={TH}>Reason</th>
+                    <th className={TH}>Expires</th>
                     <th className={cn(TH, "text-right")}>Credits</th>
                   </tr>
                 </thead>
@@ -721,7 +750,16 @@ function BillingSection() {
                       <td className={cn(TD, "truncate text-neutral-600")} title={reward.reason || undefined}>
                         {reward.reason || "—"}
                       </td>
-                      <td className={cn(TD, "text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400")}>
+                      <td className={TD}>
+                        <RewardExpiry reward={reward} fmtDate={fmtDate} />
+                      </td>
+                      <td
+                        className={cn(
+                          TD,
+                          "text-right font-semibold tabular-nums",
+                          reward.expiredAt ? "text-neutral-400" : "text-emerald-600 dark:text-emerald-400",
+                        )}
+                      >
                         +{reward.amount.toLocaleString()}
                       </td>
                     </tr>

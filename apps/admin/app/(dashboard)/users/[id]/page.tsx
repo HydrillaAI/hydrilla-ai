@@ -80,6 +80,9 @@ function sourceBadge(source: string) {
   if (source === "claim_link") {
     return <Badge variant="outline" className="border-indigo-500/40 text-indigo-400">Claim Link</Badge>;
   }
+  if (source === "expired") {
+    return <Badge variant="outline" className="border-rose-500/40 text-rose-500">Expired</Badge>;
+  }
   return <Badge variant="secondary">{source}</Badge>;
 }
 

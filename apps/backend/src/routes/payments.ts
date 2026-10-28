@@ -16,8 +16,10 @@ import {
   applyFreePeriodResetIfDue,
   availableCredits,
   FREE_TIER_CREDITS,
+  expireCreditGrants,
   grantCredits,
-  listCreditLedger,
+  listCreditRewards,
+  listExpiringCredits,
 } from "../services/credits.js";
 import { bookSlot, isSlotPlan, releaseSlot, slotOverview } from "../services/slotAccess.js";
 
@@ -617,6 +619,9 @@ paymentsRouter.get("/credits", requireAuth, async (req: Request, res: Response) 
   try {
     const userId = (req as any).userId;
 
+    // Remove claimed credits past their expiry before reading the balance.
+    await expireCreditGrants(userId);
+
     let credits = (await supabase.from("user_credits").select("*").eq("user_id", userId).maybeSingle()).data;
     const subscription = await getActiveSubscription(userId);
     const subscriptionPlan = entitledPlan(subscription);
@@ -741,6 +746,7 @@ paymentsRouter.get("/credits", requireAuth, async (req: Request, res: Response) 
     const used = Number(credits.credits_used) || 0;
     const total = Number(credits.credits_total) || 0;
     const bonus = Number(credits.credits_bonus) || 0;
+    const expiring = await listExpiringCredits(userId, bonus);
     res.json({
       credits: {
         used,
@@ -748,6 +754,7 @@ paymentsRouter.get("/credits", requireAuth, async (req: Request, res: Response) 
         periodUsed: used,
         periodTotal: total,
         bonus,
+        expiring,
         remaining: availableCredits({
           credits_total: total,
           credits_used: used,
@@ -766,23 +773,14 @@ paymentsRouter.get("/credits", requireAuth, async (req: Request, res: Response) 
 // ============================================================================
 // GET USER CREDIT REWARDS HISTORY
 // GET /api/payments/credits/history
-// Positive ledger additions: claim links, admin grants, system grants.
+// Positive ledger additions: claim links, admin grants, system grants,
+// with the expiry of each claim.
 // ============================================================================
-const USER_REWARD_SOURCES = new Set(["claim_link", "admin_grant", "system"]);
-
 paymentsRouter.get("/credits/history", requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const rows = await listCreditLedger(userId);
-    const rewards = rows
-      .filter((row) => row.delta > 0 && USER_REWARD_SOURCES.has(row.source))
-      .map((row) => ({
-        id: row.id,
-        amount: row.delta,
-        reason: row.reason,
-        source: row.source,
-        createdAt: row.created_at,
-      }));
+    await expireCreditGrants(userId);
+    const rewards = await listCreditRewards(userId);
     res.json({ rewards });
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error fetching credit rewards history");

@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { supabase } from "../db.js";
 import { logger } from "../logger.js";
 import { clerk } from "../middleware/auth.js";
-import { grantCredits, removeCredits, listCreditLedger } from "../services/credits.js";
+import { expireCreditGrants, grantCredits, removeCredits, listCreditLedger } from "../services/credits.js";
 import { sendCreditsGranted } from "../services/notifications.js";
 import { coversHour, isValidTimeZone, rangeInZone } from "../services/slotClock.js";
 import { getDodoPaymentsClient } from "../lib/dodopayments.js";
@@ -413,6 +413,7 @@ adminUsersRouter.get("/", async (req, res) => {
 adminUsersRouter.get("/:userId", async (req, res) => {
   try {
     const userId = String(req.params.userId || "");
+    await expireCreditGrants(userId);
     const [{ users, payments, subs, credits }, slots] = await Promise.all([loadBillingTables(), loadSlotBookings()]);
     const localIds = await localClerkUserIds();
     if (localIds.has(userId)) {
