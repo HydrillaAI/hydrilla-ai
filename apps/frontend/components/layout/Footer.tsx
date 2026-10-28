@@ -491,35 +491,22 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="footer-bottom">
-          <div className="footer-bottom-actions">
-            <nav className="footer-legal-links" aria-label="Legal links">
-              {FOOTER_LEGAL_LINKS.map((item) => (
-                <Link key={item.href} href={item.href} className="footer-link">
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
+          <nav className="footer-legal-links" aria-label="Legal links">
+            {FOOTER_LEGAL_LINKS.map((item) => (
+              <Link key={item.href} href={item.href} className="footer-link">
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
-            <div className="footer-socials" aria-label="Social links">
-              {SOCIAL_LINKS.map((s) => (
-                <a
-                  key={s.label}
-                  href={s.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={s.label}
-                  className="footer-social-btn"
-                >
-                  {s.icon}
-                </a>
-              ))}
-            </div>
-          </div>
-
-          <div className="footer-bottom-meta">
+          <div className="footer-company-info">
             <span className="footer-copy">© Hydrilla AI Private Limited</span>
             <span className="footer-company-address">
-              5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar, Tirupati, Andhra Pradesh 517502, India
+              <svg className="footer-location-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21s7-6.16 7-12a7 7 0 1 0-14 0c0 5.84 7 12 7 12Z" />
+                <circle cx="12" cy="9" r="2.25" />
+              </svg>
+              <span>5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar, Tirupati, Andhra Pradesh 517502, India</span>
             </span>
             <span className="footer-touch">
               <svg className="footer-mail-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -529,6 +516,21 @@ export default function Footer() {
                 {CONTACT_EMAIL}
               </a>
             </span>
+          </div>
+
+          <div className="footer-socials" aria-label="Social links">
+            {SOCIAL_LINKS.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={s.label}
+                className="footer-social-btn"
+              >
+                {s.icon}
+              </a>
+            ))}
           </div>
         </div>
 
@@ -781,30 +783,31 @@ export default function Footer() {
           box-sizing: border-box;
           border-top: 1px solid var(--_theme--appearance---border);
           padding-top: 2.25rem;
-          display: flex;
-          flex-direction: column;
-          gap: 1.25rem;
-        }
-
-        .footer-bottom-actions {
-          display: flex;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(20rem, 1.2fr) minmax(0, 1fr);
           align-items: center;
-          justify-content: space-between;
-          gap: 1.5rem;
+          min-height: 8rem;
         }
 
         .footer-legal-links {
           display: flex;
-          align-items: center;
-          gap: 1.35rem;
-        }
-
-        .footer-bottom-meta {
-          display: flex;
           flex-wrap: wrap;
           align-items: center;
+          justify-content: flex-start;
+          gap: 0.9rem 1.5rem;
+          padding-right: 2rem;
+        }
+
+        .footer-company-info {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           justify-content: center;
-          gap: 0.75rem 1.35rem;
+          gap: 0.65rem;
+          min-width: 0;
+          padding: 0 2rem;
+          border-left: 1px solid var(--_theme--appearance---border);
+          border-right: 1px solid var(--_theme--appearance---border);
           font-size: 0.875rem;
           color: var(--_theme--appearance---paragraph);
           text-align: center;
@@ -874,19 +877,35 @@ export default function Footer() {
         }
 
         .footer-company-address {
-          max-width: 32rem;
+          display: inline-flex;
+          align-items: flex-start;
+          justify-content: center;
+          gap: 0.6rem;
+          max-width: 34rem;
           text-align: center;
           font-size: 0.8125rem;
           line-height: 1.4;
           color: #55534e;
         }
 
+        .footer-location-icon {
+          width: 1rem;
+          height: 1rem;
+          flex: 0 0 auto;
+          margin-top: 0.08rem;
+          fill: none;
+          stroke: currentColor;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-width: 1.6;
+        }
+
         .footer-socials {
           display: flex;
           align-items: center;
-          margin-left: auto;
-          flex: 0 0 auto;
+          justify-content: flex-end;
           gap: 0.5rem;
+          padding-left: 2rem;
         }
 
         .footer-social-btn {
@@ -984,10 +1003,6 @@ export default function Footer() {
             padding-top: 1.75rem;
           }
 
-          .footer-bottom-actions {
-            align-items: center;
-          }
-
           .footer-brand {
             justify-self: center;
           }
@@ -1059,20 +1074,26 @@ export default function Footer() {
           .footer-bottom {
             padding-top: 1.5rem;
             row-gap: 1.15rem;
-          }
-
-          .footer-bottom-actions {
-            flex-direction: column;
-            gap: 1rem;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
           }
 
           .footer-legal-links {
             justify-content: center;
+            padding-right: 0;
+          }
+
+          .footer-company-info {
+            padding: 1.25rem 0;
+            border-top: 1px solid var(--_theme--appearance---border);
+            border-right: 0;
+            border-bottom: 1px solid var(--_theme--appearance---border);
+            border-left: 0;
           }
 
           .footer-socials {
-            margin-left: 0;
             justify-content: center;
+            padding-left: 0;
           }
 
           .footer-brand-mark {
