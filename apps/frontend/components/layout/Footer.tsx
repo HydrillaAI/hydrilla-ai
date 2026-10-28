@@ -491,15 +491,27 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="footer-bottom">
-          <div className="footer-bottom-meta">
-            <span className="footer-copy">© Hydrilla</span>
+          <nav className="footer-legal-links" aria-label="Legal links">
             {FOOTER_LEGAL_LINKS.map((item) => (
               <Link key={item.href} href={item.href} className="footer-link">
                 {item.label}
               </Link>
             ))}
+          </nav>
+
+          <div className="footer-company-info">
+            <span className="footer-copy">© Hydrilla AI Private Limited</span>
+            <span className="footer-company-address">
+              <svg className="footer-location-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21s7-6.16 7-12a7 7 0 1 0-14 0c0 5.84 7 12 7 12Z" />
+                <circle cx="12" cy="9" r="2.25" />
+              </svg>
+              <span>5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar, Tirupati, Andhra Pradesh 517502, India</span>
+            </span>
             <span className="footer-touch">
-              <span>Get in touch</span>{" "}
+              <svg className="footer-mail-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5 8.25 6 8.25-6M3.25 18l5.5-5m12 5-5.5-5" />
+              </svg>
               <a href={`mailto:${CONTACT_EMAIL}`} className="footer-link">
                 {CONTACT_EMAIL}
               </a>
@@ -771,27 +783,52 @@ export default function Footer() {
           box-sizing: border-box;
           border-top: 1px solid var(--_theme--appearance---border);
           padding-top: 2.25rem;
-          display: flex;
-          flex-wrap: wrap;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(20rem, 1.2fr) minmax(0, 1fr);
           align-items: center;
-          justify-content: space-between;
-          column-gap: 1.5rem;
-          row-gap: 1.25rem;
+          min-height: 8rem;
         }
 
-        .footer-bottom-meta {
+        .footer-legal-links {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 0.75rem 1.35rem;
+          justify-content: flex-start;
+          gap: 0.9rem 1.5rem;
+          padding-right: 2rem;
+        }
+
+        .footer-company-info {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.65rem;
+          min-width: 0;
+          padding: 0 2rem;
+          border-left: 1px solid var(--_theme--appearance---border);
+          border-right: 1px solid var(--_theme--appearance---border);
           font-size: 0.875rem;
           color: var(--_theme--appearance---paragraph);
+          text-align: center;
         }
 
         .footer-touch {
           display: inline-flex;
           align-items: center;
-          gap: 0.45rem;
+          gap: 0.5rem;
+          white-space: nowrap;
+        }
+
+        .footer-mail-icon {
+          width: 1rem;
+          height: 1rem;
+          flex: 0 0 auto;
+          fill: none;
+          stroke: currentColor;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-width: 1.6;
         }
 
         .footer-brand {
@@ -839,11 +876,36 @@ export default function Footer() {
           color: #55534e;
         }
 
+        .footer-company-address {
+          display: inline-flex;
+          align-items: flex-start;
+          justify-content: center;
+          gap: 0.6rem;
+          max-width: 34rem;
+          text-align: center;
+          font-size: 0.8125rem;
+          line-height: 1.4;
+          color: #55534e;
+        }
+
+        .footer-location-icon {
+          width: 1rem;
+          height: 1rem;
+          flex: 0 0 auto;
+          margin-top: 0.08rem;
+          fill: none;
+          stroke: currentColor;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-width: 1.6;
+        }
+
         .footer-socials {
           display: flex;
           align-items: center;
-          justify-self: end;
+          justify-content: flex-end;
           gap: 0.5rem;
+          padding-left: 2rem;
         }
 
         .footer-social-btn {
@@ -938,10 +1000,6 @@ export default function Footer() {
           }
 
           .footer-bottom {
-            grid-template-columns: 1fr;
-            justify-items: center;
-            text-align: center;
-            row-gap: 1.25rem;
             padding-top: 1.75rem;
           }
 
@@ -1016,6 +1074,26 @@ export default function Footer() {
           .footer-bottom {
             padding-top: 1.5rem;
             row-gap: 1.15rem;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+          }
+
+          .footer-legal-links {
+            justify-content: center;
+            padding-right: 0;
+          }
+
+          .footer-company-info {
+            padding: 1.25rem 0;
+            border-top: 1px solid var(--_theme--appearance---border);
+            border-right: 0;
+            border-bottom: 1px solid var(--_theme--appearance---border);
+            border-left: 0;
+          }
+
+          .footer-socials {
+            justify-content: center;
+            padding-left: 0;
           }
 
           .footer-brand-mark {
