@@ -33,6 +33,14 @@ type CanvasSize = {
   pixelRatio: number;
 };
 
+type RunnerPalette = {
+  canvas: string;
+  sky: string;
+  soft: string;
+  mist: string;
+  ink: string;
+};
+
 const HIGH_SCORE_PREFIX = "hydrilla:polyrunner:highscore:";
 const LANE_VALUES: Array<-1 | 0 | 1> = [-1, 0, 1];
 
@@ -42,6 +50,18 @@ function highScoreKey(userKey?: string | null) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function readRunnerPalette(): RunnerPalette {
+  const styles = getComputedStyle(document.documentElement);
+  const read = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
+  return {
+    canvas: read("--app-canvas", "#ffffff"),
+    sky: read("--hyd-sky", "#7eb1e3"),
+    soft: read("--hyd-soft", "#b5cee5"),
+    mist: read("--hyd-mist", "#d6e5fa"),
+    ink: read("--hyd-ink", "#0a0a0b"),
+  };
 }
 
 function makeRunnerState(): RunnerState {
@@ -101,6 +121,7 @@ function drawScene(
   context: CanvasRenderingContext2D,
   size: CanvasSize,
   state: RunnerState,
+  palette: RunnerPalette,
 ) {
   const { width, height } = size;
   const centerX = width / 2;
@@ -110,21 +131,22 @@ function drawScene(
   context.clearRect(0, 0, width, height);
 
   const sky = context.createLinearGradient(0, 0, 0, horizonY + 30);
-  sky.addColorStop(0, "#e8f0ff");
-  sky.addColorStop(0.62, "#f5ecf1");
-  sky.addColorStop(1, "#fff8ed");
+  sky.addColorStop(0, palette.mist);
+  sky.addColorStop(0.62, palette.soft);
+  sky.addColorStop(1, palette.canvas);
   context.fillStyle = sky;
   context.fillRect(0, 0, width, horizonY + 30);
 
   const floor = context.createLinearGradient(0, horizonY, 0, height);
-  floor.addColorStop(0, "#f3edf5");
-  floor.addColorStop(0.5, "#e8edf8");
-  floor.addColorStop(1, "#dce7f5");
+  floor.addColorStop(0, palette.soft);
+  floor.addColorStop(0.5, palette.mist);
+  floor.addColorStop(1, palette.canvas);
   context.fillStyle = floor;
   context.fillRect(0, horizonY, width, height - horizonY);
 
   context.save();
-  context.strokeStyle = "rgba(86, 92, 121, 0.3)";
+  context.strokeStyle = palette.ink;
+  context.globalAlpha = 0.22;
   context.lineWidth = 1;
   for (let lane = -7; lane <= 7; lane += 1) {
     const farX = centerX + lane * 20;
@@ -143,14 +165,17 @@ function drawScene(
     context.stroke();
   }
   context.restore();
+  context.globalAlpha = 1;
 
   context.save();
-  context.strokeStyle = "rgba(86, 92, 121, 0.42)";
+  context.strokeStyle = palette.ink;
+  context.globalAlpha = 0.35;
   context.beginPath();
   context.moveTo(0, horizonY);
   context.lineTo(width, horizonY);
   context.stroke();
   context.restore();
+  context.globalAlpha = 1;
 
   for (const obstacle of state.obstacles) {
     const progress = clamp(1 - obstacle.z, 0, 1);
@@ -179,9 +204,9 @@ function drawScene(
 
   const ball = context.createRadialGradient(playerX - radius * 0.36, playerY - radius * 0.42, 1, playerX, playerY, radius * 1.2);
   ball.addColorStop(0, "#ffffff");
-  ball.addColorStop(0.28, "#b8d5ff");
-  ball.addColorStop(0.68, "#718be6");
-  ball.addColorStop(1, "#5767b5");
+  ball.addColorStop(0.28, palette.mist);
+  ball.addColorStop(0.68, palette.sky);
+  ball.addColorStop(1, palette.ink);
   context.save();
   context.fillStyle = ball;
   context.shadowColor = "rgba(91, 114, 222, 0.55)";
@@ -196,12 +221,14 @@ function drawScene(
 }
 
 export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
+  const cardRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const stateRef = useRef<RunnerState>(makeRunnerState());
   const canvasSizeRef = useRef<CanvasSize>({ width: 360, height: 280, pixelRatio: 1 });
+  const paletteRef = useRef<RunnerPalette | null>(null);
   const scoreKeyRef = useRef(highScoreKey(userKey));
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
@@ -226,7 +253,7 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
     if (!canvas || !surface) return;
     const rect = surface.getBoundingClientRect();
     const width = Math.max(260, rect.width);
-    const height = Math.max(220, rect.height);
+    const height = Math.max(180, rect.height);
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(width * pixelRatio);
     canvas.height = Math.round(height * pixelRatio);
@@ -236,7 +263,8 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
     const context = canvas.getContext("2d");
     if (context) {
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      drawScene(context, canvasSizeRef.current, stateRef.current);
+      paletteRef.current = readRunnerPalette();
+      drawScene(context, canvasSizeRef.current, stateRef.current, paletteRef.current);
     }
   }, []);
 
@@ -326,7 +354,7 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
         }
       }
 
-      drawScene(context, canvasSizeRef.current, state);
+      drawScene(context, canvasSizeRef.current, state, paletteRef.current || readRunnerPalette());
       animationRef.current = window.requestAnimationFrame(tick);
     };
 
@@ -335,6 +363,7 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
       if (animationRef.current !== null) window.cancelAnimationFrame(animationRef.current);
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
+      paintHighScore(Math.floor(stateRef.current.score));
     };
   }, [paintHighScore, resizeCanvas]);
 
@@ -342,6 +371,8 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (target && /^(BUTTON|A)$/.test(target.tagName)) return;
+      if (!cardRef.current?.contains(target) && document.activeElement !== cardRef.current) return;
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         movePlayer(-1);
@@ -359,18 +390,20 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
 
   return (
     <section
+      ref={cardRef}
+      tabIndex={0}
       className={cn(
-        "w-[min(390px,calc(100vw-1.5rem))] overflow-hidden rounded-[22px] border border-neutral-200/90 bg-white p-3 text-neutral-950 shadow-[0_20px_55px_-28px_rgba(16,24,40,0.45)] sm:p-3.5",
+        "w-[min(390px,calc(100vw-1.5rem))] overflow-hidden rounded-[22px] border border-[var(--hyd-200)] bg-[var(--app-canvas)] p-3 text-[var(--hyd-ink)] shadow-[var(--shadow-stage-md)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--hyd-400)] sm:p-3.5",
         className,
       )}
       aria-label="Play while you wait: PolyRunner"
     >
       <div className="flex items-start justify-between gap-3 px-0.5">
         <div>
-          <h2 className="text-[14px] font-semibold tracking-[-0.02em] text-neutral-900 sm:text-[15px]">
+          <h2 className="text-[14px] font-semibold tracking-[var(--tracking-display)] text-[var(--hyd-ink)] sm:text-[15px]">
             <span aria-hidden>🎮</span> Play while you wait: PolyRunner
           </h2>
-          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-neutral-400">3D generation lounge</p>
+          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--hyd-ink)] opacity-55">3D generation lounge</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-neutral-50 px-2 py-1 text-[11px] font-semibold text-neutral-500">
           <Trophy className="h-3.5 w-3.5 text-amber-500" strokeWidth={2.2} />
@@ -379,17 +412,17 @@ export function PolyRunnerCard({ userKey, className }: PolyRunnerGameProps) {
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <div className="rounded-[13px] border border-neutral-200/80 bg-neutral-50/80 px-2.5 py-1.5">
+        <div className="rounded-[13px] border border-[var(--hyd-200)] bg-[var(--card-bg)] px-2.5 py-1.5">
           <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Score</div>
           <div className="mt-0.5 text-[16px] font-semibold tracking-[-0.04em] text-neutral-900">{score.toLocaleString()}</div>
         </div>
-        <div className="rounded-[13px] border border-neutral-200/80 bg-neutral-50/80 px-2.5 py-1.5 text-right">
+        <div className="rounded-[13px] border border-[var(--hyd-200)] bg-[var(--card-bg)] px-2.5 py-1.5 text-right">
           <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-neutral-400">High score</div>
           <div className="mt-0.5 text-[16px] font-semibold tracking-[-0.04em] text-neutral-900">{highScore.toLocaleString()}</div>
         </div>
       </div>
 
-      <div className="mt-2 overflow-hidden rounded-[17px] border border-slate-200/90 bg-[#eef2fb] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+      <div className="mt-2 overflow-hidden rounded-[17px] border border-[var(--hyd-200)] bg-[var(--hyd-mist)] shadow-[var(--shadow-stage)]">
         <div className="flex items-center justify-between px-2.5 py-1.5 text-[10px] font-medium text-neutral-500">
           <span>Preview / Canvas</span>
           <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", gameOver ? "bg-rose-100 text-rose-600" : running ? "bg-emerald-100 text-emerald-700" : "bg-white/75 text-neutral-500")}>

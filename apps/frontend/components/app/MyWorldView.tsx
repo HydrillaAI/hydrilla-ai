@@ -63,6 +63,11 @@ function disposeObject(root: THREE.Object3D) {
   });
 }
 
+function cssColor(name: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
 function placement(index: number, total: number): THREE.Vector3 {
   const columns = Math.min(total, Math.max(4, Math.min(7, Math.ceil(Math.sqrt(Math.max(total, 1) * 1.35)))));
   const row = Math.floor(index / columns);
@@ -129,8 +134,12 @@ function WorldScene({
     if (!container) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#f1f5fb");
-    scene.fog = new THREE.Fog("#f1f5fb", 35, 115);
+    const canvasColor = cssColor("--app-canvas", "#f1f5fb");
+    const softColor = cssColor("--hyd-soft", "#b5cee5");
+    const mistColor = cssColor("--hyd-mist", "#d6e5fa");
+    const skyColor = cssColor("--hyd-sky", "#7eb1e3");
+    scene.background = new THREE.Color(canvasColor);
+    scene.fog = new THREE.Fog(canvasColor, 35, 115);
 
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 300);
     camera.position.set(10.5, 8.2, 13.5);
@@ -138,7 +147,7 @@ function WorldScene({
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor("#f1f5fb", 1);
+    renderer.setClearColor(canvasColor, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
@@ -160,7 +169,7 @@ function WorldScene({
     controls.update();
     controlsRef.current = controls;
 
-    const ambient = new THREE.HemisphereLight("#ffffff", "#c9d7e8", 2.3);
+    const ambient = new THREE.HemisphereLight("#ffffff", softColor, 2.3);
     scene.add(ambient);
     const key = new THREE.DirectionalLight("#ffffff", 4.2);
     key.position.set(9, 16, 7);
@@ -172,13 +181,13 @@ function WorldScene({
     key.shadow.camera.bottom = -34;
     key.shadow.bias = -0.0003;
     scene.add(key);
-    const fill = new THREE.DirectionalLight("#c9dcff", 1.4);
+    const fill = new THREE.DirectionalLight(mistColor, 1.4);
     fill.position.set(-12, 7, -10);
     scene.add(fill);
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(160, 160),
-      new THREE.MeshStandardMaterial({ color: "#fafdff", roughness: 0.88, metalness: 0 }),
+      new THREE.MeshStandardMaterial({ color: mistColor, roughness: 0.88, metalness: 0 }),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.015;
@@ -186,7 +195,7 @@ function WorldScene({
     floor.userData.worldFloor = true;
     scene.add(floor);
 
-    const grid = new THREE.GridHelper(150, 75, "#c8d7e8", "#e0e8f2");
+    const grid = new THREE.GridHelper(150, 75, skyColor, softColor);
     const gridMaterial = grid.material as THREE.Material;
     gridMaterial.transparent = true;
     gridMaterial.opacity = 0.72;
@@ -289,6 +298,9 @@ function WorldScene({
     let cancelled = false;
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
+    const textureLoader = new THREE.TextureLoader();
+    const selectionColor = cssColor("--hyd-sky", "#7eb1e3");
+    const selectedAsset = assets.find((asset) => asset.id === selectedId);
 
     void (async () => {
       try {
@@ -300,16 +312,47 @@ function WorldScene({
       }
 
       assets.forEach((asset, index) => {
-        onLoadState(asset.id, true);
-        loader.load(
-          getProxyGlbUrl(asset.id),
-          (gltf) => {
+        const group = new THREE.Group();
+        group.userData.assetId = asset.id;
+        group.position.copy(placement(index, assets.length));
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(1.35, 1.44, 64),
+          new THREE.MeshBasicMaterial({ color: selectionColor, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.018;
+        ring.visible = asset.id === selectedIdRef.current;
+        group.add(ring);
+        group.userData.selectionRing = ring;
+
+        const imageUrl = getProxiedImageUrl(asset.previewImageUrl || asset.imageUrl);
+        if (imageUrl) {
+          textureLoader.load(imageUrl, (texture) => {
+            if (cancelled || run !== runRef.current) {
+              texture.dispose();
+              return;
+            }
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, color: 0xffffff }));
+            card.userData.assetId = asset.id;
+            card.scale.set(3.8, 2.7, 1);
+            card.position.y = 1.35;
+            group.add(card);
+          });
+        }
+
+        models.add(group);
+        modelMapRef.current.set(asset.id, group);
+
+        if (asset.id === selectedAsset?.id) {
+          onLoadState(asset.id, true);
+          loader.load(
+            getProxyGlbUrl(asset.id),
+            (gltf) => {
             if (cancelled || run !== runRef.current) {
               disposeObject(gltf.scene);
               return;
             }
-            const model = new THREE.Group();
-            model.userData.assetId = asset.id;
             const source = gltf.scene;
             const bounds = new THREE.Box3().setFromObject(source);
             const center = bounds.getCenter(new THREE.Vector3());
@@ -324,20 +367,11 @@ function WorldScene({
               child.castShadow = true;
               child.receiveShadow = true;
             });
-            model.add(source);
-
-            const ring = new THREE.Mesh(
-              new THREE.RingGeometry(1.35, 1.44, 64),
-              new THREE.MeshBasicMaterial({ color: "#74a9ff", transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
-            );
-            ring.rotation.x = -Math.PI / 2;
-            ring.position.y = 0.018;
-            ring.visible = asset.id === selectedIdRef.current;
-            model.add(ring);
-            model.userData.selectionRing = ring;
-            model.position.copy(placement(index, assets.length));
-            models.add(model);
-            modelMapRef.current.set(asset.id, model);
+            const thumbnail = group.children.find((child) => child instanceof THREE.Sprite);
+            if (thumbnail) {
+              thumbnail.visible = false;
+            }
+            group.add(source);
             onLoadState(asset.id, false);
           },
           undefined,
@@ -347,7 +381,8 @@ function WorldScene({
               setSceneError("Some models could not be loaded. Try refreshing My World.");
             }
           },
-        );
+          );
+        }
       });
     })();
 
@@ -355,7 +390,7 @@ function WorldScene({
       cancelled = true;
       assets.forEach((asset) => onLoadState(asset.id, false));
     };
-  }, [assets, getToken, onLoadState]);
+  }, [assets, getToken, onLoadState, selectedId]);
 
   useEffect(() => {
     modelMapRef.current.forEach((model, id) => {
@@ -387,6 +422,7 @@ export function MyWorldView() {
   const [focusRequest, setFocusRequest] = useState<{ id: number; assetId: string } | null>(null);
   const [resetRequest, setResetRequest] = useState(0);
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+  const [visibleAssetCount, setVisibleAssetCount] = useState(36);
 
   const loadAssets = useCallback(async (quiet = false) => {
     if (!isSignedIn) return;
@@ -411,7 +447,11 @@ export function MyWorldView() {
           updatedAt: job.updatedAt,
           engine: job.engine,
         }));
-      setAssets(next);
+      setAssets((current) => {
+        const currentSignature = current.map((asset) => `${asset.id}:${asset.updatedAt}`).join("|");
+        const nextSignature = next.map((asset) => `${asset.id}:${asset.updatedAt}`).join("|");
+        return currentSignature === nextSignature ? current : next;
+      });
       setSelectedId((current) => (current && next.some((asset) => asset.id === current) ? current : next.at(-1)?.id ?? null));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not load your 3D world.");
@@ -424,14 +464,24 @@ export function MyWorldView() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
     void loadAssets();
-    const interval = window.setInterval(() => void loadAssets(true), 20_000);
-    return () => window.clearInterval(interval);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadAssets(true);
+    };
+    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    window.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+    };
   }, [isLoaded, isSignedIn, loadAssets]);
 
   const filteredAssets = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return assets.filter((asset) => !normalized || assetName(asset).toLowerCase().includes(normalized));
   }, [assets, query]);
+  const visibleAssets = filteredAssets.slice().reverse().slice(0, visibleAssetCount);
   const selected = assets.find((asset) => asset.id === selectedId) ?? null;
 
   const setAssetLoading = useCallback((id: string, isLoading: boolean) => {
@@ -505,7 +555,7 @@ export function MyWorldView() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-          {filteredAssets.length ? filteredAssets.slice().reverse().map((asset) => {
+          {visibleAssets.length ? visibleAssets.map((asset) => {
             const active = asset.id === selectedId;
             const image = asset.previewImageUrl || asset.imageUrl;
             return (
@@ -529,6 +579,15 @@ export function MyWorldView() {
               <p className="mt-1 text-xs leading-5 text-slate-400">{query ? "Try a different search." : "Generate a 3D model and it will appear here automatically."}</p>
             </div>
           )}
+          {visibleAssets.length < filteredAssets.length ? (
+            <button
+              type="button"
+              onClick={() => setVisibleAssetCount((count) => count + 36)}
+              className="mt-2 w-full rounded-xl border border-[var(--hyd-200)] px-3 py-2 text-[11px] font-semibold text-[var(--hyd-ink)] transition hover:bg-[var(--hyd-50)]"
+            >
+              Load more models
+            </button>
+          ) : null}
         </div>
       </aside>
 
