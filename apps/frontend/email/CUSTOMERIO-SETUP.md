@@ -25,7 +25,6 @@ State of the "Hydrilla AI" workspace (218428) as of 25 Oct 2026, and what is sti
 | ID | Name | Trigger Name |
 |---|---|---|
 | 2 | T01 Welcome (Rishi) | `T01_welcome` |
-| 3 | CL01 Claim link (Rishi) | `CL01_claim-link` |
 | 4 | INT01 New message alert (internal) | `INT01_new-message` |
 | 5 | INT02 GPU offline alert (internal) | `INT02_gpu-offline` |
 | 6 | T04 Plan active | `T04_plan-active` |

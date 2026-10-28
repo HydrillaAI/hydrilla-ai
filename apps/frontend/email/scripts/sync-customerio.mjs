@@ -2,7 +2,7 @@
 //
 //   CUSTOMERIO_APP_API_KEY=... node email/scripts/sync-customerio.mjs            # dry run: show what would change
 //   CUSTOMERIO_APP_API_KEY=... node email/scripts/sync-customerio.mjs --apply    # create missing and update all
-//   ... --only=T01_welcome,CL01_claim-link                                         # limit to some templates
+//   ... --only=T01_welcome,T08_credits-granted                                    # limit to some templates
 //
 // Transactional templates: a missing one is created by its Trigger Name with auto_create plus
 // queue_draft, so nothing is sent (a single draft addressed to the team inbox is left in

@@ -59,7 +59,6 @@
 | T01 | Welcome to Hydrilla | transactional | sign-up (Clerk `user.created`) | Short personal welcome and first steps. |
 | L02 | Text or image? Pick the faster start | campaign | 2 days after `account_created`, only if no `generation_completed` | The single onboarding nudge. |
 | C04 | Anything I can help with? | campaign | 24 hours after `checkout_started`, unless `subscription_activated` | One human question, no discount. |
-| CL01 | {n} Hydrilla credits for you | transactional | admin clicks **Send** on a claim link | Gives someone a claim link. |
 | T08 | {n} credits added to your account | transactional | admin adds credits with "send email" on | Tells them credits were added. |
 | R02 | Your Hydrilla account is waiting | campaign | `last_seen_at` older than 30 days, once | The only win-back. |
 | R05 | A short question | campaign | 3 days after `subscription_cancelled` | One question about why they left. |
@@ -75,10 +74,9 @@
 
 ## Claim links
 
-An admin creates a link on the Claim links page, then:
-- clicks **Send** on its row, or ticks "Email it … from Rishi" when the link is restricted to one address.
-- Rishi's CL01 goes out through Customer.io. A restricted link can only be sent to its own address.
-- When someone claims the link they see the result on screen, so no email is sent at claim time.
+An admin creates a link on the Claim links page and shares it themselves (for example in a form).
+Hydrilla sends no email for claim links: not when a link is created, and not when someone claims it,
+since they see the result on screen. A link can still be restricted to one email address.
 
 ## Cut, and why
 
