@@ -1403,6 +1403,14 @@ async function getTokenOrNull(getToken: () => Promise<string | null>): Promise<s
   }
 }
 
+// Search crawlers run page JavaScript, so without this they download every model on a
+// page (20-50 MB each), and the bytes are billed to the backend.
+const CRAWLER_UA = /bot|crawl|spider|slurp|googleother|google-inspectiontool/i;
+
+function isCrawler(): boolean {
+  return typeof navigator !== "undefined" && CRAWLER_UA.test(navigator.userAgent);
+}
+
 async function fetchSignedGlbUrl(
   jobId: string,
   getToken: () => Promise<string | null>,
@@ -1443,6 +1451,9 @@ export async function loadGlbFromBestSource<T>(
   getToken: () => Promise<string | null>,
   load: (source: GlbSource) => Promise<T>,
 ): Promise<T> {
+  if (isCrawler()) {
+    throw new Error("3D models are not loaded for crawlers");
+  }
   const targetUrl = getProxiedGlbUrl(glbUrl) || glbUrl;
   const jobId = directGlbState.blocked ? null : proxiedGlbJobId(targetUrl);
   const signedUrl = jobId ? await fetchSignedGlbUrl(jobId, getToken) : null;
