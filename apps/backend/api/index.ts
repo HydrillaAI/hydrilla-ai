@@ -14,6 +14,7 @@ import { developerV1Router } from "../src/routes/v1/developerApi.js";
 import { publicCreditClaimsRouter } from "../src/routes/creditClaims.js";
 import { webhooksRouter } from "../src/routes/webhooks.js";
 import { cronRouter } from "../src/routes/cron.js";
+import { robotsTxt } from "../src/routes/robots.js";
 import { logger } from "../src/logger.js";
 import { initDb } from "../src/db.js";
 import { syncAppSettingsFromDb } from "../src/services/appSettings.js";
@@ -70,6 +71,8 @@ app.get("/api/health", (_req, res) => {
 app.get("/health", (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
+
+app.get("/robots.txt", robotsTxt);
 
 // Root route
 app.get("/", (_req, res) => {

@@ -1,4 +1,4 @@
-import { Router, type Response as ExpressResponse } from "express";
+import { Router, type Request as ExpressRequest, type Response as ExpressResponse } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import path from "path";
@@ -1924,6 +1924,47 @@ async function canServeJobGlb(job: JobRecord, jobId: string, userId: string | un
 
 const GLB_SIGNED_URL_TTL_S = 60 * 60;
 
+function signGlbKey(key: string): Promise<string> {
+  if (!s3Client) {
+    throw new Error("S3 client is not initialized");
+  }
+  return getSignedUrl(
+    s3Client,
+    new GetObjectCommand({
+      Bucket: config.s3.bucket,
+      Key: key,
+      ResponseContentType: "model/gltf-binary",
+    }),
+    { expiresIn: GLB_SIGNED_URL_TTL_S }
+  );
+}
+
+/**
+ * Sends a request without a Bearer token straight to S3 with a signed URL, so the mesh
+ * bytes skip this function (billed as Fast Origin Transfer). Requests with a token keep
+ * the stream: a browser may forward Authorization across the redirect, and S3 rejects a
+ * signed URL that also carries one. Returns false when nothing was sent and the caller
+ * should stream instead.
+ */
+async function redirectGlbToS3(req: ExpressRequest, res: ExpressResponse, keys: string[]): Promise<boolean> {
+  if (req.headers.authorization || !s3Enabled || !s3Client) {
+    return false;
+  }
+  try {
+    const key = await findFirstExistingS3Key(keys);
+    if (!key) {
+      return false;
+    }
+    const url = await signGlbKey(key);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.redirect(302, url);
+    return true;
+  } catch (err: any) {
+    logger.warn({ keys, err: err?.message }, "Failed to redirect GLB to S3, streaming instead");
+    return false;
+  }
+}
+
 // ============================================
 // Signed S3 URL for a job's GLB
 // ============================================
@@ -1955,15 +1996,7 @@ threeDRouter.get("/glb/:jobId/signed-url", optionalAuth, async (req, res) => {
       return res.status(404).json({ error: "GLB file is not stored in S3 for this job" });
     }
 
-    const url = await getSignedUrl(
-      s3Client,
-      new GetObjectCommand({
-        Bucket: config.s3.bucket,
-        Key: key,
-        ResponseContentType: "model/gltf-binary",
-      }),
-      { expiresIn: GLB_SIGNED_URL_TTL_S }
-    );
+    const url = await signGlbKey(key);
     res.json({ url, expiresInSeconds: GLB_SIGNED_URL_TTL_S });
   } catch (err: any) {
     logger.warn({ jobId, err: err?.message }, "Failed to sign GLB URL");
@@ -1988,6 +2021,9 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
           `image/${jobId}/mesh.glb`,
           `text/${jobId}/mesh.glb`,
         ];
+        if (await redirectGlbToS3(req, res, candidateKeys)) {
+          return;
+        }
         try {
           const { key: _resolvedKey, out: s3Response } = await getFirstExistingS3Object(candidateKeys);
           const contentLength = s3Response.ContentLength || 0;
@@ -2026,6 +2062,9 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
     // were migrated to the new bucket.
     const glbS3Key = extractOwnedS3KeyFromUrl(glbUrl);
     if (glbS3Key && s3Enabled && s3Client) {
+      if (await redirectGlbToS3(req, res, glbKeyCandidates(glbS3Key))) {
+        return;
+      }
       try {
         const { key: resolvedKey, out: s3Response } = await getFirstExistingS3Object(glbKeyCandidates(glbS3Key));
           

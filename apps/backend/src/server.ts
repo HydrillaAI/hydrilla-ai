@@ -17,6 +17,7 @@ import { developerV1Router } from "./routes/v1/developerApi.js";
 import { publicCreditClaimsRouter } from "./routes/creditClaims.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { cronRouter } from "./routes/cron.js";
+import { robotsTxt } from "./routes/robots.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";
 import { initDb } from "./db.js";
@@ -68,6 +69,8 @@ async function main() {
       app.use("/uploads", express.static(uploadsDir));
     }
   }
+
+  app.get("/robots.txt", robotsTxt);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true });
