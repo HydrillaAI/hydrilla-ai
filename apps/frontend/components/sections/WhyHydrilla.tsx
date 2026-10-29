@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
-import { WHY_HYDRILLA_MEDIA } from "@/lib/cloudinary";
+import { WHY_HYDRILLA_MEDIA, cloudinaryLoader } from "@/lib/cloudinary";
 import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
@@ -59,15 +59,7 @@ function useInViewPlay(enabled: boolean) {
   return { ref, active };
 }
 
-function MediaVideo({
-  src,
-  poster,
-  priority = false,
-}: {
-  src: string;
-  poster: string;
-  priority?: boolean;
-}) {
+function MediaVideo({ src, poster }: { src: string; poster: string }) {
   const reduceMotion = useReducedMotion();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { ref: wrapRef, active } = useInViewPlay(!reduceMotion);
@@ -91,10 +83,9 @@ function MediaVideo({
         src={poster}
         alt=""
         fill
-        priority={priority}
         sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 40vw"
         className="object-cover"
-        unoptimized
+        loader={cloudinaryLoader}
       />
       {!reduceMotion ? (
         <video
@@ -108,7 +99,7 @@ function MediaVideo({
           muted
           loop
           playsInline
-          preload={priority ? "metadata" : "none"}
+          preload="none"
           onPlaying={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
         />
@@ -118,11 +109,11 @@ function MediaVideo({
 }
 
 /** Fills its (relative) parent; zooms gently when the card is hovered. */
-function MediaFill({ media, priority }: { media: Media; priority?: boolean }) {
+function MediaFill({ media }: { media: Media }) {
   return (
     <div className="absolute inset-0 transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.035] motion-reduce:transition-none">
       {media.kind === "video" ? (
-        <MediaVideo src={media.video} poster={media.poster} priority={priority} />
+        <MediaVideo src={media.video} poster={media.poster} />
       ) : (
         <Image
           src={media.src}
@@ -130,7 +121,7 @@ function MediaFill({ media, priority }: { media: Media; priority?: boolean }) {
           fill
           sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
           className="object-cover"
-          unoptimized
+          loader={cloudinaryLoader}
         />
       )}
     </div>
@@ -328,7 +319,6 @@ function BlueFoxCard({ className }: { className?: string }) {
     <article className={cn("group relative isolate overflow-hidden bg-neutral-950", OUTER, className)}>
       <MediaFill
         media={{ kind: "video", video: WHY_HYDRILLA_MEDIA.bluefox.video, poster: WHY_HYDRILLA_MEDIA.bluefox.poster }}
-        priority
       />
       <div
         aria-hidden

@@ -475,7 +475,9 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
           <Link href="/" className={`relative z-10 flex shrink-0 items-center group ${compact ? "lg:justify-self-start" : mode === "v2" ? "lg:justify-self-start" : ""}`} aria-label="Hydrilla">
             <span className="flex items-center gap-2.5">
               <img
-                src="/hyd01.png"
+                src="/hyd01-mark.png"
+                width={140}
+                height={132}
                 alt=""
                 aria-hidden
                 className={`block w-auto shrink-0 transition-[height] ${BAR_EASE} ${markSize} ${
@@ -484,6 +486,8 @@ export default function Navbar({ variant = "hero", pathname = "/" }: NavbarProps
               />
               <img
                 src={wordmarkSrc}
+                width={937}
+                height={274}
                 alt="Hydrilla"
                 className={`block w-auto transition-[height] ${BAR_EASE} ${logoSize}`}
               />

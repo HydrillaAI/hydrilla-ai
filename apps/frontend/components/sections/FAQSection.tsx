@@ -94,7 +94,7 @@ function FAQChatItem({ question, answer, isOpen, onToggle, index }: FAQItemProps
             >
               <div className="faq-avatar">
                 <Image
-                  src="/hyd01.png"
+                  src="/hyd01-mark.png"
                   alt="Hydrilla"
                   fill
                   style={{ objectFit: "contain", padding: "6px" }}

@@ -34,7 +34,7 @@ const showcaseItems: ShowcaseItem[] = [
     description: "BlueFox turns a prompt or image into a 3D model.",
     clips: BLUEFOX_SHOWCASE.clips,
     poster: BLUEFOX_SHOWCASE.poster,
-    logoSrc: "/hyd01.png",
+    logoSrc: "/hyd01-mark.png",
     logoAlt: "Hydrilla",
   },
   {
@@ -140,7 +140,6 @@ function BlueFoxReel({
         fill
         sizes="(max-width: 640px) 85vw, 380px"
         className="object-cover"
-        priority
       />
       {play ? (
         <video
@@ -504,8 +503,6 @@ export default function Showcase() {
                             fill
                             sizes="(max-width: 640px) 85vw, 380px"
                             className="object-cover"
-                            priority={index === 0}
-                            loading={index === 0 ? "eager" : "lazy"}
                             style={{
                               willChange: 'transform',
                               contentVisibility: 'auto',
@@ -572,8 +569,6 @@ export default function Showcase() {
                         fill
                         sizes="(max-width: 640px) 85vw, 380px"
                         className="object-cover"
-                        priority={index === 0}
-                        loading={index === 0 ? "eager" : "lazy"}
                         style={{
                           willChange: 'transform',
                           contentVisibility: 'auto',
@@ -586,8 +581,6 @@ export default function Showcase() {
                         fill
                         sizes="(max-width: 640px) 85vw, 380px"
                         className="object-cover"
-                        priority={index === 0}
-                        loading={index === 0 ? "eager" : "lazy"}
                         style={{
                           willChange: 'transform',
                           contentVisibility: 'auto',

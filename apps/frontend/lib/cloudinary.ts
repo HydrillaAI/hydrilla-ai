@@ -23,14 +23,38 @@ export function cloudinaryVideo(
   return `${CLOUDINARY_VIDEO_BASE}/${transform}/${VERSION}/${publicId}`;
 }
 
+/**
+ * next/image loader for Cloudinary delivery URLs (images and video posters).
+ * Rewrites `w_` (and `h_`, keeping the aspect) in the transform so `srcSet` serves
+ * phones a small file. Never wider than the authored width, so desktop is unchanged.
+ * Pass as `loader` instead of `unoptimized`.
+ */
+export function cloudinaryLoader({ src, width }: { src: string; width: number }): string {
+  const match = src.match(/^(.*\/(?:image|video)\/upload\/)([^/]+)(\/.+)$/);
+  if (!match) return src;
+  const [, base, transform, rest] = match;
+  const parts = transform.split(",");
+  const authoredWidth = Number(parts.find((part) => part.startsWith("w_"))?.slice(2));
+  if (!authoredWidth) return src;
+  const nextWidth = Math.min(width, authoredWidth);
+  const scale = nextWidth / authoredWidth;
+  const rewritten = parts.map((part) => {
+    if (part.startsWith("w_")) return `w_${nextWidth}`;
+    const height = part.startsWith("h_") ? Number(part.slice(2)) : 0;
+    return height ? `h_${Math.round(height * scale)}` : part;
+  });
+  return `${base}${rewritten.join(",")}${rest}`;
+}
+
 /** Raw files (GLB). No image transforms — the CDN caches the original bytes. */
 export function cloudinaryRaw(publicId: string): string {
   return `${CLOUDINARY_RAW_BASE}/${publicId}`;
 }
 
+/** Hero stage models in display order. The first (the lamp) is the one the poster shows. */
 export const HERO_STAGE_MODELS = [
-  cloudinaryRaw("v1791059174/hydrilla-landing/hero/stage-a.glb"),
   cloudinaryRaw("v1791059175/hydrilla-landing/hero/stage-b.glb"),
+  cloudinaryRaw("v1791059174/hydrilla-landing/hero/stage-a.glb"),
   cloudinaryRaw("v1792555678/hydrilla-landing/hero/stage-c.glb"),
   cloudinaryRaw("v1792555680/hydrilla-landing/hero/stage-d.glb"),
   cloudinaryRaw("v1792555680/hydrilla-landing/hero/stage-e.glb"),
@@ -40,6 +64,13 @@ export const HERO_STAGE_MODELS = [
   cloudinaryRaw("v1792555684/hydrilla-landing/hero/stage-i.glb"),
   cloudinaryRaw("v1792555685/hydrilla-landing/hero/stage-j.glb"),
 ] as const;
+
+/**
+ * Still of the first hero model at the stage's framing. It shows instantly and the
+ * live canvas fades in over it. Capture in dev with `/?capture-poster` (HeroStage),
+ * save under /public/hero/ with a versioned name. null hides the poster.
+ */
+export const HERO_STAGE_POSTER: string | null = "/hero/stage-poster-v1.webp";
 
 /**
  * Closing CTA puppets, left to right. Simplified to ~150k triangles,

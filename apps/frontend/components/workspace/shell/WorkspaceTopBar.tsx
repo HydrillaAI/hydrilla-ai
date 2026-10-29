@@ -56,7 +56,7 @@ export const WorkspaceLibraryBar = memo(function WorkspaceLibraryBar({
         className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-900", FOCUS)}
       >
         <span className="relative h-[18px] w-[18px] logo-spin-hover">
-          <Image src="/hyd01.png" alt="" fill className="object-contain" sizes="18px" priority />
+          <Image src="/hyd01-mark.png" alt="" fill className="object-contain" sizes="18px" priority />
         </span>
       </Link>
 

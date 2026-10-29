@@ -29,7 +29,7 @@ export function CommunityHeader() {
           >
             {/* Same lockup as the app sidebar and site navbar: mark 32px, wordmark ¾ of it, caps centred on the mark. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/hyd01.png" alt="" aria-hidden className="block h-8 w-auto shrink-0 dark:brightness-0 dark:invert" />
+            <img src="/hyd01-mark.png" width={140} height={132} alt="" aria-hidden className="block h-8 w-auto shrink-0 dark:brightness-0 dark:invert" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-hydrilla/hydsvgblack.svg" alt="Hydrilla" className="hidden h-6 w-auto translate-y-[2px] dark:hidden md:block" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
