@@ -6,7 +6,7 @@ import { useReducedMotion } from "motion/react";
 import { Play, Pause } from "lucide-react";
 import SeeWorkspaceButton from "../SeeWorkspaceButton";
 import { BlurReveal } from "@/components/ui/BlurReveal";
-import { WORKFLOW_DEMO } from "@/lib/cloudinary";
+import { WORKFLOW_DEMO, cloudinaryLoader } from "@/lib/cloudinary";
 import { SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
@@ -106,7 +106,7 @@ export default function AppShowcase() {
               isLoaded ? "opacity-0 pointer-events-none" : "opacity-100"
             )}
             priority={false}
-            unoptimized
+            loader={cloudinaryLoader}
           />
 
           {/* Full workflow video optimized for Cloudinary free tier (WebM VP9 + MP4 H264 fallback) */}

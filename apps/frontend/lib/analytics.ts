@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+import { withPostHog } from "./posthog-browser";
 
 /**
  * Product analytics helpers.
@@ -8,12 +8,9 @@ export function track(
   event: string,
   properties?: Record<string, string | number | boolean | null | undefined>
 ): void {
-  try {
-    if (typeof window === "undefined") return;
-    posthog.capture(event, properties);
-  } catch {
-    /* analytics must never break product flows */
-  }
+  if (typeof window === "undefined") return;
+  // withPostHog swallows errors: analytics must never break product flows.
+  withPostHog((posthog) => posthog.capture(event, properties));
 }
 
 /** True when an API error is an insufficient-credits / paywall response. */

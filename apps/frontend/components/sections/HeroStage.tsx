@@ -88,6 +88,14 @@ export function HeroStage({
     let dragging = false;
     let swapping = false;
     let showNext = () => {};
+    let bootHandle = 0;
+
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }
+    ).connection;
+    /** Save-Data or 2G/3G: show one model; the others (1.5–2 MB each) load only on tap. */
+    const constrained =
+      Boolean(connection?.saveData) || /2g|3g/.test(connection?.effectiveType ?? "");
 
     const boot = async () => {
       const THREE = await import("three");
@@ -192,7 +200,7 @@ export function HeroStage({
 
       const scheduleSwap = () => {
         clearSwap();
-        if (reduceRef.current || dragging || MODELS.length < 2) return;
+        if (reduceRef.current || constrained || dragging || MODELS.length < 2) return;
         idleTimer = window.setTimeout(() => {
           if (disposed || dragging) return;
           showNext();
@@ -342,7 +350,7 @@ export function HeroStage({
             if (disposed) return;
             const upcoming = (active + 1) % count;
             releaseExcept([active, upcoming]);
-            if (!reduceRef.current) void ensure(upcoming);
+            if (!reduceRef.current && !constrained) void ensure(upcoming);
             scheduleSwap();
           })
           .catch((error) => {
@@ -359,10 +367,7 @@ export function HeroStage({
         if (!first || disposed || !renderer) return;
         await show(0);
 
-        const saveData = (
-          navigator as Navigator & { connection?: { saveData?: boolean } }
-        ).connection?.saveData;
-        if (reduceRef.current || saveData || count < 2) return;
+        if (reduceRef.current || constrained || count < 2) return;
 
         const prefetch = () => {
           if (disposed) return;
@@ -388,12 +393,31 @@ export function HeroStage({
       }
     };
 
-    void boot();
+    // Three.js and the first model (~1.7 MB) wait for page load plus an idle slot,
+    // so they don't compete with the title, fonts and hydration on slow mobile networks.
+    const idleHost = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    };
+    const scheduleBoot = () => {
+      if (disposed) return;
+      if (idleHost.requestIdleCallback) {
+        bootHandle = idleHost.requestIdleCallback(() => void boot(), { timeout: 2000 });
+        return;
+      }
+      bootHandle = window.setTimeout(() => void boot(), 200);
+    };
+    if (document.readyState === "complete") scheduleBoot();
+    else window.addEventListener("load", scheduleBoot, { once: true });
 
     return () => {
       disposed = true;
       window.clearTimeout(idleTimer);
+      window.removeEventListener("load", scheduleBoot);
       const host = window as Window & { cancelIdleCallback?: (handle: number) => void };
+      if (bootHandle) {
+        host.cancelIdleCallback?.(bootHandle);
+        window.clearTimeout(bootHandle);
+      }
       if (idleCallback) {
         host.cancelIdleCallback?.(idleCallback);
         window.clearTimeout(idleCallback);

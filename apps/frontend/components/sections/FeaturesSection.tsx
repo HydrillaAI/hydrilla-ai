@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SignUpButton, useAuth } from "@clerk/nextjs";
 import { BlurReveal } from "@/components/ui/BlurReveal";
-import { featureImage } from "@/lib/cloudinary";
+import { featureImage, cloudinaryLoader } from "@/lib/cloudinary";
 import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
 import { FEATURES_SECTION } from "@/lib/features-section";
 
@@ -294,7 +294,7 @@ function FeatureRow({
             src={card.image}
             alt={card.imageAlt}
             fill
-            unoptimized
+            loader={cloudinaryLoader}
             decoding="async"
             className={
               card.imageContain
@@ -302,7 +302,6 @@ function FeatureRow({
                 : "object-cover object-center"
             }
             sizes="(max-width: 1024px) 100vw, 40rem"
-            priority={card.id === "01"}
           />
         </div>
       </article>
@@ -357,7 +356,7 @@ function FeatureRow({
           src={card.image}
           alt={card.imageAlt}
           fill
-          unoptimized
+          loader={cloudinaryLoader}
           decoding="async"
           className={
             card.imageContain
@@ -365,7 +364,6 @@ function FeatureRow({
               : "object-cover object-center"
           }
           sizes="(max-width: 1024px) 92vw, 48rem"
-          priority={card.id === "01"}
         />
       </div>
     </article>

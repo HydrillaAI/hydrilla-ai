@@ -367,6 +367,35 @@ body.not-found-scrolled:has(.not-found-grass) [data-site-navbar] {
   }
 }
 
+/*
+ * Landing hero entrance and backdrop drift. CSS, not JS, so the title and prompt
+ * paint on the first frame instead of waiting for hydration (LCP on slow mobile).
+ * Starts at 0.01, not 0: Chrome skips opacity:0 elements as LCP candidates.
+ */
+@keyframes hero-rise {
+  from {
+    opacity: 0.01;
+    transform: translateY(var(--hero-rise-y, 14px));
+  }
+}
+.hero-rise {
+  animation: hero-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes hero-drift-a { 50% { transform: translateY(22px) scale(1.05); } }
+@keyframes hero-drift-b { 50% { transform: translate(28px, -16px); } }
+@keyframes hero-drift-c { 50% { transform: translate(-24px, 18px); } }
+.hero-drift-a { animation: hero-drift-a 16s ease-in-out infinite; }
+.hero-drift-b { animation: hero-drift-b 18s ease-in-out infinite; }
+.hero-drift-c { animation: hero-drift-c 20s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise,
+  .hero-drift-a,
+  .hero-drift-b,
+  .hero-drift-c {
+    animation: none;
+  }
+}
+
 /* App content pages – full width, tatva-style spacing (big, clear, not centric) */
 .app-content-page {
   --app-spacing-base: 2px;
@@ -1209,7 +1238,7 @@ input.range-minimal::-moz-range-track {
   opacity: 0.5;
   max-width: min(620px, 100%);
   margin: 0;
-  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), "DM Sans", sans-serif;
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans-italic), var(--font-dm-sans), "DM Sans", sans-serif;
   font-size: 18px;
   font-style: italic;
   font-weight: 400;
@@ -1830,7 +1859,7 @@ input.range-minimal::-moz-range-track {
   color: #000000;
   opacity: 0.5;
   margin: 8px 0 0;
-  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), "DM Sans", sans-serif;
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans-italic), var(--font-dm-sans), "DM Sans", sans-serif;
   font-size: 17px;
   font-style: italic;
   font-weight: 400;

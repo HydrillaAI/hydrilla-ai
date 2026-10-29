@@ -22,11 +22,22 @@ import {
 // Omit `weight` so the wght axis stays open; `opsz` tracks font-size.
 const dmSans = DM_Sans({
   subsets: ["latin"],
-  style: ["normal", "italic"],
+  style: ["normal"],
   axes: ["opsz"],
   variable: "--font-dm-sans",
   display: "swap",
   preload: true,
+  adjustFontFallback: true,
+});
+// Italic is only used on article/research pages, so it is not preloaded:
+// a 76 KB preload on every page competes with the hero on slow mobile networks.
+const dmSansItalic = DM_Sans({
+  subsets: ["latin"],
+  style: ["italic"],
+  axes: ["opsz"],
+  variable: "--font-dm-sans-italic",
+  display: "swap",
+  preload: false,
   adjustFontFallback: true,
 });
 
@@ -47,11 +58,11 @@ export const metadata: Metadata = {
     : undefined,
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/hyd01.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
     ],
     shortcut: "/favicon.ico",
-    apple: "/hyd01.png",
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     type: "website",
@@ -107,7 +118,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       signInFallbackRedirectUrl="/app/studio"
       signUpFallbackRedirectUrl="/app/studio"
     >
-    <html lang="en" className={`${dmSans.variable} ${GeistSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${dmSans.variable} ${dmSansItalic.variable} ${GeistSans.variable}`} suppressHydrationWarning>
         <head>
           <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="" />
           <link rel="preconnect" href="https://hydrilla-outputs-1.s3.amazonaws.com" crossOrigin="" />

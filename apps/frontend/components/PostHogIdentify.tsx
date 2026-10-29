@@ -1,8 +1,8 @@
 "use client";
 
 import { useAuth, useUser } from "@clerk/nextjs";
-import posthog from "posthog-js";
 import { useEffect, useRef } from "react";
+import { withPostHog } from "@/lib/posthog-browser";
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
 
@@ -39,17 +39,16 @@ export function PostHogIdentify() {
 
   useEffect(() => {
     if (isSignedIn && userId) {
-      posthog.identify(userId, {
-        email: user?.primaryEmailAddress?.emailAddress,
-        name: user?.fullName ?? undefined,
-      });
+      const email = user?.primaryEmailAddress?.emailAddress;
+      const name = user?.fullName ?? undefined;
+      withPostHog((posthog) => posthog.identify(userId, { email, name }));
       wasSignedIn.current = true;
       void syncEmailTimeZone(getToken);
       return;
     }
 
     if (wasSignedIn.current && !isSignedIn) {
-      posthog.reset();
+      withPostHog((posthog) => posthog.reset());
       wasSignedIn.current = false;
     }
   }, [isSignedIn, userId, user, getToken]);

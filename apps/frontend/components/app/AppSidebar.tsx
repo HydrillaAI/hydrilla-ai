@@ -449,7 +449,7 @@ export function AppSidebar() {
             */}
             <span className={cn("flex items-center gap-2.5", collapsed && "md:hidden")}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hyd01.png" alt="" aria-hidden className="block h-8 w-auto shrink-0 dark:brightness-0 dark:invert" />
+              <img src="/hyd01-mark.png" width={140} height={132} alt="" aria-hidden className="block h-8 w-auto shrink-0 dark:brightness-0 dark:invert" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-hydrilla/hydsvgblack.svg" alt="Hydrilla" className="block h-6 w-auto translate-y-[2px] dark:hidden" />
               {/* eslint-disable-next-line @next/next/no-img-element */}

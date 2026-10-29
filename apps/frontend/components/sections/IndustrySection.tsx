@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import { cloudinaryLoader } from "@/lib/cloudinary";
 import Link from "next/link";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
@@ -348,7 +349,7 @@ export default function IndustrySection() {
                             src={item.mobileImage}
                             alt={item.title}
                             fill
-                            unoptimized
+                            loader={cloudinaryLoader}
                             loading="lazy"
                             decoding="async"
                             sizes="100vw"
@@ -423,7 +424,7 @@ export default function IndustrySection() {
                       src={item.image}
                       alt=""
                       fill
-                      unoptimized
+                      loader={cloudinaryLoader}
                       loading="lazy"
                       decoding="async"
                       sizes="(max-width: 1100px) 16vw, 190px"

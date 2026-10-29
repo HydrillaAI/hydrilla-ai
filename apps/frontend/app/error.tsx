@@ -1,7 +1,7 @@
 "use client";
 
-import posthog from "posthog-js";
 import { useEffect } from "react";
+import { withPostHog } from "@/lib/posthog-browser";
 import { useServerActionSkewReload } from "@/lib/use-server-action-skew-reload";
 
 export default function Error({
@@ -15,10 +15,12 @@ export default function Error({
 
   useEffect(() => {
     if (isSkew) return;
-    posthog.captureException(error, {
-      digest: error.digest,
-      source: "app-error-boundary",
-    });
+    withPostHog((posthog) =>
+      posthog.captureException(error, {
+        digest: error.digest,
+        source: "app-error-boundary",
+      })
+    );
   }, [error, isSkew]);
 
   if (isSkew) {

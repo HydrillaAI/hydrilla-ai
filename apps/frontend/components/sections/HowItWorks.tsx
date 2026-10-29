@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "motion/react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
-import { cloudinaryImage } from "@/lib/cloudinary";
+import { cloudinaryImage, cloudinaryLoader } from "@/lib/cloudinary";
 import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
 
 /** Explicit WebP + width — avoids Next Image Optimizer timeouts on large f_auto PNGs. */
@@ -103,7 +103,7 @@ function StepRow({ step }: { step: Step }) {
             src={step.image}
             alt={step.title.replace(/\.$/, "")}
             fill
-            unoptimized
+            loader={cloudinaryLoader}
             loading="lazy"
             decoding="async"
             sizes="(max-width: 768px) 100vw, 40vw"
@@ -116,7 +116,7 @@ function StepRow({ step }: { step: Step }) {
               alt=""
               aria-hidden
               fill
-              unoptimized
+              loader={cloudinaryLoader}
               loading="lazy"
               decoding="async"
               sizes="(max-width: 768px) 100vw, 40vw"
