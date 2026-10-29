@@ -14,6 +14,7 @@ import { JobStatusBadge } from "../../components/JobStatusBadge";
 import { useSearchParams } from "next/navigation";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { useAuth } from "@clerk/nextjs";
+import { waitUntilVisible } from "../../lib/polling";
 
 // Force dynamic rendering to prevent prerendering errors with useSearchParams
 export const dynamic = "force-dynamic";
@@ -136,6 +137,11 @@ function ViewerContent() {
     const MAX_POLL_MS = 30 * 60 * 1000; // 30 minutes timeout cap (allows 20+ min generations when GPU restart occurs)
 
     const fetchAndSchedule = async () => {
+      if (!state.active) {
+        return;
+      }
+      // Pause while the tab is hidden; each poll is a billed backend call.
+      await waitUntilVisible();
       if (!state.active) {
         return;
       }

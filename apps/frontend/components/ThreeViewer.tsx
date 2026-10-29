@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -26,7 +26,7 @@ import {
   type ModelMeshStats,
 } from "@/lib/viewer/meshStats";
 import { ModelStatsOverlay, type ModelBadge } from "@/components/workspace/ModelStatsOverlay";
-import { getProxiedGlbUrl } from "@/lib/api";
+import { loadGlbFromBestSource, type GlbSource } from "@/lib/api";
 
 type Props = {
   glbUrl: string;
@@ -728,154 +728,145 @@ export function ThreeViewer({
 
     let cancelled = false;
 
-    // Load GLB with Clerk Bearer — GLTFLoader cannot send auth on its own
+    // Prefer a signed S3 URL; otherwise use the proxy with the Clerk Bearer token
+    // (GLTFLoader cannot send auth on its own). See loadGlbFromBestSource.
     (async () => {
       setLoadProgress(1);
-      const loader = new GLTFLoader();
-      loader.setMeshoptDecoder(MeshoptDecoder);
 
-      const targetUrl = getProxiedGlbUrl(glbUrl) || glbUrl;
-      const isBackendUrl =
-        !targetUrl.startsWith("blob:") &&
-        !targetUrl.startsWith("data:") &&
-        (targetUrl.includes("/api/3d/glb/") || targetUrl.startsWith("/"));
-
-      if (isBackendUrl) {
-        loader.setWithCredentials(true);
-        try {
-          const token = await getToken();
-          if (cancelled) {
-            return;
-          }
-          if (token) {
-            loader.setRequestHeader({ Authorization: `Bearer ${token}` });
-          }
-        } catch {
-          // proceed without token; server will 401 if required
+      const onProgress = (progress: ProgressEvent) => {
+        if (cancelled) {
+          return;
         }
-      }
+        if (progress.total > 0) {
+          const percent = Math.round((progress.loaded / progress.total) * 100);
+          setLoadProgress(Math.max(1, Math.min(99, percent))); // Clamp between 1-99%
+        } else if (progress.loaded > 0) {
+          // If total is unknown but we have loaded bytes, show progress based on loaded size
+          // Estimate: assume typical GLB is 1-5MB, show progress accordingly
+          const estimatedTotal = 3000000; // 3MB estimate
+          const percent = Math.min(95, Math.round((progress.loaded / estimatedTotal) * 100));
+          setLoadProgress(Math.max(1, percent));
+        } else {
+          // Show minimal progress if no data yet
+          setLoadProgress(1);
+        }
+      };
 
+      const loadFrom = (source: GlbSource) =>
+        new Promise<GLTF>((resolve, reject) => {
+          const loader = new GLTFLoader();
+          loader.setMeshoptDecoder(MeshoptDecoder);
+          loader.setWithCredentials(source.withCredentials);
+          if (source.headers) {
+            loader.setRequestHeader(source.headers);
+          }
+          loader.load(source.url, resolve, onProgress, reject);
+        });
+
+      const loadResult = async (): Promise<{ gltf: GLTF } | { err: unknown }> => {
+        try {
+          return { gltf: await loadGlbFromBestSource(glbUrl, getToken, loadFrom) };
+        } catch (err) {
+          return { err };
+        }
+      };
+      const result = await loadResult();
       if (cancelled) {
         return;
       }
 
-      loader.load(
-        targetUrl,
-        (gltf) => {
-          if (cancelled) {
+      if ("err" in result) {
+        const err = result.err;
+        const getErrorDetail = () => {
+          if (err instanceof Error) {
+            if (err.message.includes("CORS") || err.message.includes("Failed to fetch")) {
+              return "CORS error: Unable to load model. The file may be blocked by browser security.";
+            }
+            if (err.message.includes("401") || err.message.includes("Unauthorized")) {
+              return "Unauthorized: sign in again to load this model.";
+            }
+            return err.message;
+          }
+          if (err instanceof ProgressEvent) {
+            return "Network error: Failed to download model file";
+          }
+          return "Unknown error";
+        };
+        setError(`Failed to load model: ${getErrorDetail()}`);
+        setLoading(false);
+        return;
+      }
+
+      const gltf = result.gltf;
+      try {
+        const model = gltf.scene;
+        modelRef.current = model;
+
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = maxDim > 0 ? 2 / maxDim : 1;
+        model.scale.multiplyScalar(scale);
+        model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+
+        const authored: PartMaterialMap = {};
+        const counter = { count: 0 };
+        model.traverse((child) => {
+          if (!(child instanceof THREE.Mesh)) {
             return;
           }
-          try {
-            const model = gltf.scene;
-            modelRef.current = model;
-
-            const box = new THREE.Box3().setFromObject(model);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = maxDim > 0 ? 2 / maxDim : 1;
-            model.scale.multiplyScalar(scale);
-            model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-
-            const authored: PartMaterialMap = {};
-            const counter = { count: 0 };
-            model.traverse((child) => {
-              if (!(child instanceof THREE.Mesh)) {
-                return;
-              }
-              child.castShadow = true;
-              child.receiveShadow = true;
-              if (!child.name) {
-                counter.count += 1;
-                child.name = `Part ${counter.count}`;
-              }
-              child.userData.sourceMaterial = child.material;
-              const first = materialList(child.material)[0];
-              if (first && !authored[child.name]) {
-                authored[child.name] = readPartMaterial(first);
-              }
-            });
-            applyPartVisibility(model, hiddenSetRef.current);
-            onPartsRef.current?.(authored);
-
-            scene.add(model);
-
-            const newBox = new THREE.Box3().setFromObject(model);
-            ground.position.y = newBox.min.y - 0.001;
-            gridHelper.position.y = newBox.min.y;
-            const sphere = newBox.getBoundingSphere(new THREE.Sphere());
-            frameRef.current = { center: sphere.center.clone(), radius: Math.max(sphere.radius, 0.01) };
-            // Low floor so framing a small part can get close.
-            controls.minDistance = sphere.radius * 0.02;
-            controls.maxDistance = sphere.radius * 14;
-            const cam = cameraRef.current ?? camera;
-            controls.target.copy(sphere.center);
-            if (cam instanceof THREE.OrthographicCamera) {
-              cam.userData.halfHeight = sphere.radius * FRAME_PADDING;
-              cam.zoom = 1;
-              cam.position.copy(sphere.center).addScaledVector(VIEW_DIRECTIONS.reset, sphere.radius * 4);
-            } else {
-              cam.position
-                .copy(sphere.center)
-                .addScaledVector(VIEW_DIRECTIONS.reset, fitDistance(sphere.radius, cam.fov));
-            }
-            const el = containerRef.current;
-            applyCameraProjection(cam, el?.clientWidth || width, el?.clientHeight || height, resolvedRef.current.camera, frameLiftRef.current);
-            cam.lookAt(sphere.center);
-            controls.update();
-
-            const stats = { ...calculateMeshStats(model), size: [size.x, size.y, size.z] as [number, number, number] };
-            setModelStats(stats);
-            onModelStatsRef.current?.(stats);
-
-            setLoading(false);
-            setModelReady(true);
-          } catch (err: any) {
-            setError(`Failed to process model: ${err.message}`);
-            setLoading(false);
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (!child.name) {
+            counter.count += 1;
+            child.name = `Part ${counter.count}`;
           }
-        },
-        (progress) => {
-          if (cancelled) {
-            return;
+          child.userData.sourceMaterial = child.material;
+          const first = materialList(child.material)[0];
+          if (first && !authored[child.name]) {
+            authored[child.name] = readPartMaterial(first);
           }
-          if (progress.total > 0) {
-            const percent = Math.round((progress.loaded / progress.total) * 100);
-            setLoadProgress(Math.max(1, Math.min(99, percent))); // Clamp between 1-99%
-          } else if (progress.loaded > 0) {
-            // If total is unknown but we have loaded bytes, show progress based on loaded size
-            // Estimate: assume typical GLB is 1-5MB, show progress accordingly
-            const estimatedTotal = 3000000; // 3MB estimate
-            const percent = Math.min(95, Math.round((progress.loaded / estimatedTotal) * 100));
-            setLoadProgress(Math.max(1, percent));
-          } else {
-            // Show minimal progress if no data yet
-            setLoadProgress(1);
-          }
-        },
-        (err) => {
-          if (cancelled) {
-            return;
-          }
-          const getErrorDetail = () => {
-            if (err instanceof Error) {
-              if (err.message.includes("CORS") || err.message.includes("Failed to fetch")) {
-                return "CORS error: Unable to load model. The file may be blocked by browser security.";
-              }
-              if (err.message.includes("401") || err.message.includes("Unauthorized")) {
-                return "Unauthorized: sign in again to load this model.";
-              }
-              return err.message;
-            }
-            if (err instanceof ProgressEvent) {
-              return "Network error: Failed to download model file";
-            }
-            return "Unknown error";
-          };
-          setError(`Failed to load model: ${getErrorDetail()}`);
-          setLoading(false);
+        });
+        applyPartVisibility(model, hiddenSetRef.current);
+        onPartsRef.current?.(authored);
+
+        scene.add(model);
+
+        const newBox = new THREE.Box3().setFromObject(model);
+        ground.position.y = newBox.min.y - 0.001;
+        gridHelper.position.y = newBox.min.y;
+        const sphere = newBox.getBoundingSphere(new THREE.Sphere());
+        frameRef.current = { center: sphere.center.clone(), radius: Math.max(sphere.radius, 0.01) };
+        // Low floor so framing a small part can get close.
+        controls.minDistance = sphere.radius * 0.02;
+        controls.maxDistance = sphere.radius * 14;
+        const cam = cameraRef.current ?? camera;
+        controls.target.copy(sphere.center);
+        if (cam instanceof THREE.OrthographicCamera) {
+          cam.userData.halfHeight = sphere.radius * FRAME_PADDING;
+          cam.zoom = 1;
+          cam.position.copy(sphere.center).addScaledVector(VIEW_DIRECTIONS.reset, sphere.radius * 4);
+        } else {
+          cam.position
+            .copy(sphere.center)
+            .addScaledVector(VIEW_DIRECTIONS.reset, fitDistance(sphere.radius, cam.fov));
         }
-      );
+        const el = containerRef.current;
+        applyCameraProjection(cam, el?.clientWidth || width, el?.clientHeight || height, resolvedRef.current.camera, frameLiftRef.current);
+        cam.lookAt(sphere.center);
+        controls.update();
+
+        const stats = { ...calculateMeshStats(model), size: [size.x, size.y, size.z] as [number, number, number] };
+        setModelStats(stats);
+        onModelStatsRef.current?.(stats);
+
+        setLoading(false);
+        setModelReady(true);
+      } catch (err: any) {
+        setError(`Failed to process model: ${err.message}`);
+        setLoading(false);
+      }
     })();
 
     return () => {

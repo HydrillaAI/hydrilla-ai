@@ -1350,32 +1350,136 @@ export function getProxyGlbUrl(jobId: string): string {
   return `${backendBase}/api/3d/glb/${jobId}`;
 }
 
+/** Where to request a GLB from, and with which auth. */
+export type GlbSource = {
+  url: string;
+  headers?: Record<string, string>;
+  withCredentials: boolean;
+};
+
+const GLB_PROXY_PATH = "/api/3d/glb/";
+// Signed URLs live for an hour; stop reusing them a little before that.
+const SIGNED_GLB_REUSE_MS = 50 * 60 * 1000;
+const signedGlbUrls = new Map<string, { url: string; reuseUntil: number }>();
+// Set once the browser fails to read S3 directly (e.g. the bucket has no CORS rule for
+// this origin), so later loads skip the signed-URL request and use the proxy at once.
+const directGlbState = { blocked: false };
+
+function proxiedGlbJobId(url: string): string | null {
+  const index = url.indexOf(GLB_PROXY_PATH);
+  if (index === -1) {
+    return null;
+  }
+  const jobId = url.slice(index + GLB_PROXY_PATH.length).split(/[/?#]/)[0];
+  return /^[A-Za-z0-9_-]+$/.test(jobId) ? jobId : null;
+}
+
+/** Bearer auth for backend URLs; blob:, data: and third-party URLs are fetched as-is. */
+async function authedGlbSource(
+  url: string,
+  getToken: () => Promise<string | null>,
+): Promise<GlbSource> {
+  const isBackendUrl =
+    !url.startsWith("blob:") &&
+    !url.startsWith("data:") &&
+    (url.startsWith(backendBase) || url.startsWith("/") || url.includes(GLB_PROXY_PATH));
+  if (!isBackendUrl) {
+    return { url, withCredentials: false };
+  }
+  const token = await getTokenOrNull(getToken);
+  return {
+    url,
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    withCredentials: true,
+  };
+}
+
+async function getTokenOrNull(getToken: () => Promise<string | null>): Promise<string | null> {
+  try {
+    return await getToken();
+  } catch {
+    // Load without a token; the backend answers 401/403 if one was needed.
+    return null;
+  }
+}
+
+async function fetchSignedGlbUrl(
+  jobId: string,
+  getToken: () => Promise<string | null>,
+): Promise<string | null> {
+  const cached = signedGlbUrls.get(jobId);
+  if (cached && cached.reuseUntil > Date.now()) {
+    return cached.url;
+  }
+  try {
+    const token = await getTokenOrNull(getToken);
+    const res = await fetch(`${backendBase}${GLB_PROXY_PATH}${encodeURIComponent(jobId)}/signed-url`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const body = (await res.json()) as { url?: unknown };
+    if (typeof body.url !== "string" || !body.url) {
+      return null;
+    }
+    signedGlbUrls.set(jobId, { url: body.url, reuseUntil: Date.now() + SIGNED_GLB_REUSE_MS });
+    return body.url;
+  } catch {
+    // The proxy below still works; a missing signed URL only costs backend CPU.
+    return null;
+  }
+}
+
 /**
- * Download a GLB through the auth-gated proxy (anchor tags cannot send Bearer tokens).
+ * Run `load` against the cheapest working source for a GLB. Streaming a mesh through
+ * the backend proxy is billed as function CPU for every byte, so job meshes are read
+ * straight from S3 with a short-lived signed URL. If no signed URL is available or the
+ * direct download fails, `load` runs again against the auth-gated proxy.
+ */
+export async function loadGlbFromBestSource<T>(
+  glbUrl: string,
+  getToken: () => Promise<string | null>,
+  load: (source: GlbSource) => Promise<T>,
+): Promise<T> {
+  const targetUrl = getProxiedGlbUrl(glbUrl) || glbUrl;
+  const jobId = directGlbState.blocked ? null : proxiedGlbJobId(targetUrl);
+  const signedUrl = jobId ? await fetchSignedGlbUrl(jobId, getToken) : null;
+  if (!jobId || !signedUrl) {
+    return load(await authedGlbSource(targetUrl, getToken));
+  }
+  try {
+    return await load({ url: signedUrl, withCredentials: false });
+  } catch (error) {
+    signedGlbUrls.delete(jobId);
+    // fetch rejects with a TypeError when CORS (or the network) blocks the request;
+    // HTTP errors such as an expired signature arrive as ordinary errors.
+    if (error instanceof TypeError) {
+      directGlbState.blocked = true;
+    }
+    return load(await authedGlbSource(targetUrl, getToken));
+  }
+}
+
+/**
+ * Download a GLB as a file (anchor tags cannot send Bearer tokens, so fetch it first).
  */
 export async function downloadGlbWithAuth(
   glbUrl: string,
   filename: string,
   getToken: () => Promise<string | null>,
 ): Promise<void> {
-  const targetUrl = getProxiedGlbUrl(glbUrl) || glbUrl;
-  const token = await getToken();
-  const isBackendUrl =
-    !targetUrl.startsWith("blob:") &&
-    !targetUrl.startsWith("data:") &&
-    (targetUrl.startsWith(backendBase) ||
-      targetUrl.startsWith("/") ||
-      targetUrl.includes("/api/3d/glb/"));
-  const headers: HeadersInit =
-    token && isBackendUrl ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(targetUrl, {
-    headers,
-    credentials: isBackendUrl ? "include" : "omit",
+  const blob = await loadGlbFromBestSource(glbUrl, getToken, async (source) => {
+    const res = await fetch(source.url, {
+      headers: source.headers ?? {},
+      credentials: source.withCredentials ? "include" : "omit",
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to download model (${res.status})`);
+    }
+    return res.blob();
   });
-  if (!res.ok) {
-    throw new Error(`Failed to download model (${res.status})`);
-  }
-  const blob = await res.blob();
   const objectUrl = URL.createObjectURL(blob);
   try {
     const a = document.createElement("a");

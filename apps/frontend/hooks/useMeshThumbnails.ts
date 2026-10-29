@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getProxyGlbUrl, type BackendJob } from "@/lib/api";
+import { getProxyGlbUrl, loadGlbFromBestSource, type BackendJob } from "@/lib/api";
 import { isWaterJob } from "@/lib/engines";
 import { renderLibraryMeshSnapshot } from "@/lib/viewer/renderGlbSnapshot";
 import { readMeshThumbs, writeMeshThumb } from "@/lib/viewer/meshThumbs";
@@ -49,10 +49,9 @@ export function useMeshThumbnails(
       active.current += 1;
       void (async () => {
         try {
-          const token = await getToken();
-          const shot = await renderLibraryMeshSnapshot(getProxyGlbUrl(jobId), 384, {
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          });
+          const shot = await loadGlbFromBestSource(getProxyGlbUrl(jobId), getToken, (source) =>
+            renderLibraryMeshSnapshot(source.url, 384, { headers: source.headers })
+          );
           known.current = { ...known.current, [jobId]: shot.dataUrl };
           writeMeshThumb(jobId, shot.dataUrl);
           if (mounted.current) setThumbs((prev) => ({ ...prev, [jobId]: shot.dataUrl }));

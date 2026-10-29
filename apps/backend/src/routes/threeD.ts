@@ -1,10 +1,11 @@
-import { Router } from "express";
+import { Router, type Response as ExpressResponse } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { Readable } from "stream";
-import { S3Client, PutObjectCommand, GetObjectCommand, type PutObjectCommandInput } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, type PutObjectCommandInput } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "../logger.js";
 import { config, timingSafeEqualString } from "../config.js";
 import { supabase } from "../db.js";
@@ -429,6 +430,24 @@ async function getFirstExistingS3Object(keys: string[]) {
     }
   }
   throw lastErr || new Error("S3 object not found");
+}
+
+/** Like getFirstExistingS3Object, but checks with HEAD so no object bytes are downloaded. */
+async function findFirstExistingS3Key(keys: string[]): Promise<string | null> {
+  if (!s3Client) throw new Error("S3 client is not initialized");
+  for (const key of keys) {
+    try {
+      await s3Client.send(new HeadObjectCommand({ Bucket: config.s3.bucket, Key: key }));
+      return key;
+    } catch (err: any) {
+      const code = err?.Code || err?.name || err?.$metadata?.httpStatusCode;
+      if (code === "NoSuchKey" || code === "NotFound" || code === 404) {
+        continue;
+      }
+      throw err;
+    }
+  }
+  return null;
 }
 
 /**
@@ -1883,6 +1902,75 @@ threeDRouter.get("/health", async (_req, res) => {
   });
 });
 
+/**
+ * Access rules shared by the GLB routes. Sends the error response and returns false
+ * when the caller may not load this job's mesh.
+ */
+async function canServeJobGlb(job: JobRecord, jobId: string, userId: string | undefined, res: ExpressResponse): Promise<boolean> {
+  // Check ownership if user is authenticated and job has an owner.
+  // Models shared in a published community post are viewable by everyone.
+  if (job.userId && userId && job.userId !== userId && !(await isJobPubliclyPosted(jobId))) {
+    res.status(403).json({ error: "You don't have permission to access this job" });
+    return false;
+  }
+  if (isWaterJobId(jobId) || isWaterJobRow(job as any)) {
+    res.status(404).json({
+      error: "Water jobs have no GLB mesh. Open via /api/water/jobs/:id (procedural Three.js).",
+    });
+    return false;
+  }
+  return true;
+}
+
+const GLB_SIGNED_URL_TTL_S = 60 * 60;
+
+// ============================================
+// Signed S3 URL for a job's GLB
+// ============================================
+// Lets the browser download the mesh straight from S3 instead of streaming every byte
+// through this function (/glb/:jobId), which is billed as Active CPU. Same access rules
+// as /glb/:jobId. Responds 404 when the mesh is not in our bucket; the client then falls
+// back to /glb/:jobId.
+threeDRouter.get("/glb/:jobId/signed-url", optionalAuth, async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const { jobId } = req.params;
+  const userId = req.userId;
+
+  if (!s3Enabled || !s3Client) {
+    return res.status(404).json({ error: "Direct download is not available" });
+  }
+
+  try {
+    const job = await getJob(jobId);
+    if (job && !(await canServeJobGlb(job, jobId, userId, res))) {
+      return;
+    }
+    // Without a DB row, /glb/:jobId looks for the mesh under the usual keys; mirror that.
+    const ownedKey = job ? (job.resultGlbUrl ? extractOwnedS3KeyFromUrl(job.resultGlbUrl) : null) : null;
+    const candidates = job
+      ? (ownedKey ? glbKeyCandidates(ownedKey) : [])
+      : [`image/${jobId}/mesh.glb`, `text/${jobId}/mesh.glb`];
+    const key = candidates.length > 0 ? await findFirstExistingS3Key(candidates) : null;
+    if (!key) {
+      return res.status(404).json({ error: "GLB file is not stored in S3 for this job" });
+    }
+
+    const url = await getSignedUrl(
+      s3Client,
+      new GetObjectCommand({
+        Bucket: config.s3.bucket,
+        Key: key,
+        ResponseContentType: "model/gltf-binary",
+      }),
+      { expiresIn: GLB_SIGNED_URL_TTL_S }
+    );
+    res.json({ url, expiresInSeconds: GLB_SIGNED_URL_TTL_S });
+  } catch (err: any) {
+    logger.warn({ jobId, err: err?.message }, "Failed to sign GLB URL");
+    res.status(404).json({ error: "Direct download is not available" });
+  }
+});
+
 // ============================================
 // Proxy GLB file from S3 (to avoid CORS issues)
 // ============================================
@@ -1923,16 +2011,8 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    // Check ownership if user is authenticated and job has an owner.
-    // Models shared in a published community post are viewable by everyone.
-    if (job.userId && userId && job.userId !== userId && !(await isJobPubliclyPosted(jobId))) {
-      return res.status(403).json({ error: "You don't have permission to access this job" });
-    }
-
-    if (isWaterJobId(jobId) || isWaterJobRow(job as any)) {
-      return res.status(404).json({
-        error: "Water jobs have no GLB mesh. Open via /api/water/jobs/:id (procedural Three.js).",
-      });
+    if (!(await canServeJobGlb(job, jobId, userId, res))) {
+      return;
     }
 
     // Get GLB URL
@@ -2037,6 +2117,17 @@ threeDRouter.get("/image-proxy", async (req, res) => {
         const contentLength = s3Response.ContentLength || 0;
         res.setHeader("Content-Type", contentTypeForImageKey(resolvedKey, s3Response.ContentType || undefined));
         res.setHeader("Cache-Control", "public, max-age=3600");
+        // Objects are written once per job, so Vercel's CDN can serve repeat requests
+        // without running this function. Only when the requested key itself was found:
+        // a substitute candidate could be replaced once the real object is uploaded.
+        // A cached copy is shared by <img> tags and CORS fetches from any allowed origin,
+        // so it must not carry the per-origin CORS headers; the images are public and
+        // fetched without credentials, which a wildcard origin allows.
+        if (resolvedKey === imageS3Key) {
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.removeHeader("Access-Control-Allow-Credentials");
+          res.setHeader("Vercel-CDN-Cache-Control", "max-age=86400, stale-while-revalidate=604800");
+        }
         if (contentLength > 0) res.setHeader("Content-Length", contentLength.toString());
 
         if (s3Response.Body) {

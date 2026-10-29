@@ -89,6 +89,7 @@ import {
   fetchQueueInfo,
   getGlbUrl,
   getProxyGlbUrl,
+  loadGlbFromBestSource,
   downloadGlbWithAuth,
   notifyGpuOffline,
   cancelJob,
@@ -128,6 +129,7 @@ import {
 } from "../../lib/waterModels";
 import { ENGINE, formatEngineLabel, isWaterJob, isWaterJobId } from "../../lib/engines";
 import type { ImageProviderAvailability } from "../../lib/apiHealth";
+import { isPageHidden, waitUntilVisible } from "../../lib/polling";
 import {
   DEFAULT_IMAGE_OPTIONS,
   imageCredits,
@@ -151,8 +153,16 @@ import {
 } from "../../lib/browserNotifications";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app";
-const WATER_POLL_INTERVAL_MS = 2_000;
-const WATER_POLL_MAX_MS = 18 * 60 * 1000;
+const WATER_POLL_INTERVAL_MS = 3_000;
+// The backend expires a Water job 90 s after its last write (60 s function limit plus
+// grace), so a dead run reports FAIL well before this client-side cap.
+const WATER_POLL_MAX_MS = 3 * 60 * 1000;
+// Same on-screen progress speed as before at the longer interval.
+const WATER_PROGRESS_PER_POLL = 2.25;
+// Library refresh for jobs started in another tab or device.
+const LIBRARY_POLL_INTERVAL_MS = 10_000;
+// GPU 3D jobs take minutes, so a status check every few seconds is plenty.
+const THREE_D_POLL_INTERVAL_MS = 5_000;
 
 
 const sculptPassLabel = (pass?: string | null): string => waterPassLabel(pass);
@@ -513,15 +523,16 @@ function WorkspacePage() {
     meshThumbBusyRef.current = true;
     void (async () => {
       try {
-        const token = (await getToken()) ?? null;
         const glbUrl = getProxyGlbUrl(jobId);
         if (!glbUrl) {
           meshThumbFailedRef.current.add(jobId);
           return;
         }
-        const shot = await renderLibraryMeshSnapshot(glbUrl, 384, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
+        const shot = await loadGlbFromBestSource(
+          glbUrl,
+          async () => (await getToken()) ?? null,
+          (source) => renderLibraryMeshSnapshot(source.url, 384, { headers: source.headers })
+        );
         rememberMeshThumb(jobId, shot.dataUrl);
       } catch (err) {
         console.warn("Could not render library thumbnail:", err);
@@ -1406,16 +1417,25 @@ function WorkspacePage() {
   // tabs, browsers and devices without waiting for a user action.
   useEffect(() => {
     if (!isSignedIn || !workspaceId) return;
+    // The job this tab is generating has its own status poll, which refreshes the
+    // library when it finishes, so only jobs started elsewhere need this poll.
+    const trackedJobId = currentGenerating?.jobId ?? null;
+    const isOtherActiveJob = (j: { id: string; status: string }) =>
+      j.id !== trackedJobId && (j.status === "RUN" || j.status === "WAIT");
     const hasActive =
       pendingJobs.length > 0 ||
-      libraryImages.some((j) => j.status === "RUN" || j.status === "WAIT") ||
-      library3DAssets.some((j) => j.status === "RUN" || j.status === "WAIT");
+      libraryImages.some(isOtherActiveJob) ||
+      library3DAssets.some(isOtherActiveJob);
     if (!hasActive) return;
     const interval = setInterval(() => {
+      // The visibilitychange handler below refreshes as soon as the tab is shown again.
+      if (isPageHidden()) {
+        return;
+      }
       refreshLibrary();
-    }, 5000);
+    }, LIBRARY_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [isSignedIn, workspaceId, pendingJobs.length, libraryImages, library3DAssets, refreshLibrary]);
+  }, [isSignedIn, workspaceId, currentGenerating?.jobId, pendingJobs.length, libraryImages, library3DAssets, refreshLibrary]);
 
   // Refresh when the tab becomes visible again (so the loader state matches
   // the server when the user returns from another tab/device).
@@ -1694,9 +1714,24 @@ function WorkspacePage() {
       }
     };
 
-    const interval = setInterval(pollStatus, 3000);
+    // Skip polls while the tab is hidden and catch up as soon as it is shown again.
+    const interval = setInterval(() => {
+      if (isPageHidden()) {
+        return;
+      }
+      void pollStatus();
+    }, THREE_D_POLL_INTERVAL_MS);
+    const onVisible = () => {
+      if (!isPageHidden()) {
+        void pollStatus();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
     pollStatus();
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGenerating?.jobId, currentGenerating?.status]);
 
@@ -1957,6 +1992,7 @@ function WorkspacePage() {
           for (let i = 0; i < maxAttempts; i++) {
             if (pollGen !== waterPollGenRef.current) return;
             await new Promise((r) => setTimeout(r, WATER_POLL_INTERVAL_MS));
+            await waitUntilVisible();
             if (pollGen !== waterPollGenRef.current) return;
             try {
               const job = await fetchWaterJob(result.job_id, tokenGetter);
@@ -2022,7 +2058,7 @@ function WorkspacePage() {
                 setLoading(false);
                 return;
               }
-              const progress = Math.min(92, 20 + i * 1.5);
+              const progress = Math.min(92, 20 + i * WATER_PROGRESS_PER_POLL);
               setCodeSculptPass(job.sculptPass || "assessment");
               setSelectedJobInfo((prev) =>
                 prev && prev.id === result.job_id
@@ -3196,6 +3232,7 @@ function WorkspacePage() {
           for (let i = 0; i < maxAttempts; i++) {
             if (pollGen !== waterPollGenRef.current) return;
             await new Promise((r) => setTimeout(r, WATER_POLL_INTERVAL_MS));
+            await waitUntilVisible();
             if (pollGen !== waterPollGenRef.current) return;
             try {
               const cs = await fetchWaterJob(job.id, tokenGetter);
@@ -3250,7 +3287,7 @@ function WorkspacePage() {
                 );
                 return;
               }
-              const progress = Math.min(92, 20 + i * 1.5);
+              const progress = Math.min(92, 20 + i * WATER_PROGRESS_PER_POLL);
               setCodeSculptPass(cs.sculptPass);
               setSelectedJobInfo((prev) =>
                 prev && prev.id === job.id
