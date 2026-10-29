@@ -217,21 +217,48 @@ export async function listWorkspacesForUser(userId: string, limit = 50): Promise
 }
 
 /**
- * List all jobs for a specific workspace
+ * Columns the workspace library shows. Leaves out factory_code and the full sculpt_spec,
+ * which can be very large on Water jobs; `visual` is the only part of sculpt_spec the
+ * library reads. The library is refreshed often, so every byte here is parsed and
+ * re-serialized by the backend many times.
+ */
+const LIBRARY_JOB_COLUMNS =
+  "id, user_id, chat_id, workspace_id, parent_job_id, status, prompt, image_url, generate_type, " +
+  "result_glb_url, preview_image_url, error_message, engine, result_kind, sculpt_pass, duration_ms, " +
+  "created_at, updated_at, visual:sculpt_spec->visual";
+
+/**
+ * List the most recent jobs for a workspace, with only the library columns.
+ * Each row also gets `has_factory_code`, computed in Postgres so the code is never downloaded.
  */
 export async function listJobsForWorkspace(workspaceId: string, userId: string, limit = 100): Promise<any[]> {
   try {
-    const { data, error } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    // Same filters, order and limit, restricted to rows with code: any job in the first
+    // `limit` rows that has code is also within the first `limit` rows that have code.
+    const [jobsResult, withCodeResult] = await Promise.all([
+      supabase
+        .from("jobs")
+        .select(LIBRARY_JOB_COLUMNS)
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase
+        .from("jobs")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", userId)
+        .not("factory_code", "is", null)
+        .neq("factory_code", "")
+        .order("created_at", { ascending: false })
+        .limit(limit),
+    ]);
 
-    if (error) throw error;
-    if (!data) return [];
-    return data;
+    if (jobsResult.error) throw jobsResult.error;
+    if (withCodeResult.error) throw withCodeResult.error;
+    if (!jobsResult.data) return [];
+    const idsWithCode = new Set((withCodeResult.data ?? []).map((row: { id: string }) => row.id));
+    return jobsResult.data.map((row: any) => ({ ...row, has_factory_code: idsWithCode.has(row.id) }));
   } catch (err: any) {
     logger.error(err, "Failed to list jobs for workspace");
     throw new Error(`Database error: ${err.message}`);
