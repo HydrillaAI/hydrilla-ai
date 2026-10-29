@@ -102,6 +102,7 @@ function WorldScene({
   const modelMapRef = useRef(new Map<string, THREE.Group>());
   const selectedIdRef = useRef(selectedId);
   const runRef = useRef(0);
+  const selectedLoadRef = useRef(0);
   const [sceneError, setSceneError] = useState<string | null>(null);
 
   selectedIdRef.current = selectedId;
@@ -134,10 +135,10 @@ function WorldScene({
     if (!container) return;
 
     const scene = new THREE.Scene();
-    const canvasColor = cssColor("--app-canvas", "#f1f5fb");
-    const softColor = cssColor("--hyd-soft", "#b5cee5");
-    const mistColor = cssColor("--hyd-mist", "#d6e5fa");
-    const skyColor = cssColor("--hyd-sky", "#7eb1e3");
+    const canvasColor = cssColor("--app-canvas", "Canvas");
+    const softColor = cssColor("--hyd-soft", "currentColor");
+    const mistColor = cssColor("--hyd-mist", "Canvas");
+    const skyColor = cssColor("--hyd-sky", "currentColor");
     scene.background = new THREE.Color(canvasColor);
     scene.fog = new THREE.Fog(canvasColor, 35, 115);
 
@@ -169,9 +170,9 @@ function WorldScene({
     controls.update();
     controlsRef.current = controls;
 
-    const ambient = new THREE.HemisphereLight("#ffffff", softColor, 2.3);
+    const ambient = new THREE.HemisphereLight(cssColor("--app-canvas", "Canvas"), softColor, 2.3);
     scene.add(ambient);
-    const key = new THREE.DirectionalLight("#ffffff", 4.2);
+    const key = new THREE.DirectionalLight(cssColor("--app-canvas", "Canvas"), 4.2);
     key.position.set(9, 16, 7);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
@@ -203,8 +204,8 @@ function WorldScene({
     scene.add(grid);
 
     const updateTheme = () => {
-      const nextCanvas = cssColor("--app-canvas", "#f1f5fb");
-      const nextMist = cssColor("--hyd-mist", "#d6e5fa");
+      const nextCanvas = cssColor("--app-canvas", "Canvas");
+      const nextMist = cssColor("--hyd-mist", "Canvas");
       scene.background = new THREE.Color(nextCanvas);
       scene.fog?.color.set(nextCanvas);
       renderer.setClearColor(nextCanvas, 1);
@@ -311,8 +312,7 @@ function WorldScene({
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const textureLoader = new THREE.TextureLoader();
-    const selectionColor = cssColor("--hyd-sky", "#7eb1e3");
-    const selectedAsset = assets.find((asset) => asset.id === selectedId);
+    const selectionColor = cssColor("--hyd-sky", "currentColor");
 
     void (async () => {
       try {
@@ -356,51 +356,75 @@ function WorldScene({
         models.add(group);
         modelMapRef.current.set(asset.id, group);
 
-        if (asset.id === selectedAsset?.id) {
-          onLoadState(asset.id, true);
-          loader.load(
-            getProxyGlbUrl(asset.id),
-            (gltf) => {
-            if (cancelled || run !== runRef.current) {
-              disposeObject(gltf.scene);
-              return;
-            }
-            const source = gltf.scene;
-            const bounds = new THREE.Box3().setFromObject(source);
-            const center = bounds.getCenter(new THREE.Vector3());
-            const size = bounds.getSize(new THREE.Vector3());
-            const maxDimension = Math.max(size.x, size.y, size.z);
-            const scale = maxDimension > 0 ? Math.min(3.2 / maxDimension, 4) : 1;
-            source.scale.setScalar(scale);
-            source.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
-            source.traverse((child) => {
-              if (!(child instanceof THREE.Mesh)) return;
-              child.userData.assetId = asset.id;
-              child.castShadow = true;
-              child.receiveShadow = true;
-            });
-            const thumbnail = group.children.find((child) => child instanceof THREE.Sprite);
-            if (thumbnail) {
-              thumbnail.visible = false;
-            }
-            group.add(source);
-            onLoadState(asset.id, false);
-          },
-          undefined,
-          () => {
-            if (!cancelled && run === runRef.current) {
-              onLoadState(asset.id, false);
-              setSceneError("Some models could not be loaded. Try refreshing My World.");
-            }
-          },
-          );
-        }
       });
     })();
 
     return () => {
       cancelled = true;
       assets.forEach((asset) => onLoadState(asset.id, false));
+    };
+  }, [assets, getToken, onLoadState]);
+
+  useEffect(() => {
+    const models = modelsRef.current;
+    if (!models || !selectedId) return;
+    const group = modelMapRef.current.get(selectedId);
+    if (!group || group.userData.glbLoaded || group.userData.glbLoading) return;
+    const asset = assets.find((item) => item.id === selectedId);
+    if (!asset) return;
+
+    const request = ++selectedLoadRef.current;
+    let cancelled = false;
+    group.userData.glbLoading = true;
+    onLoadState(asset.id, true);
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (token) loader.setRequestHeader({ Authorization: `Bearer ${token}` });
+      } catch {
+        // The request will surface the backend's auth error if the session expired.
+      }
+      loader.load(getProxyGlbUrl(asset.id), (gltf) => {
+        if (cancelled || request !== selectedLoadRef.current) {
+          group.userData.glbLoading = false;
+          onLoadState(asset.id, false);
+          disposeObject(gltf.scene);
+          return;
+        }
+        const source = gltf.scene;
+        const bounds = new THREE.Box3().setFromObject(source);
+        const center = bounds.getCenter(new THREE.Vector3());
+        const dimensions = bounds.getSize(new THREE.Vector3());
+        const maxDimension = Math.max(dimensions.x, dimensions.y, dimensions.z);
+        const scale = maxDimension > 0 ? Math.min(3.2 / maxDimension, 4) : 1;
+        source.scale.setScalar(scale);
+        source.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
+        source.traverse((child) => {
+          if (!(child instanceof THREE.Mesh)) return;
+          child.userData.assetId = asset.id;
+          child.castShadow = true;
+          child.receiveShadow = true;
+        });
+        const thumbnail = group.children.find((child) => child instanceof THREE.Sprite);
+        if (thumbnail) thumbnail.visible = false;
+        group.add(source);
+        group.userData.glbLoaded = true;
+        group.userData.glbLoading = false;
+        onLoadState(asset.id, false);
+      }, undefined, () => {
+        if (cancelled || request !== selectedLoadRef.current) return;
+        group.userData.glbLoading = false;
+        onLoadState(asset.id, false);
+        setSceneError("Some models could not be loaded. Try refreshing My World.");
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      onLoadState(asset.id, false);
     };
   }, [assets, getToken, onLoadState, selectedId]);
 
@@ -414,7 +438,7 @@ function WorldScene({
   return (
     <div ref={containerRef} className="absolute inset-0">
       {sceneError ? (
-        <div className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-amber-200 bg-white/90 px-4 py-2 text-xs font-medium text-amber-800 shadow-lg backdrop-blur">
+        <div className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-[var(--hyd-200)] bg-[var(--app-canvas)]/90 px-4 py-2 text-xs font-medium shadow-[var(--shadow-stage)] backdrop-blur">
           {sceneError}
         </div>
       ) : null}
@@ -435,6 +459,7 @@ export function MyWorldView() {
   const [resetRequest, setResetRequest] = useState(0);
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [visibleAssetCount, setVisibleAssetCount] = useState(36);
+  const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
 
   const loadAssets = useCallback(async (quiet = false) => {
     if (!isSignedIn) return;
@@ -517,9 +542,9 @@ export function MyWorldView() {
 
   if (!isLoaded || loading) {
     return (
-      <div className="flex h-[calc(100dvh-64px)] min-h-[560px] items-center justify-center bg-[#f1f5fb]">
-        <div className="flex items-center gap-3 rounded-full border border-white/80 bg-white/80 px-4 py-2.5 text-sm font-medium text-neutral-600 shadow-sm backdrop-blur">
-          <LoaderCircle className="h-4 w-4 animate-spin text-[#4e8ee8]" />
+      <div className="flex h-[calc(100dvh-64px)] items-center justify-center bg-[var(--app-canvas)]">
+        <div className="flex items-center gap-3 rounded-full border border-[var(--hyd-200)] bg-[var(--app-canvas)]/80 px-4 py-2.5 text-sm font-medium text-[var(--hyd-ink)] shadow-[var(--shadow-stage)] backdrop-blur">
+          <LoaderCircle className="h-4 w-4 animate-spin text-[var(--hyd-400)]" />
           Loading your world…
         </div>
       </div>
@@ -527,7 +552,7 @@ export function MyWorldView() {
   }
 
   return (
-    <main className="relative h-[calc(100dvh-64px)] min-h-[560px] overflow-hidden bg-[#f1f5fb] text-slate-900">
+    <main className="relative h-[calc(100dvh-64px)] overflow-hidden bg-[var(--app-canvas)] text-[var(--hyd-ink)] md:min-h-[560px]">
       <WorldScene
         assets={assets}
         selectedId={selectedId}
@@ -538,30 +563,30 @@ export function MyWorldView() {
         onLoadState={setAssetLoading}
       />
 
-      <aside className="absolute inset-y-3 left-3 z-20 flex w-[min(286px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[22px] border border-white/80 bg-white/90 shadow-[0_20px_55px_-28px_rgba(16,24,40,0.55)] backdrop-blur-xl sm:inset-y-5 sm:left-5">
-        <div className="border-b border-slate-100 px-5 pb-4 pt-5">
+      <aside className={cn("absolute inset-y-3 left-3 z-20 flex w-[min(286px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[22px] border border-[var(--hyd-200)] bg-[var(--app-canvas)]/90 shadow-[var(--shadow-stage-md)] backdrop-blur-xl transition-transform sm:inset-y-5 sm:left-5 md:translate-x-0", mobileLibraryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)] md:translate-x-0")}>
+        <div className="border-b border-[var(--hyd-200)] px-5 pb-4 pt-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eaf2ff] text-[#3277dc]"><Box className="h-5 w-5" strokeWidth={1.8} /></div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--hyd-50)] text-[var(--hyd-400)]"><Box className="h-5 w-5" strokeWidth={1.8} /></div>
               <div>
-                <h1 className="text-[17px] font-semibold tracking-[-0.03em] text-slate-950">My World</h1>
-                <p className="mt-0.5 text-[11px] font-medium text-slate-400">All your generated 3D assets</p>
+                <h1 className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--hyd-ink)]">My World</h1>
+                <p className="mt-0.5 text-[11px] font-medium opacity-55">All your generated 3D assets</p>
               </div>
             </div>
-            <button type="button" className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="My World help" title="My World help">
+            <button type="button" className="rounded-lg p-1.5 opacity-55 transition hover:bg-[var(--hyd-50)] hover:opacity-100" aria-label="My World help" title="My World help">
               <CircleHelp className="h-4 w-4" strokeWidth={1.8} />
             </button>
           </div>
-          <div className="mt-5 flex items-center gap-2 rounded-xl bg-[#f0f5fc] px-3 py-2.5 text-xs text-slate-400">
+          <div className="mt-5 flex items-center gap-2 rounded-xl bg-[var(--hyd-50)] px-3 py-2.5 text-xs opacity-65">
             <Search className="h-3.5 w-3.5 shrink-0" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models…" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-400" aria-label="Search models" />
-            <kbd className="hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 sm:block">/</kbd>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models…" className="min-w-0 flex-1 bg-transparent outline-none placeholder:opacity-55" aria-label="Search models" />
+            <kbd className="hidden rounded border border-[var(--hyd-200)] bg-[var(--app-canvas)] px-1.5 py-0.5 text-[10px] opacity-55 sm:block">/</kbd>
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        <div className="flex items-center justify-between px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-55">
           <span>{assets.length} {assets.length === 1 ? "model" : "models"}</span>
-          <button type="button" onClick={() => void loadAssets(true)} disabled={refreshing} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50" aria-label="Refresh models" title="Refresh models">
+          <button type="button" onClick={() => void loadAssets(true)} disabled={refreshing} className="rounded-lg p-1.5 transition hover:bg-[var(--hyd-50)] disabled:opacity-50" aria-label="Refresh models" title="Refresh models">
             <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           </button>
         </div>
@@ -571,24 +596,24 @@ export function MyWorldView() {
             const active = asset.id === selectedId;
             const image = asset.previewImageUrl || asset.imageUrl;
             return (
-              <button key={asset.id} type="button" onClick={() => setSelectedId(asset.id)} className={cn("group mb-1 flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition", active ? "border-[#4e8ee8] bg-[#f4f8ff] shadow-[0_5px_14px_-10px_rgba(50,119,220,0.7)]" : "border-transparent hover:border-slate-200 hover:bg-slate-50")}>
-                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200">
-                  {image ? <img src={getProxiedImageUrl(image) || image} alt="" className="h-full w-full object-cover" /> : <Box className="m-3 h-5 w-5 text-slate-400" strokeWidth={1.7} />}
-                  {loadingIds.has(asset.id) ? <span className="absolute inset-0 flex items-center justify-center bg-white/70"><LoaderCircle className="h-4 w-4 animate-spin text-[#4e8ee8]" /></span> : null}
+              <button key={asset.id} type="button" onClick={() => { setSelectedId(asset.id); setMobileLibraryOpen(false); }} className={cn("group mb-1 flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition", active ? "border-[var(--hyd-400)] bg-[var(--nav-active-bg)] text-[var(--nav-active-fg)] shadow-[var(--shadow-stage)]" : "border-transparent hover:border-[var(--hyd-200)] hover:bg-[var(--hyd-50)]")}>
+                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-[var(--hyd-50)]">
+                  {image ? <img src={getProxiedImageUrl(image) || image} alt="" className="h-full w-full object-cover" /> : <Box className="m-3 h-5 w-5 opacity-55" strokeWidth={1.7} />}
+                  {loadingIds.has(asset.id) ? <span className="absolute inset-0 flex items-center justify-center bg-[var(--app-canvas)]/70"><LoaderCircle className="h-4 w-4 animate-spin text-[var(--hyd-400)]" /></span> : null}
                 </div>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] font-semibold text-slate-800">{assetName(asset)}</span>
-                  <span className="mt-0.5 block text-[10px] text-slate-400">3D Model</span>
-                  <span className="block text-[10px] text-slate-400">{formatDate(asset.createdAt)}</span>
+                  <span className="block truncate text-[12px] font-semibold">{assetName(asset)}</span>
+                  <span className="mt-0.5 block text-[10px] opacity-55">3D Model</span>
+                  <span className="block text-[10px] opacity-55">{formatDate(asset.createdAt)}</span>
                 </span>
-                <ChevronDown className="h-4 w-4 -rotate-90 text-slate-300 transition group-hover:text-slate-500" />
+                <ChevronDown className="h-4 w-4 -rotate-90 opacity-45 transition group-hover:opacity-100" />
               </button>
             );
           }) : (
             <div className="px-3 py-12 text-center">
-              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-[#edf4ff] text-[#4e8ee8]"><Sparkles className="h-5 w-5" /></div>
-              <p className="mt-3 text-sm font-semibold text-slate-800">{query ? "No matching models" : "Your world is empty"}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-400">{query ? "Try a different search." : "Generate a 3D model and it will appear here automatically."}</p>
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--hyd-50)] text-[var(--hyd-400)]"><Sparkles className="h-5 w-5" /></div>
+              <p className="mt-3 text-sm font-semibold">{query ? "No matching models" : "Your world is empty"}</p>
+              <p className="mt-1 text-xs leading-5 opacity-55">{query ? "Try a different search." : "Generate a 3D model and it will appear here automatically."}</p>
             </div>
           )}
           {visibleAssets.length < filteredAssets.length ? (
@@ -603,46 +628,47 @@ export function MyWorldView() {
         </div>
       </aside>
 
-      <div className="absolute left-1/2 top-5 z-10 hidden -translate-x-1/2 items-center gap-2 rounded-xl border border-white/80 bg-white/85 px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur sm:flex">
-        <Grid3X3 className="h-3.5 w-3.5 text-[#4e8ee8]" strokeWidth={1.8} />
+      <button type="button" onClick={() => setMobileLibraryOpen(true)} className="absolute left-3 top-3 z-10 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--hyd-200)] bg-[var(--app-canvas)]/90 px-3 py-2 text-xs font-semibold shadow-[var(--shadow-stage)] backdrop-blur md:hidden"><Grid3X3 className="h-3.5 w-3.5 text-[var(--hyd-400)]" /> Models</button>
+      <div className="absolute left-1/2 top-5 z-10 hidden -translate-x-1/2 items-center gap-2 rounded-xl border border-[var(--hyd-200)] bg-[var(--app-canvas)]/85 px-3.5 py-2 text-xs font-semibold shadow-[var(--shadow-stage)] backdrop-blur sm:flex">
+        <Grid3X3 className="h-3.5 w-3.5 text-[var(--hyd-400)]" strokeWidth={1.8} />
         {assets.length} {assets.length === 1 ? "Model" : "Models"}
       </div>
 
-      <div className="absolute right-4 top-5 z-10 flex items-center gap-0.5 rounded-xl border border-white/80 bg-white/85 p-1 shadow-sm backdrop-blur sm:right-6">
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-xl border border-[var(--hyd-200)] bg-[var(--app-canvas)]/85 p-1 shadow-[var(--shadow-stage)] backdrop-blur sm:right-6 sm:top-5">
         {(["orbit", "pan", "zoom"] as CameraMode[]).map((mode) => {
           const Icon = mode === "orbit" ? Orbit : mode === "pan" ? Move : ZoomIn;
-          return <button key={mode} type="button" onClick={() => setCameraMode(mode)} className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium capitalize transition", cameraMode === mode ? "bg-[#eaf2ff] text-[#3277dc]" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800")}><Icon className="h-3.5 w-3.5" strokeWidth={1.8} />{mode}</button>;
+          return <button key={mode} type="button" aria-label={mode} onClick={() => setCameraMode(mode)} className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium capitalize transition", cameraMode === mode ? "bg-[var(--nav-active-bg)] text-[var(--nav-active-fg)]" : "opacity-65 hover:bg-[var(--hyd-50)] hover:opacity-100")}><Icon className="h-3.5 w-3.5" strokeWidth={1.8} /><span className="hidden sm:inline">{mode}</span></button>;
         })}
-        <span className="mx-1 h-4 w-px bg-slate-200" />
-        <button type="button" onClick={() => setResetRequest((value) => value + 1)} className="rounded-lg px-2 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800">Reset</button>
+        <span className="mx-1 h-4 w-px bg-[var(--hyd-200)]" />
+        <button type="button" onClick={() => setResetRequest((value) => value + 1)} className="rounded-lg px-2 py-1.5 text-[11px] font-medium opacity-65 transition hover:bg-[var(--hyd-50)] hover:opacity-100">Reset</button>
       </div>
 
       {error ? (
-        <div role="alert" className="absolute left-1/2 top-20 z-20 flex max-w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 items-center gap-3 rounded-xl border border-rose-200 bg-white/95 px-4 py-3 text-xs text-rose-700 shadow-lg backdrop-blur">
+        <div role="alert" className="absolute left-1/2 top-20 z-20 flex max-w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 items-center gap-3 rounded-xl border border-[var(--hyd-200)] bg-[var(--app-canvas)]/95 px-4 py-3 text-xs shadow-[var(--shadow-stage)] backdrop-blur">
           <span className="min-w-0 flex-1">{error}</span>
-          <button type="button" onClick={() => void loadAssets()} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 font-semibold hover:bg-rose-100">Retry</button>
+          <button type="button" onClick={() => void loadAssets()} className="shrink-0 rounded-lg bg-[var(--hyd-ink)] px-2.5 py-1.5 font-semibold text-[var(--app-canvas)] hover:opacity-80">Retry</button>
         </div>
       ) : null}
 
       {selected ? (
-        <div className="absolute bottom-5 left-1/2 z-10 flex w-[min(540px,calc(100vw-2rem))] -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/90 bg-white/90 p-2.5 shadow-[0_20px_42px_-25px_rgba(16,24,40,0.55)] backdrop-blur-xl sm:bottom-6 sm:gap-4 sm:p-3">
-          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-slate-100 to-slate-200">
-            {(selected.previewImageUrl || selected.imageUrl) ? <img src={getProxiedImageUrl(selected.previewImageUrl || selected.imageUrl) || selected.previewImageUrl || selected.imageUrl || ""} alt="" className="h-full w-full object-cover" /> : <Box className="m-2.5 h-5 w-5 text-slate-400" />}
+        <div className="absolute bottom-3 left-1/2 z-10 flex w-[min(540px,calc(100vw-1.5rem))] -translate-x-1/2 items-center gap-2 rounded-2xl border border-[var(--hyd-200)] bg-[var(--app-canvas)]/90 p-2.5 shadow-[var(--shadow-stage-md)] backdrop-blur-xl sm:bottom-6 sm:gap-4 sm:p-3">
+          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-[var(--hyd-50)]">
+            {(selected.previewImageUrl || selected.imageUrl) ? <img src={getProxiedImageUrl(selected.previewImageUrl || selected.imageUrl) || selected.previewImageUrl || selected.imageUrl || ""} alt="" className="h-full w-full object-cover" /> : <Box className="m-2.5 h-5 w-5 opacity-55" />}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold text-slate-900">{assetName(selected)}</p>
-            <p className="mt-0.5 truncate text-[10px] text-slate-400">3D Model · {formatDate(selected.createdAt)}{selected.engine ? ` · ${selected.engine}` : ""}</p>
+            <p className="truncate text-[13px] font-semibold">{assetName(selected)}</p>
+            <p className="mt-0.5 truncate text-[10px] opacity-55">3D Model · {formatDate(selected.createdAt)}{selected.engine ? ` · ${selected.engine}` : ""}</p>
           </div>
-          <button type="button" onClick={() => focusSelected(selected.id)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-[#9ec4fb] hover:bg-[#f4f8ff] hover:text-[#3277dc]"><Focus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Focus</span></button>
-          <button type="button" onClick={() => void downloadSelected()} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-950 px-2.5 py-2 text-[11px] font-semibold text-white transition hover:bg-slate-800"><Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Download</span></button>
+          <button type="button" onClick={() => focusSelected(selected.id)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--hyd-200)] bg-[var(--hyd-50)] px-2.5 py-2 text-[11px] font-semibold transition hover:bg-[var(--nav-active-bg)] hover:text-[var(--nav-active-fg)]"><Focus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Focus</span></button>
+          <button type="button" onClick={() => void downloadSelected()} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--hyd-ink)] px-2.5 py-2 text-[11px] font-semibold text-[var(--app-canvas)] transition hover:opacity-80"><Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Download</span></button>
         </div>
       ) : null}
 
       {!assets.length && !error ? (
         <div className="absolute left-1/2 top-1/2 z-[1] hidden -translate-x-1/2 -translate-y-1/2 text-center lg:block">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-white/90 bg-white/75 text-[#4e8ee8] shadow-sm backdrop-blur"><Box className="h-7 w-7" strokeWidth={1.5} /></div>
-          <p className="mt-4 text-sm font-semibold text-slate-700">A clean space for your creations</p>
-          <p className="mt-1 text-xs text-slate-400">Completed 3D models will be placed here automatically.</p>
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-[var(--hyd-200)] bg-[var(--app-canvas)]/75 text-[var(--hyd-400)] shadow-[var(--shadow-stage)] backdrop-blur"><Box className="h-7 w-7" strokeWidth={1.5} /></div>
+          <p className="mt-4 text-sm font-semibold">A clean space for your creations</p>
+          <p className="mt-1 text-xs opacity-55">Completed 3D models will be placed here automatically.</p>
         </div>
       ) : null}
     </main>

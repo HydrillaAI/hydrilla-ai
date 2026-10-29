@@ -28,7 +28,7 @@ import { InspectorPanel } from "../../components/workspace/inspector/InspectorPa
 import { LibraryPanel } from "../../components/workspace/library/LibraryPanel";
 import { LibraryRail } from "../../components/workspace/library/LibraryRail";
 import { LibraryOptionsBar } from "../../components/workspace/library/LibraryOptionsBar";
-import { PolyRunnerCard } from "../../components/workspace/PolyRunnerGame";
+import { SnakeCard } from "../../components/workspace/SnakeGame";
 import { LIBRARY_BAR } from "../../lib/library-bar";
 import { COMPOSER_SIZE } from "../../lib/composer-size";
 import { useSlotStatus } from "../../hooks/useSlotStatus";
@@ -1613,7 +1613,7 @@ function WorkspacePage() {
           track("3d_generation_completed", {
             model: selectedModel,
           });
-          setPolyRunnerCompletion(true);
+          setSnakeCompletion(true);
           const glbUrl = getGlbUrl(status);
           setCurrentGenerating(null);
           setLoading(false);
@@ -1646,7 +1646,7 @@ function WorkspacePage() {
           };
           loadJobInfo(completed3DJob);
         } else if (status.status === "failed") {
-          setPolyRunnerCompletion(false);
+          setSnakeCompletion(false);
           if (progressIntervalRef.current) {
             clearInterval(progressIntervalRef.current);
             progressIntervalRef.current = null;
@@ -2011,6 +2011,7 @@ function WorkspacePage() {
               if (pollGen !== waterPollGenRef.current) return;
 
               if (job.status === "DONE" && job.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(job.factoryCode);
                 setCodeSculptPass(job.sculptPass || "done");
                 if (job.scene) setWaterScene(job.scene);
@@ -3260,6 +3261,7 @@ function WorkspacePage() {
               const cs = await fetchWaterJob(job.id, tokenGetter);
               if (pollGen !== waterPollGenRef.current) return;
               if (cs.status === "DONE" && cs.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(cs.factoryCode);
                 setCodeSculptPass(cs.sculptPass);
                 setCurrentGenerating(null);
@@ -3595,45 +3597,45 @@ function WorkspacePage() {
   };
 
   const isGenerating = loading || generatingPreview || (currentGenerating?.status === "generating");
-  const polyRunnerGenerationStart =
+  const snakeGenerationStart =
     currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
-  const [polyRunnerVisible, setPolyRunnerVisible] = useState(false);
-  const [polyRunnerCompletion, setPolyRunnerCompletion] = useState(false);
-  const polyRunnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [snakeVisible, setSnakeVisible] = useState(false);
+  const [snakeCompletion, setSnakeCompletion] = useState(false);
+  const snakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The game follows only the real 3D generation state. A new start time gives
   // every generation a fresh two-second grace period, while progress updates
   // for the same job do not restart the timer.
   useEffect(() => {
-    if (polyRunnerTimerRef.current) {
-      clearTimeout(polyRunnerTimerRef.current);
-      polyRunnerTimerRef.current = null;
+    if (snakeTimerRef.current) {
+      clearTimeout(snakeTimerRef.current);
+      snakeTimerRef.current = null;
     }
-    setPolyRunnerVisible(false);
+    setSnakeVisible(false);
 
-    if (currentGenerating?.status !== "generating" || polyRunnerGenerationStart === null) {
+    if (currentGenerating?.status !== "generating" || snakeGenerationStart === null) {
       return;
     }
-    setPolyRunnerCompletion(false);
+    setSnakeCompletion(false);
 
-    const remaining = Math.max(0, 2_000 - (Date.now() - polyRunnerGenerationStart));
+    const remaining = Math.max(0, 2_000 - (Date.now() - snakeGenerationStart));
     if (remaining === 0) {
-      setPolyRunnerVisible(true);
+      setSnakeVisible(true);
       return;
     }
 
-    polyRunnerTimerRef.current = setTimeout(() => {
-      polyRunnerTimerRef.current = null;
-      setPolyRunnerVisible(true);
+    snakeTimerRef.current = setTimeout(() => {
+      snakeTimerRef.current = null;
+      setSnakeVisible(true);
     }, remaining);
 
     return () => {
-      if (polyRunnerTimerRef.current) {
-        clearTimeout(polyRunnerTimerRef.current);
-        polyRunnerTimerRef.current = null;
+      if (snakeTimerRef.current) {
+        clearTimeout(snakeTimerRef.current);
+        snakeTimerRef.current = null;
       }
     };
-  }, [currentGenerating?.status, polyRunnerGenerationStart]);
+  }, [currentGenerating?.status, snakeGenerationStart]);
 
   const waterEditParentId = resolveWaterEditParentId();
   const waterEditParentJob =
@@ -4403,18 +4405,18 @@ function WorkspacePage() {
               </div>
             </div>
           ) : null}
-          {(polyRunnerVisible || polyRunnerCompletion) && !fullView ? (
+          {(snakeVisible || snakeCompletion) && !fullView ? (
             <div
               className={cn(
-                "pointer-events-none absolute right-3 top-[clamp(5rem,calc(50%_-_20rem),11rem)] z-20 sm:right-10",
+                "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center sm:inset-x-auto sm:bottom-auto sm:right-3 sm:top-[clamp(5rem,calc(50%_-_20rem),11rem)] sm:block sm:justify-normal sm:right-10",
                 inspectorVisible && !isCompact && "lg:right-[320px]",
               )}
             >
               <div className="pointer-events-auto">
-                <PolyRunnerCard
+                <SnakeCard
                   userKey={user?.id ?? null}
-                  generationComplete={polyRunnerCompletion}
-                  onViewGeneratedModel={() => setPolyRunnerCompletion(false)}
+                  generationComplete={snakeCompletion}
+                  onViewGeneratedModel={() => setSnakeCompletion(false)}
                 />
               </div>
             </div>
