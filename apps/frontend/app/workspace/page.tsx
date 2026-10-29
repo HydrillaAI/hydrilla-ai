@@ -4408,8 +4408,7 @@ function WorkspacePage() {
           {(snakeVisible || snakeCompletion) && !fullView ? (
             <div
               className={cn(
-                "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center sm:inset-x-auto sm:bottom-auto sm:right-3 sm:top-[clamp(5rem,calc(50%_-_20rem),11rem)] sm:block sm:justify-normal sm:right-10",
-                inspectorVisible && !isCompact && "lg:right-[320px]",
+                "pointer-events-none absolute right-5 top-24 z-20 sm:right-32 sm:top-24",
               )}
             >
               <div className="pointer-events-auto">

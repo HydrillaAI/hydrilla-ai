@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  X,
   ZoomIn,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -206,10 +207,22 @@ function WorldScene({
     const updateTheme = () => {
       const nextCanvas = cssColor("--app-canvas", "Canvas");
       const nextMist = cssColor("--hyd-mist", "Canvas");
+      const nextSoft = cssColor("--hyd-soft", "currentColor");
+      const nextSky = cssColor("--hyd-sky", "currentColor");
       scene.background = new THREE.Color(nextCanvas);
       scene.fog?.color.set(nextCanvas);
       renderer.setClearColor(nextCanvas, 1);
       (floor.material as THREE.MeshStandardMaterial).color.set(nextMist);
+      ambient.color.set(nextCanvas);
+      ambient.groundColor.set(nextSoft);
+      key.color.set(nextCanvas);
+      fill.color.set(nextMist);
+      const lineMaterial = gridMaterial as THREE.LineBasicMaterial;
+      lineMaterial.color.set(nextSky);
+      modelMapRef.current.forEach((model) => {
+        const ring = model.userData.selectionRing as THREE.Mesh | undefined;
+        if (ring?.material instanceof THREE.MeshBasicMaterial) ring.material.color.set(nextSky);
+      });
     };
     const themeObserver = new MutationObserver(updateTheme);
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
@@ -345,7 +358,7 @@ function WorldScene({
               return;
             }
             texture.colorSpace = THREE.SRGBColorSpace;
-            const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, color: 0xffffff }));
+            const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
             card.userData.assetId = asset.id;
             card.scale.set(3.8, 2.7, 1);
             card.position.y = 1.35;
@@ -573,9 +586,14 @@ export function MyWorldView() {
                 <p className="mt-0.5 text-[11px] font-medium opacity-55">All your generated 3D assets</p>
               </div>
             </div>
-            <button type="button" className="rounded-lg p-1.5 opacity-55 transition hover:bg-[var(--hyd-50)] hover:opacity-100" aria-label="My World help" title="My World help">
-              <CircleHelp className="h-4 w-4" strokeWidth={1.8} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button type="button" className="rounded-lg p-1.5 opacity-55 transition hover:bg-[var(--hyd-50)] hover:opacity-100" aria-label="My World help" title="My World help">
+                <CircleHelp className="h-4 w-4" strokeWidth={1.8} />
+              </button>
+              <button type="button" onClick={() => setMobileLibraryOpen(false)} className="rounded-lg p-1.5 opacity-65 transition hover:bg-[var(--hyd-50)] hover:opacity-100 md:hidden" aria-label="Close model drawer" title="Close model drawer">
+                <X className="h-4 w-4" strokeWidth={1.8} />
+              </button>
+            </div>
           </div>
           <div className="mt-5 flex items-center gap-2 rounded-xl bg-[var(--hyd-50)] px-3 py-2.5 text-xs opacity-65">
             <Search className="h-3.5 w-3.5 shrink-0" />
