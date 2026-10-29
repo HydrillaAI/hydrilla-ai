@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Group, Material, Mesh, Object3D, Texture, WebGLRenderer } from "three";
-import { HERO_STAGE_MODELS } from "@/lib/cloudinary";
+import { HERO_STAGE_MODELS, HERO_STAGE_POSTER } from "@/lib/cloudinary";
 
 const MODELS = HERO_STAGE_MODELS ?? [];
 
 /** Swap only after the stage has been still this long. */
 const IDLE_SWAP_MS = 6000;
+
+/**
+ * Poster capture size. The camera frames by vertical FOV, so a still wider than any
+ * stage, shown with object-cover, lines up with the live first frame at every size.
+ */
+const POSTER_WIDTH = 2400;
+const POSTER_HEIGHT = 1000;
 
 type Turntable = {
   dispose: () => void;
@@ -85,6 +92,8 @@ export function HeroStage({
   const stageRef = useRef<HTMLDivElement>(null);
   const reduceRef = useRef(reduceMotion);
   reduceRef.current = reduceMotion;
+  /** True once the canvas has drawn the first model; it then fades in over the poster. */
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -379,11 +388,42 @@ export function HeroStage({
           });
       };
 
+      /** Dev only: render the first frame at poster size and download it as WebP. */
+      const capturePoster = () => {
+        if (!renderer) return;
+        renderer.setPixelRatio(1);
+        renderer.setSize(POSTER_WIDTH, POSTER_HEIGHT, false);
+        camera.aspect = POSTER_WIDTH / POSTER_HEIGHT;
+        camera.updateProjectionMatrix();
+        renderer.render(scene, camera);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return;
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "hero-stage-poster.webp";
+            link.click();
+            window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+          },
+          "image/webp",
+          0.86
+        );
+        resize();
+      };
+
       try {
         if (!MODELS[0]) return;
         const first = await ensure(0);
         if (!first || disposed || !renderer) return;
         await show(0);
+        if (disposed) return;
+        if (
+          process.env.NODE_ENV === "development" &&
+          new URLSearchParams(window.location.search).has("capture-poster")
+        ) {
+          capturePoster();
+        }
+        setLive(true);
 
         if (reduceRef.current || constrained || count < 2) return;
 
@@ -411,8 +451,9 @@ export function HeroStage({
       }
     };
 
-    // Three.js and the first model (~1.7 MB) wait for page load plus an idle slot,
-    // so they don't compete with the title, fonts and hydration on slow mobile networks.
+    // Three.js and the first model start in an idle slot after hydration; the poster
+    // covers the wait. Slow connections also wait for page load, so the model doesn't
+    // compete with the title, fonts and hydration.
     const idleHost = window as Window & {
       requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
     };
@@ -424,7 +465,7 @@ export function HeroStage({
       }
       bootHandle = window.setTimeout(() => void boot(), 200);
     };
-    if (document.readyState === "complete") scheduleBoot();
+    if (!constrained || document.readyState === "complete") scheduleBoot();
     else window.addEventListener("load", scheduleBoot, { once: true });
 
     return () => {
@@ -463,9 +504,21 @@ export function HeroStage({
         aria-label="Hero stage. Drag to rotate the model, tap the left or right side for the next model, or use the arrow keys."
         className="relative h-full min-h-0 flex-1 outline-none focus-visible:ring-2 focus-visible:ring-[#000c1f]/25 lg:h-[500px] lg:flex-none xl:h-[540px]"
       >
+        {HERO_STAGE_POSTER ? (
+          <img
+            src={HERO_STAGE_POSTER}
+            alt=""
+            aria-hidden
+            fetchPriority="high"
+            decoding="async"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 h-full w-full cursor-grab touch-none overscroll-none active:cursor-grabbing"
+          className={`absolute inset-0 h-full w-full cursor-grab touch-none overscroll-none transition-opacity duration-500 ease-out active:cursor-grabbing motion-reduce:transition-none ${
+            live ? "opacity-100" : "opacity-0"
+          }`}
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 px-3 pt-3 sm:px-4 sm:pt-4 md:px-5 md:pt-5 lg:px-6 lg:pt-6">
           <div className="pointer-events-auto">{children}</div>

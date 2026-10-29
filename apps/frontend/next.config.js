@@ -147,6 +147,11 @@ const nextConfig = {
         ],
       },
       {
+        // Hero stage poster and models. Immutable: give replacements a new name (-v2, -v3…).
+        source: "/hero/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
         source: "/herohydrillasrc.jpg",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },

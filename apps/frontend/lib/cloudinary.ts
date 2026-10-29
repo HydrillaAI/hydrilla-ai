@@ -51,9 +51,10 @@ export function cloudinaryRaw(publicId: string): string {
   return `${CLOUDINARY_RAW_BASE}/${publicId}`;
 }
 
+/** Hero stage models in display order. The first (the lamp) is the one the poster shows. */
 export const HERO_STAGE_MODELS = [
-  cloudinaryRaw("v1791059174/hydrilla-landing/hero/stage-a.glb"),
   cloudinaryRaw("v1791059175/hydrilla-landing/hero/stage-b.glb"),
+  cloudinaryRaw("v1791059174/hydrilla-landing/hero/stage-a.glb"),
   cloudinaryRaw("v1792555678/hydrilla-landing/hero/stage-c.glb"),
   cloudinaryRaw("v1792555680/hydrilla-landing/hero/stage-d.glb"),
   cloudinaryRaw("v1792555680/hydrilla-landing/hero/stage-e.glb"),
@@ -63,6 +64,13 @@ export const HERO_STAGE_MODELS = [
   cloudinaryRaw("v1792555684/hydrilla-landing/hero/stage-i.glb"),
   cloudinaryRaw("v1792555685/hydrilla-landing/hero/stage-j.glb"),
 ] as const;
+
+/**
+ * Still of the first hero model at the stage's framing. It shows instantly and the
+ * live canvas fades in over it. Capture in dev with `/?capture-poster` (HeroStage),
+ * save under /public/hero/ with a versioned name. null until one is captured.
+ */
+export const HERO_STAGE_POSTER: string | null = null;
 
 /**
  * Closing CTA puppets, left to right. Simplified to ~150k triangles,
