@@ -8,9 +8,10 @@ Lives at `hydrilla/frontend` in the monorepo (sibling of `backend/` and `admin/`
 
 | Doc | Covers |
 |-----|--------|
-| [`docs/ENGINES.md`](./docs/ENGINES.md) | Cloud vs Water, skills map, models, prefs |
-| [`docs/WATER_ORCHESTRATION.md`](./docs/WATER_ORCHESTRATION.md) | Water pipeline, tiers, harness |
-| [`docs/GENERATION_FLOWS.md`](./docs/GENERATION_FLOWS.md) | Cloud GPU / credits / polling |
+| [`docs/README.md`](./docs/README.md) | Internal docs index (start here) |
+| [`docs/01-ARCHITECTURE.md`](./docs/01-ARCHITECTURE.md) | Apps, request flow, Cloud vs Water |
+| [`docs/06-WATER-ENGINE.md`](./docs/06-WATER-ENGINE.md) | Water pipeline, tiers, harness, providers |
+| [`docs/05-CLOUD-GENERATION.md`](./docs/05-CLOUD-GENERATION.md) | Cloud GPU / job lifecycle / storage |
 | [`skills/water/SKILL.md`](./skills/water/SKILL.md) | Agent docs only (not runtime) |
 | [`../backend/WATER_DEPLOY.md`](../backend/WATER_DEPLOY.md) | SQL + env for Water BYOK |
 
