@@ -3253,9 +3253,9 @@ threeDRouter.get("/workspaces/:workspaceId/jobs", requireAuth, async (req, res) 
         previewImageUrl = normalizePreviewUrl(row.id, previewImageUrl);
       }
 
-      // Do not inline full factory_code here — it can be huge. Clients fetch
+      // Full factory_code is never loaded here — it can be huge. Clients fetch
       // it from GET /api/water/jobs/:id (legacy: /api/code-sculpt/jobs/:id).
-      const hasFactoryCode = Boolean(row.factory_code && String(row.factory_code).length > 0);
+      const hasFactoryCode = row.has_factory_code === true;
       const waterLike =
         String(row.id || "").startsWith("wt_") ||
         String(row.id || "").startsWith("cs_") ||
@@ -3291,7 +3291,7 @@ threeDRouter.get("/workspaces/:workspaceId/jobs", requireAuth, async (req, res) 
         factoryCode: hasFactoryCode ? "__present__" : null,
         hasFactoryCode,
         durationMs: typeof row.duration_ms === "number" ? row.duration_ms : null,
-        visualEvidence: compactVisualEvidence(row.sculpt_spec),
+        visualEvidence: compactVisualEvidence({ visual: row.visual }),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };
