@@ -68,9 +68,9 @@ export const HERO_STAGE_MODELS = [
 /**
  * Still of the first hero model at the stage's framing. It shows instantly and the
  * live canvas fades in over it. Capture in dev with `/?capture-poster` (HeroStage),
- * save under /public/hero/ with a versioned name. null until one is captured.
+ * save under /public/hero/ with a versioned name. null hides the poster.
  */
-export const HERO_STAGE_POSTER: string | null = null;
+export const HERO_STAGE_POSTER: string | null = "/hero/stage-poster-v1.webp";
 
 /**
  * Closing CTA puppets, left to right. Simplified to ~150k triangles,
