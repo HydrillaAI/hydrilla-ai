@@ -121,9 +121,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`${dmSans.variable} ${dmSansItalic.variable} ${GeistSans.variable}`} suppressHydrationWarning>
         <head>
           <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="" />
-          <link rel="preconnect" href="https://hydrilla-outputs-1.s3.amazonaws.com" crossOrigin="" />
+          {/* S3 outputs only load in the app, so warm DNS only (a full preconnect goes unused on marketing pages). */}
           <link rel="dns-prefetch" href="https://hydrilla-outputs-1.s3.amazonaws.com" />
-          <link rel="preconnect" href={clerkHost} crossOrigin="" />
+          {/* No crossorigin: Clerk's chunks and credentialed API calls use the non-CORS connection pool. */}
+          <link rel="preconnect" href={clerkHost} />
           <link rel="dns-prefetch" href={clerkHost} />
         </head>
         <body className="min-h-screen">

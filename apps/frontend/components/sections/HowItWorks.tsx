@@ -7,6 +7,12 @@ import { BlurReveal } from "@/components/ui/BlurReveal";
 import { cloudinaryImage, cloudinaryLoader } from "@/lib/cloudinary";
 import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
 
+/**
+ * Step art is portrait (2:3) and contained in a square card, so it draws at about
+ * two thirds of the card width: 5/12 columns on md, 4/12 on lg, capped at 34rem.
+ */
+const STEP_IMAGE_SIZES = "(max-width: 768px) 67vw, (max-width: 1024px) 28vw, min(22vw, 23rem)";
+
 /** Explicit WebP + width — avoids Next Image Optimizer timeouts on large f_auto PNGs. */
 const workflowStepImage = (id: string) =>
   cloudinaryImage(`hydrilla-landing/workflow/${id}`, "f_webp,q_auto,c_fit,w_900");
@@ -106,7 +112,7 @@ function StepRow({ step }: { step: Step }) {
             loader={cloudinaryLoader}
             loading="lazy"
             decoding="async"
-            sizes="(max-width: 768px) 100vw, 40vw"
+            sizes={STEP_IMAGE_SIZES}
             className="object-contain object-center p-5 transition-opacity duration-500 ease-out md:p-6"
             style={{ opacity: showAlt ? 0 : 1 }}
           />
@@ -119,7 +125,7 @@ function StepRow({ step }: { step: Step }) {
               loader={cloudinaryLoader}
               loading="lazy"
               decoding="async"
-              sizes="(max-width: 768px) 100vw, 40vw"
+              sizes={STEP_IMAGE_SIZES}
               className="object-contain object-center p-5 transition-opacity duration-500 ease-out md:p-6"
               style={{ opacity: showAlt ? 1 : 0 }}
             />

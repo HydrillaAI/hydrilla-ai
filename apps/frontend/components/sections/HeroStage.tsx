@@ -42,6 +42,23 @@ function disposeObject(root: Object3D) {
   });
 }
 
+/**
+ * True when WebGL2 runs on a real GPU. Software WebGL (SwiftShader: no GPU, blocklisted
+ * drivers, Lighthouse) renders the spinning model on the CPU and pins the main thread
+ * for as long as the page is open, so the stage keeps its plain background there.
+ */
+function hasHardwareWebGL(): boolean {
+  try {
+    const gl = document
+      .createElement("canvas")
+      .getContext("webgl2", { failIfMajorPerformanceCaveat: true });
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    return Boolean(gl);
+  } catch {
+    return false;
+  }
+}
+
 function freeze(root: Object3D) {
   root.traverse((node) => {
     node.updateMatrix();
@@ -98,6 +115,7 @@ export function HeroStage({
       Boolean(connection?.saveData) || /2g|3g/.test(connection?.effectiveType ?? "");
 
     const boot = async () => {
+      if (!hasHardwareWebGL()) return;
       const THREE = await import("three");
       const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
       const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
