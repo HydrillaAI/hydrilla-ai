@@ -17,8 +17,8 @@ eve (`agent/agents/create-water`) is **parked** — not on the generate path. Se
 
 | Doc | Use |
 |-----|------|
-| [`docs/ENGINES.md`](../../docs/ENGINES.md) | Cloud vs Water |
-| [`docs/WATER_ORCHESTRATION.md`](../../docs/WATER_ORCHESTRATION.md) | Pipeline, passes, budgets, harness files |
+| [`docs/01-ARCHITECTURE.md`](../../docs/01-ARCHITECTURE.md) | Cloud vs Water |
+| [`docs/06-WATER-ENGINE.md`](../../docs/06-WATER-ENGINE.md) | Pipeline, passes, budgets, harness files |
 
 ## Adding a pack
 

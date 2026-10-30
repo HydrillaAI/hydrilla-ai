@@ -2,7 +2,7 @@
 
 > **Status: PARKED.** Nothing in the product calls these agents. Water generation and
 > follow-up edits run in the backend on the Vercel AI SDK (`generateText` for the harness,
-> `ToolLoopAgent` for the director) — see [`docs/WATER_ORCHESTRATION.md`](../docs/WATER_ORCHESTRATION.md).
+> `ToolLoopAgent` for the director) — see [`docs/06-WATER-ENGINE.md`](../docs/06-WATER-ENGINE.md).
 > eve is kept compiling (`pnpm run typecheck`, `eve info`) so it can come back. The likely
 > first use is the follow-up director, once it needs durable multi-turn sessions. Why
 > it's parked, and when to revisit, is in the comments in `agents/create-water/agent/agent.ts`
@@ -95,7 +95,7 @@ What has **not** been exercised: an actual model turn. That needs a reachable
 The Hydrilla kill list (`agent-skills/Hydrilla AI orchestration/docs/KILL_LIST.md`) bans
 AI Gateway outright — *"Direct provider keys / Water BYOK only"* — and
 `cursor-prompts/01_SETUP_EVE_CREATE_CLOUD.md` repeats *"Direct provider keys — no AI
-Gateway"*. `docs/CREATE_ORCHESTRATION_PLAN.md` §7 lists AI Gateway under "Kill".
+Gateway"*. `docs/archive/CREATE_ORCHESTRATION_PLAN.md` §7 lists AI Gateway under "Kill".
 
 This looked like an unavoidable conflict, because eve's documented default is a gateway
 model id. It is not one: **eve's `model` also accepts a provider-authored AI SDK
@@ -131,7 +131,7 @@ Generation is a separate question, and the answer is that it never happens here:
 prompts, gate reports, and job metadata. Both `agent.ts` files carry this reasoning as a
 comment so the next person to change `model:` reads it first.
 
-**Also note `docs/DECISIONS_LOCKED.md` D4:** the shipped orchestrator today is
+**Also note D4 in `docs/11-DECISIONS.md`:** the shipped orchestrator today is
 *backend stages, eve optional later*. This package is that optional wrapper. It reuses
 the same stage names and the same frozen tool surface, so it needs no backend rework —
 but the backend, not this directory, is the current source of truth for Create.
@@ -217,10 +217,10 @@ for depth instead of copying reference tables.
 | `agent-skills/.../agents/EVE_AGENT_LAYOUT.md` | Two-agent split, park-on-`job.await` hooks |
 | `agent-skills/.../docs/SKILL_ID_CANON.md` | The 22 skill filenames |
 | `agent-skills/.../docs/KILL_LIST.md` | Refusals, engine lock, the AI Gateway tension above |
-| `docs/contracts/TOOL_SURFACE.md` | The 12 tool files and their roles |
-| `docs/contracts/JOB_CARD.md` | `run_checkpoint` schema, stage order, refine caps, resume |
-| `docs/contracts/EVIDENCE_MANIFEST.md` | `asset_score` / `asset_render_views` schemas, promote gate |
-| `docs/DECISIONS_LOCKED.md` | D1 Water threejs is first-class · D2 characters · D3 one Cloud backbone · D4 backend first |
+| `docs/06-WATER-ENGINE.md#contracts` (was `contracts/TOOL_SURFACE.md`) | The 12 tool files and their roles |
+| `docs/06-WATER-ENGINE.md#jobcard` (was `contracts/JOB_CARD.md`) | `run_checkpoint` schema, stage order, refine caps, resume |
+| `docs/06-WATER-ENGINE.md#evidence-manifest` (was `contracts/EVIDENCE_MANIFEST.md`) | `asset_score` / `asset_render_views` schemas, promote gate |
+| `docs/11-DECISIONS.md` | D1 Water threejs is first-class · D2 characters · D3 one Cloud backbone · D4 backend first |
 | `backend/.../lib/create/quality/thresholds.ts` | Canonical numbers; the instructions restate them, never redefine them |
 
 Numbers live in the backend module. If a floor ever changes, change it there and update
