@@ -41,7 +41,8 @@ export function ConditionalNavbar() {
     pathname?.startsWith("/integrations/") ||
     pathname === "/community-guidelines" ||
     pathname?.startsWith("/sign-in") ||
-    pathname?.startsWith("/sign-up")
+    pathname?.startsWith("/sign-up") ||
+    pathname?.startsWith("/claim")
       ? "default"
       : "hero";
 
