@@ -4,6 +4,9 @@ Four independent apps in `apps/` (frontend, backend, admin, docs), each with
 its own package.json, in a pnpm workspace with one root pnpm-lock.yaml.
 Use pnpm, never npm or yarn (`pnpm --filter <package-name> add <dep>` to add a dependency).
 
+`AGENTS.md` is a symlink to this file. Claude and Cursor read the same instructions.
+Add or change a rule in either file; it is the same text. Do not replace the symlink with a second copy.
+
 ## Commands (run from repo root)
 - `pnpm install`
 - `pnpm dev:frontend` (3000) · `dev:backend` (4000) · `dev:admin` (3001) · `dev:docs` (3002)
