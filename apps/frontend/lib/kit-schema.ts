@@ -366,10 +366,6 @@ export function getKitJsonLd(path: string) {
           "How is Water Agent different from the MCP server?",
           "Water Agent is the in-app agent inside Hydrilla workspace. The MCP server lets your own AI agent drive Hydrilla from outside.",
         ],
-        [
-          "Which skill packs are fully live?",
-          "Object Studio and Character are live. Animation Ready and Game Ready are partial. Environment and World are not selectable yet.",
-        ],
       ]),
     );
   }

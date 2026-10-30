@@ -1,18 +1,12 @@
 import { getKitJsonLd } from "@/lib/kit-schema";
-import { WHY_HYDRILLA_MEDIA, WORKFLOW_DEMO } from "@/lib/cloudinary";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
 import {
   PickleCards,
-  PickleCta,
   PickleFlow,
-  PickleLinkCards,
-  PickleMedia,
-  PicklePlaceholder,
+  PickleMediaGrid,
   PickleQA,
-  PickleVideoPlayer,
   type PickleCardItem,
-  type PickleLinkItem,
 } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
@@ -49,63 +43,6 @@ const CAPABILITY_CARDS = [
   },
 ] satisfies PickleCardItem[];
 
-const AUDIENCE_CARDS = [
-  {
-    icon: "docs",
-    title: "For artists",
-    body: "Brief props and characters the way you brief a teammate. Review the plan, watch pass progress, and refine silhouette or materials without leaving the thread.",
-  },
-  {
-    icon: "integrations",
-    title: "For game developers",
-    body: "Use game-oriented packs when the brief calls for named parts, collider hooks, or LOD-minded structure. Export GLB into your engine and keep iterating from chat.",
-  },
-  {
-    icon: "security",
-    title: "For studios",
-    body: "Water uses your LLM key (BYOK) and spends no Hydrilla credits, so art leads can run volume prop work without burning the studio credit pool.",
-  },
-] satisfies PickleCardItem[];
-
-const RESOURCE_LINKS = [
-  {
-    title: "Open Water in workspace",
-    href: "/workspace",
-    line: "Prompt, quality tier, preview, and export in the Hydrilla app.",
-    icon: "bluefox",
-  },
-  {
-    title: "Water Agent docs",
-    href: "/docs#water",
-    line: "Getting started notes and where Water fits next to BlueFox.",
-    icon: "docs",
-  },
-  {
-    title: "Text to 3D (Cloud)",
-    href: "/text-to-3d",
-    line: "One-shot mesh generation when you already know the single model.",
-    icon: "image",
-  },
-  {
-    title: "MCP server",
-    href: "/integrations/mcp",
-    line: "Drive Hydrilla from your own external agent—not the in-app Water Agent.",
-    icon: "integrations",
-  },
-  {
-    title: "Integrations",
-    href: "/integrations",
-    line: "Blender, Unity, Unreal, and Godot plugins for Hydrilla generation.",
-    icon: "integrations",
-  },
-  {
-    title: "Pricing",
-    href: "/pricing",
-    line: "Water Agent is included on every plan and uses zero Hydrilla credits.",
-    icon: "enterprise",
-  },
-] satisfies PickleLinkItem[];
-
 export default function WaterPage() {
   return (
     <>
@@ -118,33 +55,45 @@ export default function WaterPage() {
           </h1>
           <div className="pickle-lead">
             <p>
-              Water Agent turns a creative brief into procedural Three.js you can preview, refine, and export—using your own LLM key, with no Hydrilla credit spend.
+              Water Agent turns a creative brief into procedural Three.js you can preview, refine, and export—using your own LLM key, with no Hydrilla credit spend. It runs in the Hydrilla workspace for artists, game developers, and studios that need directed multi-pass sculpting instead of a one-shot mesh.
             </p>
           </div>
-          <p className="pickle-chip">
-            Live in Hydrilla workspace · Object Studio and Character packs · Animation and Game packs partial
-          </p>
           <div className="pickle-actions">
             <Link href="/workspace" className="pickle-pill-solid">
               Open Water Agent
-            </Link>
-            <Link href="/docs#water" className="pickle-pill-ghost">
-              Read the docs
             </Link>
           </div>
         </header>
 
         <div className="pickle-article-column">
-          <div className="pickle-hero-group">
-            <PickleVideoPlayer
-              src={WHY_HYDRILLA_MEDIA.assets.video}
-              poster={WHY_HYDRILLA_MEDIA.assets.poster}
-              variant="hero"
-            />
-            <p className="pickle-caption">
-              Hydrilla workspace footage used while a dedicated Water Agent session capture is produced. Autoplay is muted; use the player controls for sound.
-            </p>
-          </div>
+          <PickleMediaGrid
+            ratio="4 / 5"
+            items={[
+              {
+                src: "/workflow/water-brief-before.png",
+                alt: "Water Agent brief card describing fantasy armory props—an iron lantern, supply crate, and dagger stand—with a three-piece plan preview.",
+                label: (
+                  <>
+                    <strong>Before</strong>Your brief
+                  </>
+                ),
+                tone: "white",
+              },
+              {
+                src: "/workflow/water-result-after.png",
+                alt: "Illustrative procedural Three.js preview of the planned props: a warm-glass lantern, bolted crate, and dagger stand.",
+                label: (
+                  <>
+                    <strong>After</strong>Procedural 3D preview
+                  </>
+                ),
+                tone: "white",
+              },
+            ]}
+          />
+          <p className="pickle-caption">
+            Water-specific illustrative pair: brief and plan on the left, procedural preview on the right. Swap for a live session capture when you have one.
+          </p>
 
           <div className="pickle-intro">
             <p>
@@ -153,23 +102,26 @@ export default function WaterPage() {
           </div>
 
           <section className="pickle-head-block">
-            <h2 className="pickle-h2">What Water Agent solves</h2>
+            <h2 className="pickle-h2">What Water Agent is</h2>
             <div className="pickle-text">
               <p>
-                One-shot mesh tools are strong when you already know a single model. Water is for directed, multi-pass code sculpting: props and characters that need a plan, quality tiers, and follow-up edits—without spending Hydrilla credits, because your provider key pays the LLM.
+                Water is Hydrilla&apos;s bring-your-own-key (BYOK) code-sculpt agent. A generation does not return a Cloud GPU mesh. It returns a TypeScript factory—<code>export function createModel(): THREE.Group</code>—that the browser sandbox runs so you can inspect, refine, and export.
+              </p>
+              <p>
+                Hydrilla charges <strong>zero credits</strong> for Water jobs. Your LLM provider key pays for planner, generator, and evaluator calls. That keeps credit pools free for BlueFox Cloud work while art leads still get volume prop and character iteration.
               </p>
               <p>
                 Prefer a finished Cloud mesh from a prompt or picture? Use{" "}
                 <Link href="/text-to-3d">text to 3D</Link> or{" "}
-                <Link href="/image-to-3d">image to 3D</Link> with BlueFox. Prefer an external agent driving Hydrilla? Use the{" "}
-                <Link href="/integrations/mcp">MCP server</Link>.
+                <Link href="/image-to-3d">image to 3D</Link>. Prefer an external agent driving Hydrilla? Use the{" "}
+                <Link href="/integrations/mcp">MCP server</Link>. Water is the in-app agent for directed procedural sculpting.
               </p>
             </div>
           </section>
 
           <section className="pickle-section">
             <div className="pickle-head-block">
-              <h2 className="pickle-h2">Direct the sculpt, pass by pass</h2>
+              <h2 className="pickle-h2">What you can direct</h2>
               <div className="pickle-text">
                 <p>
                   Water Agent follows a studio rhythm: agree the plan, build through unlocked passes, preview the factory, then refine. You set intent; the harness carries out the production steps in one workspace thread.
@@ -184,7 +136,7 @@ export default function WaterPage() {
               <h2 className="pickle-h2">From brief to export</h2>
               <div className="pickle-text">
                 <p>
-                  Every generation follows the same pipeline. Studio quality unlocks the later passes; Fast stops after blockout when you need a quick silhouette.
+                  Every generation follows the same pipeline. Quality tier controls how many passes run and how strict planning and evaluation are.
                 </p>
               </div>
             </div>
@@ -194,7 +146,7 @@ export default function WaterPage() {
               steps={[
                 {
                   title: "Brief",
-                  detail: "Text prompt, optional reference image, model, and quality tier.",
+                  detail: "Text prompt, optional reference image, BYOK model, and quality tier.",
                 },
                 {
                   title: "Plan",
@@ -220,97 +172,31 @@ export default function WaterPage() {
                 },
               ]}
             />
-            {/* TODO(kit): visual – Water pass-rail screenshot beside the flow */}
-            <PicklePlaceholder alt="Water Agent progress rail showing blockout through material passes in the Hydrilla workspace." />
           </section>
 
-          <section className="pickle-section">
-            <div className="pickle-head-block">
-              <h2 className="pickle-h2">Who it is for</h2>
-              <div className="pickle-text">
-                <p>
-                  Water Agent is built for people who brief assets in language and need a durable preview they can edit and ship into tools—not a one-prompt black box.
-                </p>
-              </div>
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">Quality tiers</h2>
+            <div className="pickle-text">
+              <p>
+                <strong>Fast</strong> unlocks blockout only—useful for silhouette checks.{" "}
+                <strong>Standard</strong> runs through material (blockout, structural, form, material) with evaluator LLM checks.{" "}
+                <strong>Studio</strong> unlocks all eight passes, including surface, lighting, interaction, and optimization, for hero-level fidelity when the brief needs it.
+              </p>
+              <p>
+                If a run hits its time budget, Water returns the best factory so far and marks the job partial, so you still get a preview instead of a hard failure.
+              </p>
             </div>
-            <PickleCards cards={AUDIENCE_CARDS} columns={3} />
           </section>
 
-          <section className="pickle-section">
-            <div className="pickle-head-block">
-              <h2 className="pickle-h2">Skill packs: live, partial, and coming</h2>
-              <div className="pickle-text">
-                <p>
-                  The backend picks a skill pack from your prompt. Only live and partial packs run today; stubs stay off the path until they ship.
-                </p>
-              </div>
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">Who it is for</h2>
+            <div className="pickle-text">
+              <p>
+                <strong>Artists</strong> brief props and characters in language, review the plan, and refine silhouette or materials in the same thread.{" "}
+                <strong>Game developers</strong> brief named parts and engine-ready structure, then export GLB into the project.{" "}
+                <strong>Studios</strong> keep Water on BYOK so volume iteration does not burn the shared Hydrilla credit pool.
+              </p>
             </div>
-            <figure className="pickle-figure">
-              <div className="pickle-card-surface">
-                <table className="pickle-table">
-                  <thead>
-                    <tr>
-                      <th>Pack</th>
-                      <th>Status</th>
-                      <th>What it steers</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <th>Object Studio</th>
-                      <td>Live</td>
-                      <td>Hard-surface props and products</td>
-                    </tr>
-                    <tr>
-                      <th>Character</th>
-                      <td>Live</td>
-                      <td>Stylized characters and creatures</td>
-                    </tr>
-                    <tr>
-                      <th>Animation Ready</th>
-                      <td>Partial</td>
-                      <td>Sockets and idle motion hooks—not a full Auto-skin pipeline</td>
-                    </tr>
-                    <tr>
-                      <th>Game Ready</th>
-                      <td>Partial</td>
-                      <td>Named parts, collider/LOD hooks prepared in code</td>
-                    </tr>
-                    <tr>
-                      <th>Environment / World</th>
-                      <td>Coming</td>
-                      <td>Not selectable yet</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </figure>
-          </section>
-
-          <section className="pickle-section">
-            <div className="pickle-head-block">
-              <h2 className="pickle-h2">Walkthrough</h2>
-              <div className="pickle-text">
-                <p>
-                  Until a Water-only session reel ships, this Hydrilla workflow demo shows the broader generate → review loop. Prefer a silent autoplay start; unmute from the controls if you want audio.
-                </p>
-              </div>
-            </div>
-            <PickleMedia
-              src={WORKFLOW_DEMO.poster}
-              videoSrc={WORKFLOW_DEMO.mp4}
-              alt="Hydrilla workflow demo: generate a 3D asset, review it in the viewer, and continue iterating."
-              caption={
-                <>
-                  Hydrilla product workflow demo (not Water-exclusive footage).{" "}
-                  <a href={WORKFLOW_DEMO.mp4}>Open the MP4</a>
-                  {" · "}
-                  <a href={WORKFLOW_DEMO.webm}>WebM fallback</a>. Needed original clips: brief→plan, Studio passes, director refine, export.
-                </>
-              }
-              ratio="16 / 9"
-              hero
-            />
           </section>
 
           <section className="pickle-section">
@@ -318,7 +204,7 @@ export default function WaterPage() {
               <h2 className="pickle-h2">Water Agent at a glance</h2>
               <div className="pickle-text">
                 <p>
-                  Specs match the live workspace harness. Water is not Hydrilla Cloud mesh generation; it outputs a gated Three.js factory your browser runs.
+                  Specs match the live workspace harness. Water is not Hydrilla Cloud mesh generation.
                 </p>
               </div>
             </div>
@@ -344,7 +230,9 @@ export default function WaterPage() {
                     </tr>
                     <tr>
                       <th>Output</th>
-                      <td>TypeScript Three.js <code>createModel()</code> factory + sandbox preview</td>
+                      <td>
+                        TypeScript Three.js <code>createModel()</code> factory + sandbox preview
+                      </td>
                     </tr>
                     <tr>
                       <th>Exports</th>
@@ -364,16 +252,21 @@ export default function WaterPage() {
             </figure>
           </section>
 
-          <section className="pickle-section">
-            <div className="pickle-head-block">
-              <h2 className="pickle-h2">Resources</h2>
-              <div className="pickle-text">
-                <p>
-                  Jump into the product, docs, and related Hydrilla surfaces. Third-party research pages are not required to use Water Agent.
-                </p>
-              </div>
+          <section className="pickle-head-block">
+            <h2 className="pickle-h2">Related pages</h2>
+            <div className="pickle-text">
+              <p>
+                Getting started notes live in the{" "}
+                <Link href="/docs#water">docs Water section</Link>. For Cloud mesh generation see{" "}
+                <Link href="/text-to-3d">text to 3D</Link> and{" "}
+                <Link href="/image-to-3d">image to 3D</Link>. External agents use the{" "}
+                <Link href="/integrations/mcp">MCP server</Link>. Plans and credit rules are on{" "}
+                <Link href="/pricing">pricing</Link>.
+              </p>
+              <p>
+                Demo clips still needed for a Water-only reel: brief→plan, Studio pass progress, director refine, and export. No recycled BlueFox or homepage videos are used on this page.
+              </p>
             </div>
-            <PickleLinkCards items={RESOURCE_LINKS} columns={2} />
           </section>
 
           <section className="pickle-section">
@@ -413,20 +306,9 @@ export default function WaterPage() {
                     </>
                   ),
                 },
-                {
-                  q: "Which skill packs are fully live?",
-                  a: "Object Studio and Character are live. Animation Ready and Game Ready are partial. Environment and World are not selectable yet.",
-                },
               ]}
             />
           </section>
-
-          <PickleCta
-            title="Bring your next brief"
-            line="Open Water Agent in workspace with the brief for your next prop or character."
-            primary={{ label: "Open Water Agent", href: "/workspace" }}
-            secondary={{ label: "Read the docs", href: "/docs#water" }}
-          />
         </div>
       </article>
       <Footer />
