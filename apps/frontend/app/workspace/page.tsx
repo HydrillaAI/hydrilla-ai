@@ -153,12 +153,12 @@ import {
 } from "../../lib/browserNotifications";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app";
-const WATER_POLL_INTERVAL_MS = 3_000;
+const WATER_POLL_INTERVAL_MS = 4_000;
 // The backend expires a Water job 90 s after its last write (60 s function limit plus
 // grace), so a dead run reports FAIL well before this client-side cap.
 const WATER_POLL_MAX_MS = 3 * 60 * 1000;
 // Same on-screen progress speed as before at the longer interval.
-const WATER_PROGRESS_PER_POLL = 2.25;
+const WATER_PROGRESS_PER_POLL = 3;
 // Library refresh for jobs started in another tab or device.
 const LIBRARY_POLL_INTERVAL_MS = 10_000;
 // GPU 3D jobs take minutes, so a status check every few seconds is plenty.
