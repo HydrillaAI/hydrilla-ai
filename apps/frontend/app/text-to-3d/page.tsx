@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleMediaGrid } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { cloudinaryImage } from "@/lib/cloudinary";
 
 export const metadata = createPageMetadata({
   title: "Text to 3D: Generate a 3D Model from a Prompt | Hydrilla AI",
@@ -54,20 +55,20 @@ export default function TextTo3DPage() {
             ratio="4 / 5"
             items={[
               {
-                src: "/workflow/describe.png",
+                src: cloudinaryImage("hydrilla-landing/workflow/describe"),
                 alt: "The 3D character generator panel with a typed prompt for a greyhound explorer in a long coat.",
                 label: <><strong>1</strong>Prompt</>,
                 fit: "contain",
                 tone: "white",
               },
               {
-                src: "/workflow/refine.png",
+                src: cloudinaryImage("hydrilla-landing/workflow/refine"),
                 alt: "The reference image rendered from the prompt: a greyhound character in a long coat and scarf.",
                 label: <><strong>2</strong>Reference image</>,
                 tone: "white",
               },
               {
-                src: "/workflow/generated-model2.png",
+                src: cloudinaryImage("hydrilla-landing/workflow/generated-model2"),
                 alt: "The finished 3D model of the character, shown untextured and textured side by side.",
                 label: <><strong>3</strong>3D model</>,
                 tone: "white",

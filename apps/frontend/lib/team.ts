@@ -1,3 +1,5 @@
+import { cloudinaryImage } from "@/lib/cloudinary";
+
 export type TeamMember = {
   id: string;
   name: string;
@@ -11,7 +13,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     id: "1",
     name: "Tharak Nagaveti",
     role: "Co-Founder",
-    image: "/Tharakhydrilla1.png",
+    image: cloudinaryImage("hydrilla-landing/team/tharakhydrilla1"),
     connect: "https://www.linkedin.com/in/tharak-nagaveti-8a5270187/",
   },
   {

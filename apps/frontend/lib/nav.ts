@@ -1,3 +1,5 @@
+import { cloudinaryImage } from "@/lib/cloudinary";
+
 export type NavIconName =
   | "text"
   | "image"
@@ -87,7 +89,7 @@ export const NAV_PRIMARY: NavGroup[] = [
       title: "Meet BlueFox, the model behind Hydrilla",
       href: "/bluefox",
       visual: "lab",
-      image: "/new-features/3df1.png",
+      image: cloudinaryImage("hydrilla-landing/features/3df1"),
       imageAlt: "A generated fantasy helmet next to its text prompt and reference image",
     },
   },
@@ -150,7 +152,7 @@ export const NAV_PRIMARY: NavGroup[] = [
       title: "How to choose an AI 3D generator",
       href: "/compare/how-to-choose",
       visual: "docs",
-      image: "/features/3d1.png",
+      image: cloudinaryImage("hydrilla-landing/features/3d1"),
       imageAlt: "A text prompt and an uploaded image turned into a 3D house model",
     },
   },
@@ -180,7 +182,7 @@ export const NAV_PRIMARY: NavGroup[] = [
       title: "The research behind Hydrilla",
       href: "/research",
       visual: "lab",
-      image: "/workflow/generated-model1.png",
+      image: cloudinaryImage("hydrilla-landing/workflow/generated-model1"),
       imageAlt: "A character shown as a wireframe beside its finished 3D model",
     },
   },

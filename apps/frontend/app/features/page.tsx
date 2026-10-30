@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleHeroVideo, PickleMedia, PickleMediaGrid } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { cloudinaryImage } from "@/lib/cloudinary";
 
 export const metadata = createPageMetadata({
   title: "AI 3D Workspace for Studios and Artists | Hydrilla AI",
@@ -78,14 +79,14 @@ export default function FeaturesPage() {
               ratio="4 / 3"
               items={[
                 {
-                  src: "/workflow/describe.png",
+                  src: cloudinaryImage("hydrilla-landing/workflow/describe"),
                   alt: "The 3D character generator panel in Hydrilla Studio with a typed prompt.",
                   label: <><strong>Prompt</strong>Text to 3D</>,
                   fit: "contain",
                   tone: "white",
                 },
                 {
-                  src: "/new-features/3df1.png",
+                  src: cloudinaryImage("hydrilla-landing/features/3df1"),
                   alt: "A prompt and a reference photo of a fantasy helmet next to the generated 3D helmet.",
                   label: <><strong>Image</strong>Image to 3D</>,
                 },
@@ -107,7 +108,7 @@ export default function FeaturesPage() {
             {/* TODO(kit): visual – replace with the preview capture with parts highlighted */}
             <PickleMedia
               ratio="4 / 3"
-              src="/new-features/3df3.png"
+              src={cloudinaryImage("hydrilla-landing/features/3df3")}
               alt="A generated helmet split into labeled parts, with the part list shown beside it."
             />
           </section>
@@ -125,7 +126,7 @@ export default function FeaturesPage() {
 
             <PickleMedia
               ratio="3 / 2"
-              src="/features/3d7.png"
+              src={cloudinaryImage("hydrilla-landing/features/3d7")}
               alt="A generated model surrounded by GLB, FBX, OBJ, and USDZ export file icons."
             />
 

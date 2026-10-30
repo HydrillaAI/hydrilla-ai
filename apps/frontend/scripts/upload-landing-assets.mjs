@@ -27,23 +27,8 @@ cloudinary.config({
 });
 
 const assets = [
-  ["public/workflow/describe.png", "hydrilla-landing/workflow/describe"],
-  ["public/workflow/generated-model1.png", "hydrilla-landing/workflow/generated-model1"],
-  ["public/workflow/generated-model2.png", "hydrilla-landing/workflow/generated-model2"],
-  ["public/workflow/refine.png", "hydrilla-landing/workflow/refine"],
   ["public/workflow/image.png", "hydrilla-landing/workflow/workspace"],
   ["public/workflow/worflow-image-mobile.png", "hydrilla-landing/workflow/workflow-mobile"],
-  ["public/features/3d1.png", "hydrilla-landing/features/3d1"],
-  ["public/features/3d2.png", "hydrilla-landing/features/3d2"],
-  ["public/features/3d7.png", "hydrilla-landing/features/3d7"],
-  ["public/new-features/3df1.png", "hydrilla-landing/features/3df1"],
-  ["public/new-features/3df2.png", "hydrilla-landing/features/3df2"],
-  ["public/new-features/3df3.png", "hydrilla-landing/features/3df3"],
-  ["public/industrypower/dino.png", "hydrilla-landing/industrypower/dino"],
-  ["public/industrypower/films&a.png", "hydrilla-landing/industrypower/films-a"],
-  ["public/industrypower/architecture.png", "hydrilla-landing/industrypower/architecture"],
-  ["public/industrypower/arvr1.png", "hydrilla-landing/industrypower/arvr1"],
-  ["public/industrypower/lampprop.png", "hydrilla-landing/industrypower/lampprop"],
   ["public/herohydrillasrc.jpg", "hydrilla-landing/hero/poster"],
   ["public/usecase/games.jpg", "hydrilla-landing/usecase/games"],
   ["public/usecase/archi.jpg", "hydrilla-landing/usecase/archi"],

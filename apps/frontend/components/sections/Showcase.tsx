@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SignInButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { BlurReveal } from "@/components/ui/BlurReveal";
-import { BLUEFOX_SHOWCASE } from "@/lib/cloudinary";
+import { BLUEFOX_SHOWCASE, cloudinaryImage, cloudinaryVideo } from "@/lib/cloudinary";
 import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
 
 interface ShowcaseItem {
@@ -41,7 +41,7 @@ const showcaseItems: ShowcaseItem[] = [
     id: "hunyuan-2.1",
     name: "Hunyuan3D-2.1",
     description: "High-quality 3D model generation with advanced texture mapping",
-    video: "/hallowhydrilla.mp4",
+    video: cloudinaryVideo("hydrilla-landing/showcase/hallowhydrilla.mp4"),
     iconType: 'tencent',
   },
   {
@@ -56,7 +56,7 @@ const showcaseItems: ShowcaseItem[] = [
     id: "rodin",
     name: "Rodin",
     description: "Production-grade 3D generation with strong geometry and clean topology",
-    image: "/rodin.png",
+    image: cloudinaryImage("hydrilla-landing/showcase/rodin"),
     logoSrc: "/rodin-logo.png",
     logoAlt: "Rodin",
   },

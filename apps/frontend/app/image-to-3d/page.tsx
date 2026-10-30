@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleMediaGrid, PicklePlaceholder } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { cloudinaryImage } from "@/lib/cloudinary";
 
 export const metadata = createPageMetadata({
   title: "Image to 3D: Turn a Picture into a 3D Model | Hydrilla AI",
@@ -46,13 +47,13 @@ export default function ImageTo3DPage() {
             ratio="4 / 5"
             items={[
               {
-                src: "/workflow/refine.png",
+                src: cloudinaryImage("hydrilla-landing/workflow/refine"),
                 alt: "An uploaded picture of a greyhound character in a long coat and scarf.",
                 label: <><strong>Before</strong>Your picture</>,
                 tone: "white",
               },
               {
-                src: "/workflow/generated-model2.png",
+                src: cloudinaryImage("hydrilla-landing/workflow/generated-model2"),
                 alt: "The 3D model built from that picture, shown untextured and textured.",
                 label: <><strong>After</strong>Segmented 3D model</>,
                 tone: "white",
