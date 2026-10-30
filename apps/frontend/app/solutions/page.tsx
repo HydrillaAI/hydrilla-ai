@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleLinkCards, type PickleLinkItem } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { cloudinaryImage } from "@/lib/cloudinary";
 
 const DESCRIPTION =
   "How teams use Hydrilla and BlueFox for game assets, film previs, architectural visualization, XR, and product visualization.";
@@ -20,7 +21,7 @@ const CARDS = [
   {
     title: "Game development",
     href: "/solutions/games",
-    imageSrc: "/industrypower/dino.png",
+    imageSrc: cloudinaryImage("hydrilla-landing/industrypower/dino"),
     imageAlt: "Pencil sketch of a winged dragon.",
     imageFit: "contain",
     imageTone: "dark",
@@ -29,7 +30,7 @@ const CARDS = [
   {
     title: "Film and animation",
     href: "/solutions/film",
-    imageSrc: "/industrypower/films&a.png",
+    imageSrc: cloudinaryImage("hydrilla-landing/industrypower/films-a"),
     imageAlt: "Pencil sketch of a film crew filming with a camera on a dolly.",
     imageFit: "contain",
     imageTone: "dark",
@@ -38,7 +39,7 @@ const CARDS = [
   {
     title: "Architecture and interiors",
     href: "/solutions/architecture",
-    imageSrc: "/industrypower/architecture.png",
+    imageSrc: cloudinaryImage("hydrilla-landing/industrypower/architecture"),
     imageAlt: "Pencil sketch of a two-story house with a front porch.",
     imageFit: "contain",
     imageTone: "dark",
@@ -47,7 +48,7 @@ const CARDS = [
   {
     title: "AR, VR, and XR",
     href: "/solutions/xr",
-    imageSrc: "/industrypower/arvr1.png",
+    imageSrc: cloudinaryImage("hydrilla-landing/industrypower/arvr1"),
     imageAlt: "Pencil sketch of a low-poly farm scene floating under a geodesic sphere.",
     imageFit: "contain",
     imageTone: "dark",
@@ -56,7 +57,7 @@ const CARDS = [
   {
     title: "Product visualization",
     href: "/solutions/product",
-    imageSrc: "/industrypower/lampprop.png",
+    imageSrc: cloudinaryImage("hydrilla-landing/industrypower/lampprop"),
     imageAlt: "Pencil sketch of an adjustable desk lamp.",
     imageFit: "contain",
     imageTone: "dark",

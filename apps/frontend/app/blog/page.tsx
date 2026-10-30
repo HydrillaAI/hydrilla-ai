@@ -2,6 +2,7 @@ import { getKitJsonLd } from "@/lib/kit-schema";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { PickleResearchPage } from "@/components/layout/PicklePage";
 import { createPageMetadata } from "@/lib/seo";
+import { cloudinaryImage } from "@/lib/cloudinary";
 
 export const metadata = createPageMetadata({
   title: "Hydrilla Blog: Guides for AI 3D Workflows | Hydrilla AI",
@@ -16,14 +17,14 @@ const POSTS = [
   {
     title: "How do you import an AI-generated mesh into a game engine?",
     href: "/blog/import-ai-meshes",
-    imageSrc: "/features/3d7.png",
+    imageSrc: cloudinaryImage("hydrilla-landing/features/3d7"),
     line: "Units, up axis, and material checks for Unity, Unreal, and Godot, with a short checklist.",
     date: "24 Oct 2026",
   },
   {
     title: "What makes a good reference image for image to 3D?",
     href: "/blog/reference-images",
-    imageSrc: "/new-features/3df1.png",
+    imageSrc: cloudinaryImage("hydrilla-landing/features/3df1"),
     line: "Framing, light, and hidden sides, plus what to check before you upload a photo.",
     date: "24 Oct 2026",
   },

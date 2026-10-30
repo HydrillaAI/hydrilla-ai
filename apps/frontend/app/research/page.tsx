@@ -3,6 +3,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
 import { PickleActions, PickleMediaGrid } from "@/components/layout/PicklePage";
+import { cloudinaryImage } from "@/lib/cloudinary";
 
 export default function ResearchPage() {
   return (
@@ -40,12 +41,12 @@ export default function ResearchPage() {
               ratio="4 / 3"
               items={[
                 {
-                  src: "/new-features/3df3.png",
+                  src: cloudinaryImage("hydrilla-landing/features/3df3"),
                   alt: "A generated helmet separated into shell, visor, straps, horns, crystal, and padding.",
                   label: <><strong>Parts</strong>Meshes split into usable parts</>,
                 },
                 {
-                  src: "/new-features/3df2.png",
+                  src: cloudinaryImage("hydrilla-landing/features/3df2"),
                   alt: "Base color, roughness, metalness, and normal maps beside the textured helmet.",
                   label: <><strong>Materials</strong>Physically based maps</>,
                 },

@@ -3,6 +3,7 @@ import Link from "next/link";
 import Footer from "@/components/layout/Footer";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { PickleActions, type PickleCardItem, PickleCards, PickleCta, PickleHeroVideo, PickleMediaGrid } from "@/components/layout/PicklePage";
+import { cloudinaryImage } from "@/lib/cloudinary";
 
 
 const ADVANTAGE_CARDS = [
@@ -96,12 +97,12 @@ export default function BlueFoxPage() {
               ratio="4 / 3"
               items={[
                 {
-                  src: "/features/3d2.png",
+                  src: cloudinaryImage("hydrilla-landing/features/3d2"),
                   alt: "A generated house separated into roof, floors, walls, and deck, with a segmentation list beside it.",
                   label: <><strong>Parts</strong>Segmented mesh</>,
                 },
                 {
-                  src: "/new-features/3df2.png",
+                  src: cloudinaryImage("hydrilla-landing/features/3df2"),
                   alt: "Base color, roughness, metalness, and normal maps laid out beside the textured helmet.",
                   label: <><strong>Maps</strong>PBR textures</>,
                 },
