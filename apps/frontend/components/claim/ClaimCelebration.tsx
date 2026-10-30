@@ -46,10 +46,23 @@ export function ClaimCelebration({ active }: Props) {
     if (startedRef.current) return;
     startedRef.current = true;
 
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      return () => {
+        startedRef.current = false;
+      };
+    }
+
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      startedRef.current = false;
+      return;
+    }
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      startedRef.current = false;
+      return;
+    }
 
     let raf = 0;
     let running = true;
@@ -169,6 +182,7 @@ export function ClaimCelebration({ active }: Props) {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
       ctx.clearRect(0, 0, w(), h());
+      startedRef.current = false;
     };
   }, [active]);
 

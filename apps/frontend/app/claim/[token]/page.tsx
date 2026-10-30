@@ -47,7 +47,7 @@ function StatusIcon({
   } as const;
   return (
     <div
-      className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${tones[tone]}`}
+      className={`flex h-14 w-14 items-center justify-center rounded-full ${tones[tone]}`}
       aria-hidden
     >
       {children}
