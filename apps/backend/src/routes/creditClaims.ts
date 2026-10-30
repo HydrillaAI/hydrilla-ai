@@ -351,7 +351,6 @@ publicCreditClaimsRouter.get("/:token", optionalAuth, async (req: Request, res: 
           return res.json({
             ...base,
             status: "email_mismatch",
-            allowedEmail: link.allowed_email,
             userEmail: userDetails.email,
           });
         }
