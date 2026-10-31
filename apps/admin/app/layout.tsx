@@ -1,3 +1,4 @@
+// Touch this app so its Vercel project builds.
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
