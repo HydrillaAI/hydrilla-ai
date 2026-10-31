@@ -44,8 +44,9 @@ cronRouter.get("/expire-credits", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/cron/gpu-auto-stop — every minute. Stops a GPU VM whose admin timer
- * has passed, including when nobody has the admin site open.
+ * GET /api/cron/gpu-auto-stop — called every minute by Cloud Scheduler, not by
+ * Vercel Cron. Stops a GPU VM whose admin timer has passed, including when
+ * nobody has the admin site open.
  */
 cronRouter.get("/gpu-auto-stop", async (req: Request, res: Response) => {
   if (!authorized(req)) {

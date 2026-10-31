@@ -22,10 +22,6 @@
     {
       "path": "/api/cron/expire-credits",
       "schedule": "5 0 * * *"
-    },
-    {
-      "path": "/api/cron/gpu-auto-stop",
-      "schedule": "* * * * *"
     }
   ]
 }
