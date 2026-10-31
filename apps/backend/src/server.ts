@@ -1,4 +1,4 @@
-// Touch this app so its Vercel project rebuilds with the new env.
+// Touch this app so its Vercel project rebuilds and loads env changes.
 import express from "express";
 import cors from "cors";
 import path from "path";
