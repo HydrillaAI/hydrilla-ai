@@ -1641,7 +1641,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
     
     // Include queue info + live GPU progress for accurate UI updates
     const response_data: Record<string, unknown> = {
-      job,
+      job: compactJobStatus(job),
       creditsRefunded: job.status === "FAIL" || apiJob.status === "cancelled",
     };
     const queue = buildQueueInfoFromApiJob(apiJob as Record<string, unknown>);
