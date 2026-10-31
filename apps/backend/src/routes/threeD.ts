@@ -3084,9 +3084,30 @@ const handleFileUpload = async (req: any, res: any) => {
 };
 
 /**
+ * Browser PUT presign client. The shared S3 client (SDK 3.729+) adds a CRC32
+ * checksum to every PutObject. A browser cannot send that checksum, so S3
+ * rejects the upload. This client signs a checksum only when S3 requires one.
+ */
+const directUploadPresignState: { client: S3Client | null } = { client: null };
+
+function directUploadPresignClient(): S3Client {
+  if (directUploadPresignState.client) {
+    return directUploadPresignState.client;
+  }
+  const client = new S3Client({
+    region: config.s3.region,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
+  directUploadPresignState.client = client;
+  return client;
+}
+
+/**
  * Creates a short-lived S3 PUT URL so browsers can upload files without routing
  * the file bytes through the API function. This keeps large uploads out of
  * Vercel Fast Origin Transfer while preserving the existing authenticated API.
+ * ContentLength is part of the signature, so S3 rejects a body of any other size.
  */
 threeDRouter.post("/upload-url", requireAuth, async (req, res) => {
   const filename = typeof req.body?.filename === "string" ? path.basename(req.body.filename) : "";
@@ -3109,6 +3130,7 @@ threeDRouter.post("/upload-url", requireAuth, async (req, res) => {
       Bucket: config.s3.bucket,
       Key: key,
       ContentType: contentType,
+      ContentLength: size,
     };
     const acl = process.env.S3_PUT_ACL?.trim();
     const uploadHeaders: Record<string, string> = { "Content-Type": contentType };
@@ -3117,7 +3139,7 @@ threeDRouter.post("/upload-url", requireAuth, async (req, res) => {
       uploadHeaders["x-amz-acl"] = acl;
     }
 
-    const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand(putInput), {
+    const uploadUrl = await getSignedUrl(directUploadPresignClient(), new PutObjectCommand(putInput), {
       expiresIn: Math.min(config.s3.presignedUrlExpiry, 15 * 60),
     });
     return res.json({ uploadUrl, url: publicUrlForS3Key(key), uploadHeaders });
