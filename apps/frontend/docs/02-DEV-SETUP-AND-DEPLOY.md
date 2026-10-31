@@ -50,6 +50,28 @@ These are names only; the values live in Vercel project settings and local `.env
 
 **Docs** (`apps/docs`): `HYDRILA_API_BASE` (spelled with one L in the code), `STATUS_URL`, `NEXT_PUBLIC_STATUS_URL`, `NEXT_PUBLIC_GITHUB_URL`
 
+### S3 browser uploads
+
+The frontend uploads images and 3D models directly to S3 using a short-lived URL
+issued by `POST /api/3d/upload-url`. This avoids routing the file bytes through
+the backend host. Configure the S3 bucket CORS policy to allow the production
+site and local development origins to `PUT` objects with `Content-Type`:
+
+```json
+[
+  {
+    "AllowedHeaders": ["Content-Type", "x-amz-acl"],
+    "AllowedMethods": ["PUT"],
+    "AllowedOrigins": ["https://hydrilla.ai", "https://www.hydrilla.ai", "http://localhost:3000"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Add `https://admin.hydrilla.ai` if admins upload files directly. Keep the
+existing IAM permission for `s3:PutObject` on the configured uploads prefix.
+
 ## Deploys (Vercel)
 
 Each app is its own Vercel project with its own `vercel.json`.

@@ -69,6 +69,7 @@ export async function verifyProviderKey(
 
 type CacheEntry = { at: number; models: ListedModel[] };
 const listCache = new Map<string, CacheEntry>();
+const listInflight = new Map<string, Promise<ListedModel[]>>();
 const LIST_TTL_MS = 5 * 60 * 1000;
 
 export async function listModelsCached(
@@ -78,10 +79,25 @@ export async function listModelsCached(
 ): Promise<ListedModel[]> {
   const cacheKey = `${provider}:${last4 || apiKey.slice(-8)}`;
   const cached = listCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < LIST_TTL_MS) return cached.models;
-  const models = await REGISTRY[provider].listModels(apiKey);
-  listCache.set(cacheKey, { at: Date.now(), models });
-  return models;
+  if (cached && Date.now() - cached.at < LIST_TTL_MS) {
+    return cached.models;
+  }
+  const pending = listInflight.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+  const request = REGISTRY[provider].listModels(apiKey).then((models) => {
+    listCache.set(cacheKey, { at: Date.now(), models });
+    listInflight.delete(cacheKey);
+    return models;
+  });
+  listInflight.set(cacheKey, request);
+  try {
+    return await request;
+  } catch (err) {
+    listInflight.delete(cacheKey);
+    throw err;
+  }
 }
 
 export function requireProviderParam(value: string): ApiKeyProvider | null {

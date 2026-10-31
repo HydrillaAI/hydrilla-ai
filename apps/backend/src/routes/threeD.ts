@@ -1,5 +1,5 @@
 import { Router, type Request as ExpressRequest, type Response as ExpressResponse } from "express";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -10,7 +10,7 @@ import { logger } from "../logger.js";
 import { config, timingSafeEqualString } from "../config.js";
 import { supabase } from "../db.js";
 import { isJobPubliclyPosted } from "../repository/community.js";
-import { createJob, getJob, listJobsForUser, updateJobResult, updateJobStatus, deleteJob, getJobForUser, getJobLineage, upsertJobParents, getJobParentIds } from "../repository/jobs.js";
+import { createJob, getJob, getJobMeshAccess, listJobsForUser, updateJobResult, updateJobStatus, deleteJob, getJobForUser, getJobLineage, upsertJobParents, getJobParentIds } from "../repository/jobs.js";
 import { createChat, getChatForUser, listChatsForUser, updateChatName, updateChatUpdatedAt, deleteChat, getOrCreateActiveChat } from "../repository/chats.js";
 import { createWorkspace, getWorkspace, getWorkspaceForUser, listWorkspacesForUser, listJobsForWorkspace, updateWorkspaceName, updateWorkspaceUpdatedAt, deleteWorkspace } from "../repository/workspaces.js";
 import { optionalAuth, requireAuth, syncUserToDatabase } from "../middleware/auth.js";
@@ -47,6 +47,11 @@ import {
 import { JobStatus, JobRecord, ChatRecord, WorkspaceRecord, GenerateType } from "../types.js";
 
 export const threeDRouter = Router();
+
+function ifNoneMatchIncludes(header: string | string[] | undefined, etag: string): boolean {
+  const raw = Array.isArray(header) ? header.join(",") : header || "";
+  return raw.split(",").some((part) => part.trim() === etag);
+}
 
 function compactVisualEvidence(spec: unknown): {
   gatePassed?: boolean;
@@ -215,6 +220,24 @@ const upload = multer({
     }
   },
 });
+
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+const DIRECT_UPLOAD_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".glb", ".gltf", ".obj"]);
+
+function directUploadContentType(filename: string, requestedType: unknown): string | null {
+  const ext = path.extname(filename).toLowerCase();
+  if (!DIRECT_UPLOAD_EXTENSIONS.has(ext)) return null;
+
+  const type = typeof requestedType === "string" ? requestedType.trim().toLowerCase() : "";
+  if (ext === ".glb") return "model/gltf-binary";
+  if (ext === ".gltf") return "model/gltf+json";
+  if (ext === ".obj") return "model/obj";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  return type.startsWith("image/") ? type : null;
+}
 
 /**
  * Read uploaded file bytes regardless of multer storage backend.
@@ -432,22 +455,41 @@ async function getFirstExistingS3Object(keys: string[]) {
   throw lastErr || new Error("S3 object not found");
 }
 
-/** Like getFirstExistingS3Object, but checks with HEAD so no object bytes are downloaded. */
-async function findFirstExistingS3Key(keys: string[]): Promise<string | null> {
-  if (!s3Client) throw new Error("S3 client is not initialized");
-  for (const key of keys) {
-    try {
-      await s3Client.send(new HeadObjectCommand({ Bucket: config.s3.bucket, Key: key }));
-      return key;
-    } catch (err: any) {
-      const code = err?.Code || err?.name || err?.$metadata?.httpStatusCode;
-      if (code === "NoSuchKey" || code === "NotFound" || code === 404) {
-        continue;
-      }
-      throw err;
-    }
+async function s3KeyExists(key: string): Promise<boolean> {
+  if (!s3Client) {
+    throw new Error("S3 client is not initialized");
   }
-  return null;
+  try {
+    await s3Client.send(new HeadObjectCommand({ Bucket: config.s3.bucket, Key: key }));
+    return true;
+  } catch (err: any) {
+    const code = err?.Code || err?.name || err?.$metadata?.httpStatusCode;
+    if (code === "NoSuchKey" || code === "NotFound" || code === 404) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+/**
+ * HEAD so no object bytes are downloaded. The preferred key is checked first.
+ * Fallbacks run together only when that key is missing, so a hit stays one round trip.
+ */
+async function findFirstExistingS3Key(keys: string[]): Promise<string | null> {
+  const [preferred, ...fallbacks] = keys;
+  if (!preferred) {
+    return null;
+  }
+  if (await s3KeyExists(preferred)) {
+    return preferred;
+  }
+  if (fallbacks.length === 0) {
+    return null;
+  }
+  const found = await Promise.all(
+    fallbacks.map(async (key) => ((await s3KeyExists(key)) ? key : ""))
+  );
+  return found.find((key) => key.length > 0) ?? null;
 }
 
 /**
@@ -1349,6 +1391,27 @@ threeDRouter.post("/edit-image", requireAuth, uploadFlexible, async (req, res) =
 // ============================================
 // Get Job Status (optional auth for viewing)
 // ============================================
+/** Status polls return URLs and job fields. Factory code, sculpt spec, and data URLs stay out. */
+function assetUrlForClient(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+  if (url.startsWith("data:") || url.startsWith("blob:")) {
+    return null;
+  }
+  return unwrapImageProxyUrl(url) || url;
+}
+
+function compactJobStatus(job: JobRecord): JobRecord {
+  return {
+    ...job,
+    imageUrl: assetUrlForClient(job.imageUrl),
+    previewImageUrl: assetUrlForClient(job.previewImageUrl),
+    factoryCode: null,
+    sculptSpec: null,
+  };
+}
+
 threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   const { jobId } = req.params;
@@ -1401,7 +1464,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
         job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
       }
       
-      return res.json({ job, creditsRefunded: job.status === "FAIL" });
+      return res.json({ job: compactJobStatus(job), creditsRefunded: job.status === "FAIL" });
     }
 
     // 20-minute timeout cap (allows 15+ min high-poly generations)
@@ -1447,7 +1510,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.status = "FAIL";
           job.errorMessage = timeoutMessage;
           job.creditsUsed = 0;
-          return res.json({ job, creditsRefunded: true });
+          return res.json({ job: compactJobStatus(job), creditsRefunded: true });
         }
 
         // Normalize URLs to ensure they're direct S3 URLs (not expired signed URLs)
@@ -1458,7 +1521,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
         }
         
-        return res.json({ job });
+        return res.json({ job: compactJobStatus(job) });
       }
     } catch (apiErr: any) {
       // External API is unreachable (timeout, network error, etc.)
@@ -1490,7 +1553,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.status = "FAIL";
           job.errorMessage = timeoutMessage;
           job.creditsUsed = 0;
-          return res.json({ job, creditsRefunded: true });
+          return res.json({ job: compactJobStatus(job), creditsRefunded: true });
         }
         
         // Normalize URLs to ensure they're direct S3 URLs (not expired signed URLs)
@@ -1501,7 +1564,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
         }
         
-        return res.json({ job, creditsRefunded: job.status === "FAIL" });
+        return res.json({ job: compactJobStatus(job), creditsRefunded: job.status === "FAIL" });
       }
       
       // If no job in DB and API is unreachable, return error
@@ -1524,7 +1587,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
         }
         
-        return res.json({ job });
+        return res.json({ job: compactJobStatus(job) });
       }
       return res.status(404).json({ error: "Job not found" });
     }
@@ -1602,7 +1665,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
     
     // Include queue info + live GPU progress for accurate UI updates
     const response_data: Record<string, unknown> = {
-      job,
+      job: compactJobStatus(job),
       creditsRefunded: job.status === "FAIL" || apiJob.status === "cancelled",
     };
     const queue = buildQueueInfoFromApiJob(apiJob as Record<string, unknown>);
@@ -1735,7 +1798,7 @@ threeDRouter.get("/result/:jobId", requireAuth, async (req, res) => {
       if (job.previewImageUrl) {
         job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
       }
-      return res.json({ job });
+      return res.json({ job: compactJobStatus(job) });
     }
 
     // Fetch from API for latest result
@@ -1780,7 +1843,7 @@ threeDRouter.get("/result/:jobId", requireAuth, async (req, res) => {
       job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
     }
 
-    res.json({ job });
+    res.json({ job: compactJobStatus(job) });
   } catch (err: any) {
     res.status(500).json({ error: gatewayErrorToUserMessage(err) });
   }
@@ -1870,8 +1933,51 @@ type GpuFeatures = {
   edit_image: boolean;
 };
 
+type GpuProbe = Awaited<ReturnType<typeof probeGpuVm>>;
+
+/** Page loads ask health more than once. Reuse a fresh probe; job submit still probes live. */
+const GPU_HEALTH_TTL_MS = 15_000;
+const gpuHealthCache: { at: number; value: GpuProbe | null; pending: Promise<GpuProbe> | null } = {
+  at: 0,
+  value: null,
+  pending: null,
+};
+
+function freshGpuHealth(): GpuProbe | null {
+  if (!gpuHealthCache.value) {
+    return null;
+  }
+  if (Date.now() - gpuHealthCache.at >= GPU_HEALTH_TTL_MS) {
+    return null;
+  }
+  return gpuHealthCache.value;
+}
+
+function probeGpuForHealth(): Promise<GpuProbe> {
+  const fresh = freshGpuHealth();
+  if (fresh) {
+    return Promise.resolve(fresh);
+  }
+  if (gpuHealthCache.pending) {
+    return gpuHealthCache.pending;
+  }
+  const pending = probeGpuVm()
+    .then((value) => {
+      gpuHealthCache.at = Date.now();
+      gpuHealthCache.value = value;
+      gpuHealthCache.pending = null;
+      return value;
+    })
+    .catch((err) => {
+      gpuHealthCache.pending = null;
+      throw err;
+    });
+  gpuHealthCache.pending = pending;
+  return pending;
+}
+
 threeDRouter.get("/health", async (_req, res) => {
-  const [providers, gpu] = await Promise.all([imageProviderAvailability(), probeGpuVm()]);
+  const [providers, gpu] = await Promise.all([imageProviderAvailability(), probeGpuForHealth()]);
   const imageAvailable = providers.openai || providers.gemini;
   const features: GpuFeatures = {
     text_to_image: imageAvailable,
@@ -1940,14 +2046,11 @@ function signGlbKey(key: string): Promise<string> {
 }
 
 /**
- * Sends a request without a Bearer token straight to S3 with a signed URL, so the mesh
- * bytes skip this function (billed as Fast Origin Transfer). Requests with a token keep
- * the stream: a browser may forward Authorization across the redirect, and S3 rejects a
- * signed URL that also carries one. Returns false when nothing was sent and the caller
- * should stream instead.
+ * Redirects the browser to a signed S3 URL so the mesh bytes skip this function.
+ * Returns false when the object is not in the bucket.
  */
-async function redirectGlbToS3(req: ExpressRequest, res: ExpressResponse, keys: string[]): Promise<boolean> {
-  if (req.headers.authorization || !s3Enabled || !s3Client) {
+async function redirectGlbToS3(_req: ExpressRequest, res: ExpressResponse, keys: string[]): Promise<boolean> {
+  if (!s3Enabled || !s3Client) {
     return false;
   }
   try {
@@ -1982,7 +2085,7 @@ threeDRouter.get("/glb/:jobId/signed-url", optionalAuth, async (req, res) => {
   }
 
   try {
-    const job = await getJob(jobId);
+    const job = await getJobMeshAccess(jobId);
     if (job && !(await canServeJobGlb(job, jobId, userId, res))) {
       return;
     }
@@ -2012,8 +2115,8 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
   const userId = req.userId;
 
   try {
-    // Get job to verify ownership and get GLB URL
-    const job = await getJob(jobId);
+    // Ownership and the mesh key only. The full row includes factory code.
+    const job = await getJobMeshAccess(jobId);
     if (!job) {
       // Fallback: check S3 directly for this jobId if DB row is missing
       if (s3Enabled && s3Client) {
@@ -2023,25 +2126,6 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
         ];
         if (await redirectGlbToS3(req, res, candidateKeys)) {
           return;
-        }
-        try {
-          const { key: _resolvedKey, out: s3Response } = await getFirstExistingS3Object(candidateKeys);
-          const contentLength = s3Response.ContentLength || 0;
-          res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-          res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-          res.setHeader("Content-Type", "model/gltf-binary");
-          res.setHeader("Content-Disposition", 'inline; filename="mesh.glb"');
-          res.setHeader("Cache-Control", "public, max-age=3600");
-          if (contentLength > 0) {
-            res.setHeader("Content-Length", contentLength.toString());
-          }
-          if (s3Response.Body) {
-            const stream = s3Response.Body as Readable;
-            stream.pipe(res);
-            return;
-          }
-        } catch {
-          // continue to 404
         }
       }
       return res.status(404).json({ error: "Job not found" });
@@ -2065,148 +2149,32 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
       if (await redirectGlbToS3(req, res, glbKeyCandidates(glbS3Key))) {
         return;
       }
-      try {
-        const { key: resolvedKey, out: s3Response } = await getFirstExistingS3Object(glbKeyCandidates(glbS3Key));
-          
-        // Get content length for progress tracking
-        const contentLength = s3Response.ContentLength || s3Response.ContentLength || 0;
-          
-        // Set CORS and cache headers (browser can cache GLB for 1 hour)
-        res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-        res.setHeader("Content-Type", "model/gltf-binary");
-        res.setHeader("Content-Disposition", `inline; filename="mesh.glb"`);
-        res.setHeader("Cache-Control", "public, max-age=3600");
-        if (contentLength > 0) {
-          res.setHeader("Content-Length", contentLength.toString());
-        }
-          
-        // Pipe S3 stream directly to response (no buffering = faster first byte)
-        if (s3Response.Body) {
-          const stream = s3Response.Body as Readable;
-          stream.on("error", (err: Error) => {
-            logger.error({ jobId, s3Key: resolvedKey, err: err.message }, "Error streaming from S3");
-            if (!res.headersSent) res.status(500).json({ error: "Failed to stream GLB file" });
-          });
-          stream.pipe(res);
-          return;
-        }
-      } catch (s3Err: any) {
-        logger.warn({ jobId, err: s3Err.message }, "Failed to fetch from S3, trying direct URL");
-      }
     }
 
-    // Fallback: proxy through backend by streaming the URL (no buffering = faster first byte)
-    try {
-      const response = await fetch(glbUrl);
-      if (!response.ok) {
-        return res.status(response.status).json({ error: "Failed to fetch GLB file" });
-      }
-
-      const contentLength = response.headers.get("content-length");
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-      res.setHeader("Content-Type", "model/gltf-binary");
-      res.setHeader("Content-Disposition", `inline; filename="mesh.glb"`);
-      res.setHeader("Cache-Control", "public, max-age=3600");
-      if (contentLength) res.setHeader("Content-Length", contentLength);
-
-      // Stream response body to client (Node 18+ Readable.fromWeb = faster first byte)
-      const body = response.body;
-      if (body) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fetch body is web ReadableStream; fromWeb accepts it at runtime
-        const nodeStream = Readable.fromWeb(body as any);
-        nodeStream.pipe(res);
-      } else {
-        const buffer = await response.arrayBuffer();
-        res.send(Buffer.from(buffer));
-      }
-    } catch (fetchErr: any) {
-      logger.error({ jobId, err: fetchErr.message }, "Failed to proxy GLB file");
-      res.status(500).json({ error: "Failed to load GLB file" });
+    if (glbUrl.startsWith("https://") || glbUrl.startsWith("http://")) {
+      res.setHeader("Cache-Control", "private, no-store");
+      res.redirect(302, glbUrl);
+      return;
     }
+    res.status(404).json({ error: "GLB file not found for this job" });
   } catch (err: any) {
     logger.error({ err, jobId }, "Error proxying GLB file");
     res.status(500).json({ error: err.message || "Failed to proxy GLB file" });
   }
 });
 
-// ============================================
-// Proxy image from S3 (to avoid CORS issues when the browser fetches image bytes)
-// ============================================
-// No requireAuth: <img> tags cannot send Bearer tokens. Access is limited by
-// isAllowedImageProxyUrl (Hydrilla S3 / GPU hosts only) — objects are already public.
+// Old clients still request /image-proxy. Redirect them at the object instead of
+// copying the bytes through this function. The bucket allows public GetObject.
 threeDRouter.get("/image-proxy", async (req, res) => {
-  const imageUrl = req.query.url as string;
+  const imageUrl = typeof req.query.url === "string" ? req.query.url : "";
   if (!imageUrl) {
     return res.status(400).json({ error: "url query parameter is required" });
   }
-
-  // Only allow proxying from known Hydrilla S3 buckets / GPU hosts
   if (!isAllowedImageProxyUrl(imageUrl)) {
     return res.status(403).json({ error: "URL not allowed for proxying" });
   }
-
-  try {
-    // If it's one of our current or legacy S3 URLs, fetch from the configured bucket.
-    const imageS3Key = extractOwnedS3KeyFromUrl(imageUrl);
-    if (imageS3Key && s3Enabled && s3Client) {
-      try {
-        const { key: resolvedKey, out: s3Response } = await getFirstExistingS3Object(imageKeyCandidates(imageS3Key));
-        const contentLength = s3Response.ContentLength || 0;
-        res.setHeader("Content-Type", contentTypeForImageKey(resolvedKey, s3Response.ContentType || undefined));
-        res.setHeader("Cache-Control", "public, max-age=3600");
-        // Objects are written once per job, so Vercel's CDN can serve repeat requests
-        // without running this function. Only when the requested key itself was found:
-        // a substitute candidate could be replaced once the real object is uploaded.
-        // A cached copy is shared by <img> tags and CORS fetches from any allowed origin,
-        // so it must not carry the per-origin CORS headers; the images are public and
-        // fetched without credentials, which a wildcard origin allows.
-        if (resolvedKey === imageS3Key) {
-          res.setHeader("Access-Control-Allow-Origin", "*");
-          res.removeHeader("Access-Control-Allow-Credentials");
-          res.setHeader("Vercel-CDN-Cache-Control", "max-age=86400, stale-while-revalidate=604800");
-        }
-        if (contentLength > 0) res.setHeader("Content-Length", contentLength.toString());
-
-        if (s3Response.Body) {
-          const stream = s3Response.Body as Readable;
-          stream.on("error", (err: Error) => {
-            logger.error({ s3Key: resolvedKey, err: err.message }, "Error streaming image from S3");
-            if (!res.headersSent) res.status(500).json({ error: "Failed to stream image" });
-          });
-          stream.pipe(res);
-          return;
-        }
-      } catch (s3Err: any) {
-        logger.warn({ err: s3Err.message }, "Failed to fetch image from S3, trying direct URL");
-      }
-    }
-
-    // Fallback: proxy through direct fetch
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: "Failed to fetch image" });
-    }
-
-    const contentType = response.headers.get("content-type") || "image/png";
-    const contentLength = response.headers.get("content-length");
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=3600");
-    if (contentLength) res.setHeader("Content-Length", contentLength);
-
-    const body = response.body;
-    if (body) {
-      const nodeStream = Readable.fromWeb(body as any);
-      nodeStream.pipe(res);
-    } else {
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
-    }
-  } catch (err: any) {
-    logger.error({ err: err.message }, "Error proxying image");
-    res.status(500).json({ error: err.message || "Failed to proxy image" });
-  }
+  res.setHeader("Cache-Control", "private, no-store");
+  res.redirect(302, imageUrl);
 });
 
 // ============================================
@@ -3065,6 +3033,72 @@ const handleFileUpload = async (req: any, res: any) => {
   }
 };
 
+/**
+ * Browser PUT presign client. The shared S3 client (SDK 3.729+) adds a CRC32
+ * checksum to every PutObject. A browser cannot send that checksum, so S3
+ * rejects the upload. This client signs a checksum only when S3 requires one.
+ */
+const directUploadPresignState: { client: S3Client | null } = { client: null };
+
+function directUploadPresignClient(): S3Client {
+  if (directUploadPresignState.client) {
+    return directUploadPresignState.client;
+  }
+  const client = new S3Client({
+    region: config.s3.region,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
+  directUploadPresignState.client = client;
+  return client;
+}
+
+/**
+ * Creates a short-lived S3 PUT URL so browsers can upload files without routing
+ * the file bytes through the API function. This keeps large uploads out of
+ * Vercel Fast Origin Transfer while preserving the existing authenticated API.
+ * ContentLength is part of the signature, so S3 rejects a body of any other size.
+ */
+threeDRouter.post("/upload-url", requireAuth, async (req, res) => {
+  const filename = typeof req.body?.filename === "string" ? path.basename(req.body.filename) : "";
+  const size = Number(req.body?.size);
+  const contentType = directUploadContentType(filename, req.body?.contentType);
+
+  if (!filename || !contentType) {
+    return res.status(400).json({ error: "Only images and 3D models (.glb, .gltf, .obj) are allowed." });
+  }
+  if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_UPLOAD_BYTES) {
+    return res.status(400).json({ error: "File size must be between 1 byte and 100 MB." });
+  }
+  if (!s3Enabled || !s3Client) {
+    return res.status(503).json({ error: "Direct uploads are not configured." });
+  }
+
+  try {
+    const key = `uploads/${Date.now()}-${randomUUID()}${path.extname(filename).toLowerCase()}`;
+    const putInput: PutObjectCommandInput = {
+      Bucket: config.s3.bucket,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: size,
+    };
+    const acl = process.env.S3_PUT_ACL?.trim();
+    const uploadHeaders: Record<string, string> = { "Content-Type": contentType };
+    if (acl === "public-read" || acl === "private") {
+      putInput.ACL = acl;
+      uploadHeaders["x-amz-acl"] = acl;
+    }
+
+    const uploadUrl = await getSignedUrl(directUploadPresignClient(), new PutObjectCommand(putInput), {
+      expiresIn: Math.min(config.s3.presignedUrlExpiry, 15 * 60),
+    });
+    return res.json({ uploadUrl, url: publicUrlForS3Key(key), uploadHeaders });
+  } catch (err: any) {
+    logger.error({ err, filename }, "Failed to create direct S3 upload URL");
+    return res.status(500).json({ error: "Failed to prepare direct upload." });
+  }
+});
+
 threeDRouter.post("/upload-image", requireAuth, uploadFlexible, handleFileUpload);
 threeDRouter.post("/upload-model", requireAuth, uploadFlexible, handleFileUpload);
 
@@ -3336,6 +3370,13 @@ threeDRouter.get("/workspaces/:workspaceId/jobs", requireAuth, async (req, res) 
       };
     });
 
+    const etag = `"${createHash("sha1").update(JSON.stringify(normalizedJobs)).digest("base64url")}"`;
+    res.setHeader("ETag", etag);
+    res.setHeader("Cache-Control", "private, no-cache");
+    res.setHeader("Vary", "Authorization");
+    if (ifNoneMatchIncludes(req.headers["if-none-match"], etag)) {
+      return res.status(304).end();
+    }
     res.json({ jobs: normalizedJobs });
   } catch (err: any) {
     logger.error(err, "Failed to list workspace jobs");

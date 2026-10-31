@@ -465,14 +465,6 @@ function resolveLoadableImageUrl(url: string | null | undefined): string {
   return getProxiedImageUrl(resolved) || resolved;
 }
 
-function isGatewayOutputImageUrl(url: string): boolean {
-  return (
-    url.includes("/outputs/preview/") ||
-    url.includes("/outputs/image/") ||
-    url.includes("/outputs/edit/")
-  );
-}
-
 type ImageRequestContext = {
   chatId?: string | null;
   workspaceId?: string | null;
@@ -585,9 +577,54 @@ export async function generatePreviewImage(
   };
 }
 
+async function publishImageUrl(
+  url: string,
+  getToken?: () => Promise<string | null>,
+): Promise<string> {
+  const trimmed = url.trim();
+  if (!trimmed.startsWith("data:") && !trimmed.startsWith("blob:")) {
+    return unwrapProxiedImageUrl(trimmed) || trimmed;
+  }
+  const res = await fetch(trimmed);
+  if (!res.ok) {
+    throw new Error("Could not read the image from your device. Please select the file again.");
+  }
+  const blob = await res.blob();
+  const mime = blob.type || "image/png";
+  const ext =
+    mime === "image/jpeg" || mime === "image/jpg"
+      ? ".jpg"
+      : mime === "image/webp"
+        ? ".webp"
+        : mime === "image/gif"
+          ? ".gif"
+          : ".png";
+  return uploadImage(new File([blob], `upload${ext}`, { type: mime }), getToken);
+}
+
+/** Upload local files to S3, then keep only http(s) URLs for the edit request. */
+async function imageUrlsForEdit(
+  imageFile: File | File[] | null | undefined,
+  imageUrl: string | string[] | null | undefined,
+  extra: string[] | null | undefined,
+  getToken?: () => Promise<string | null>,
+): Promise<string[]> {
+  const files = Array.isArray(imageFile) ? imageFile : imageFile ? [imageFile] : [];
+  const uploaded = await Promise.all(files.map((file) => uploadImage(file, getToken)));
+  if (uploaded.length > 0) {
+    return uploaded;
+  }
+  const linked = (Array.isArray(imageUrl) ? imageUrl : imageUrl ? [imageUrl] : [])
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0);
+  const extras = (extra ?? []).map((url) => url.trim()).filter((url) => url.length > 0);
+  const candidates = linked.length > 0 ? linked : extras;
+  return Promise.all(candidates.map((url) => publishImageUrl(url, getToken)));
+}
+
 /**
  * Edit an image with a prompt via OpenAI or Gemini (auth required; 3 credits low / 6 high).
- * Supports single image editing or multi-view 3D screenshot editing (Angle 1 through 4).
+ * Files are uploaded straight to S3 first. The API receives URLs only.
  */
 export async function editImage(
   prompt: string,
@@ -604,21 +641,20 @@ export async function editImage(
   quality: ImageQuality;
   model?: string;
 }> {
-  const formData = new FormData();
-  formData.append("prompt", prompt.trim());
-  if (Array.isArray(imageFile) && imageFile.length > 0) {
-    imageFile.forEach((file) => {
-      formData.append("images", file);
-    });
-  } else if (imageFile && !Array.isArray(imageFile)) {
-    formData.append("image", imageFile);
-  } else if (Array.isArray(imageUrl) && imageUrl.length > 0) {
-    formData.append("sourceImages", JSON.stringify(imageUrl));
-  } else if (imageUrl && typeof imageUrl === "string") {
-    formData.append("image_url", imageUrl);
-  } else {
+  const sourceImages = await imageUrlsForEdit(
+    imageFile,
+    imageUrl,
+    context?.sourceImages,
+    getToken,
+  );
+  if (sourceImages.length === 0) {
     throw new Error("Either image file(s) or image URL(s) are required");
   }
+
+  const formData = new FormData();
+  formData.append("prompt", prompt.trim());
+  formData.append("sourceImages", JSON.stringify(sourceImages));
+  formData.append("image_url", sourceImages[0]);
   formData.append("provider", options.provider);
   formData.append("quality", options.quality);
   if (context?.chatId) {
@@ -632,9 +668,6 @@ export async function editImage(
   }
   if (context?.parentJobIds && context.parentJobIds.length > 0) {
     formData.append("parentJobIds", JSON.stringify(context.parentJobIds));
-  }
-  if (context?.sourceImages && context.sourceImages.length > 0) {
-    formData.append("sourceImages", JSON.stringify(context.sourceImages));
   }
   if (context?.additionalPrompt) {
     formData.append("additionalPrompt", context.additionalPrompt);
@@ -861,16 +894,11 @@ export async function checkEarlyAccess(
   }
 }
 
-/**
- * Upload image file to backend and get URL (backend may use local uploads or S3).
- */
+/** Upload directly to S3 with an authenticated, short-lived URL from the API. */
 export async function uploadImage(
   file: File,
   getToken?: () => Promise<string | null>,
 ): Promise<string> {
-  const formData = new FormData();
-  formData.append("image", file);
-
   const headers: HeadersInit = {};
   if (getToken) {
     const token = await getToken();
@@ -879,10 +907,14 @@ export async function uploadImage(
     }
   }
 
-  const res = await fetch(`${backendBase}/api/3d/upload-image`, {
+  const res = await fetch(`${backendBase}/api/3d/upload-url`, {
     method: "POST",
-    headers,
-    body: formData,
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    }),
   });
 
   if (!res.ok) {
@@ -896,12 +928,25 @@ export async function uploadImage(
     throw new Error(errorText);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as { uploadUrl?: string; url?: string; uploadHeaders?: Record<string, string> };
+  if (!data.uploadUrl || !data.url || !data.uploadHeaders) {
+    throw new Error("The server returned an invalid direct-upload URL.");
+  }
+
+  const upload = await fetch(data.uploadUrl, {
+    method: "PUT",
+    headers: data.uploadHeaders,
+    body: file,
+  });
+  if (!upload.ok) {
+    throw new Error("Direct upload to storage failed. Please try again.");
+  }
+
   return data.url;
 }
 
 /**
- * Upload image via the Node backend (S3). Auth required.
+ * Upload image directly to S3 via an authenticated API-issued URL. Auth required.
  * Kept for callers that used the old GPU upload helper.
  */
 export async function uploadImageViaApi(
@@ -1361,9 +1406,7 @@ const GLB_PROXY_PATH = "/api/3d/glb/";
 // Signed URLs live for an hour; stop reusing them a little before that.
 const SIGNED_GLB_REUSE_MS = 50 * 60 * 1000;
 const signedGlbUrls = new Map<string, { url: string; reuseUntil: number }>();
-// Set once the browser fails to read S3 directly (e.g. the bucket has no CORS rule for
-// this origin), so later loads skip the signed-URL request and use the proxy at once.
-const directGlbState = { blocked: false };
+const signedGlbInflight = new Map<string, Promise<string | null>>();
 
 function proxiedGlbJobId(url: string): string | null {
   const index = url.indexOf(GLB_PROXY_PATH);
@@ -1372,26 +1415,6 @@ function proxiedGlbJobId(url: string): string | null {
   }
   const jobId = url.slice(index + GLB_PROXY_PATH.length).split(/[/?#]/)[0];
   return /^[A-Za-z0-9_-]+$/.test(jobId) ? jobId : null;
-}
-
-/** Bearer auth for backend URLs; blob:, data: and third-party URLs are fetched as-is. */
-async function authedGlbSource(
-  url: string,
-  getToken: () => Promise<string | null>,
-): Promise<GlbSource> {
-  const isBackendUrl =
-    !url.startsWith("blob:") &&
-    !url.startsWith("data:") &&
-    (url.startsWith(backendBase) || url.startsWith("/") || url.includes(GLB_PROXY_PATH));
-  if (!isBackendUrl) {
-    return { url, withCredentials: false };
-  }
-  const token = await getTokenOrNull(getToken);
-  return {
-    url,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    withCredentials: true,
-  };
 }
 
 async function getTokenOrNull(getToken: () => Promise<string | null>): Promise<string | null> {
@@ -1411,14 +1434,10 @@ function isCrawler(): boolean {
   return typeof navigator !== "undefined" && CRAWLER_UA.test(navigator.userAgent);
 }
 
-async function fetchSignedGlbUrl(
+async function requestSignedGlbUrl(
   jobId: string,
   getToken: () => Promise<string | null>,
 ): Promise<string | null> {
-  const cached = signedGlbUrls.get(jobId);
-  if (cached && cached.reuseUntil > Date.now()) {
-    return cached.url;
-  }
   try {
     const token = await getTokenOrNull(getToken);
     const res = await fetch(`${backendBase}${GLB_PROXY_PATH}${encodeURIComponent(jobId)}/signed-url`, {
@@ -1435,16 +1454,34 @@ async function fetchSignedGlbUrl(
     signedGlbUrls.set(jobId, { url: body.url, reuseUntil: Date.now() + SIGNED_GLB_REUSE_MS });
     return body.url;
   } catch {
-    // The proxy below still works; a missing signed URL only costs backend CPU.
     return null;
   }
 }
 
+async function fetchSignedGlbUrl(
+  jobId: string,
+  getToken: () => Promise<string | null>,
+): Promise<string | null> {
+  const cached = signedGlbUrls.get(jobId);
+  if (cached && cached.reuseUntil > Date.now()) {
+    return cached.url;
+  }
+  const pending = signedGlbInflight.get(jobId);
+  if (pending) {
+    return pending;
+  }
+  const request = requestSignedGlbUrl(jobId, getToken);
+  signedGlbInflight.set(jobId, request);
+  try {
+    return await request;
+  } finally {
+    signedGlbInflight.delete(jobId);
+  }
+}
+
 /**
- * Run `load` against the cheapest working source for a GLB. Streaming a mesh through
- * the backend proxy is billed as function CPU for every byte, so job meshes are read
- * straight from S3 with a short-lived signed URL. If no signed URL is available or the
- * direct download fails, `load` runs again against the auth-gated proxy.
+ * Load a mesh from S3. Job URLs are exchanged for a short-lived signed URL so the
+ * file bytes never pass through the API.
  */
 export async function loadGlbFromBestSource<T>(
   glbUrl: string,
@@ -1455,21 +1492,19 @@ export async function loadGlbFromBestSource<T>(
     throw new Error("3D models are not loaded for crawlers");
   }
   const targetUrl = getProxiedGlbUrl(glbUrl) || glbUrl;
-  const jobId = directGlbState.blocked ? null : proxiedGlbJobId(targetUrl);
-  const signedUrl = jobId ? await fetchSignedGlbUrl(jobId, getToken) : null;
-  if (!jobId || !signedUrl) {
-    return load(await authedGlbSource(targetUrl, getToken));
+  const jobId = proxiedGlbJobId(targetUrl);
+  if (!jobId) {
+    return load({ url: targetUrl, withCredentials: false });
+  }
+  const signedUrl = await fetchSignedGlbUrl(jobId, getToken);
+  if (!signedUrl) {
+    throw new Error("Direct download is not available");
   }
   try {
     return await load({ url: signedUrl, withCredentials: false });
   } catch (error) {
     signedGlbUrls.delete(jobId);
-    // fetch rejects with a TypeError when CORS (or the network) blocks the request;
-    // HTTP errors such as an expired signature arrive as ordinary errors.
-    if (error instanceof TypeError) {
-      directGlbState.blocked = true;
-    }
-    return load(await authedGlbSource(targetUrl, getToken));
+    throw error;
   }
 }
 
@@ -1532,9 +1567,8 @@ export function unwrapProxiedImageUrl(
 }
 
 /**
- * Proxy S3 / gateway image URLs through the backend to avoid CORS.
- * - data:/blob:/already-proxied → returned as-is
- * - Anything else → returned as-is (won't be proxied) unless S3/gateway
+ * Return a URL the browser can load itself. S3 and gateway images are not wrapped
+ * in the API proxy. Stored proxy URLs are unwrapped to the underlying object URL.
  */
 export function getProxiedImageUrl(
   url: string | null | undefined,
@@ -1546,29 +1580,14 @@ export function getProxiedImageUrl(
   if (!s) {
     return null;
   }
-
   if (s.startsWith("data:") || s.startsWith("blob:")) {
     return s;
   }
-  if (s.includes("/api/3d/image-proxy")) {
-    if (!s.includes("?url=")) {
-      return null;
-    }
-    return s;
+  const unwrapped = unwrapProxiedImageUrl(s) || s;
+  if (unwrapped.startsWith("/")) {
+    return resolveImageUrl(unwrapped);
   }
-  if (s.startsWith(backendBase)) {
-    return s;
-  }
-
-  const resolved = s.startsWith("/") ? resolveImageUrl(s) : s;
-  if (
-    resolved.includes("amazonaws.com") ||
-    resolved.includes("s3.") ||
-    isGatewayOutputImageUrl(resolved)
-  ) {
-    return `${backendBase}/api/3d/image-proxy?url=${encodeURIComponent(resolved)}`;
-  }
-  return resolved;
+  return unwrapped;
 }
 
 /**
@@ -1584,8 +1603,9 @@ export function getPreviewImageUrl(job: Job): string | null {
     job.result.generated_image ||
     null;
 
-  // If we have a URL, proxy it so private S3 and gateway output URLs load reliably.
-  if (url) return getProxiedImageUrl(url);
+  if (url) {
+    return getProxiedImageUrl(url);
+  }
 
   // If no URL but we have a job_id, try gateway output path (file may not be on public S3).
   if (job.job_id) {
@@ -1958,12 +1978,28 @@ export async function fetchWorkspace(
   }
 }
 
-/**
- * Get all jobs for a workspace
- */
-export async function fetchWorkspaceJobs(
+type WorkspaceJobsSlot = {
+  etag: string;
+  jobs: BackendJob[];
+  inflight: Promise<BackendJob[]> | null;
+};
+
+const workspaceJobsSlots = new Map<string, WorkspaceJobsSlot>();
+
+function workspaceJobsSlot(workspaceId: string): WorkspaceJobsSlot {
+  const existing = workspaceJobsSlots.get(workspaceId);
+  if (existing) {
+    return existing;
+  }
+  const created: WorkspaceJobsSlot = { etag: "", jobs: [], inflight: null };
+  workspaceJobsSlots.set(workspaceId, created);
+  return created;
+}
+
+async function requestWorkspaceJobs(
   workspaceId: string,
-  getToken?: () => Promise<string | null>,
+  getToken: (() => Promise<string | null>) | undefined,
+  slot: WorkspaceJobsSlot,
 ): Promise<BackendJob[]> {
   try {
     const headers: HeadersInit = { "Content-Type": "application/json" };
@@ -1973,9 +2009,12 @@ export async function fetchWorkspaceJobs(
         headers["Authorization"] = `Bearer ${token}`;
       }
     }
+    if (slot.etag) {
+      headers["If-None-Match"] = slot.etag;
+    }
 
     const response = await fetch(
-      `${backendBase}/api/3d/workspaces/${workspaceId}/jobs?t=${Date.now()}`,
+      `${backendBase}/api/3d/workspaces/${workspaceId}/jobs`,
       {
         method: "GET",
         headers,
@@ -1983,22 +2022,55 @@ export async function fetchWorkspaceJobs(
       },
     );
 
+    if (response.status === 304) {
+      return slot.jobs;
+    }
+
     if (!response.ok) {
       if (response.status === 404) {
+        slot.etag = "";
+        slot.jobs = [];
         return [];
       }
       throw new Error(`Failed to fetch workspace jobs: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.jobs || [];
+    const jobs = (data.jobs || []) as BackendJob[];
+    const etag = response.headers.get("ETag");
+    slot.jobs = jobs;
+    if (etag) {
+      slot.etag = etag;
+    }
+    return jobs;
   } catch (err: any) {
     if (isApiUnavailableError(err)) {
       console.warn("Failed to fetch workspace jobs (backend unavailable):", err.message);
-      return [];
+      return slot.jobs;
     }
     console.error("Failed to fetch workspace jobs:", err);
-    return [];
+    return slot.jobs;
+  }
+}
+
+/**
+ * Get all jobs for a workspace.
+ * Repeat polls send the last ETag and reuse the previous list when nothing changed.
+ */
+export async function fetchWorkspaceJobs(
+  workspaceId: string,
+  getToken?: () => Promise<string | null>,
+): Promise<BackendJob[]> {
+  const slot = workspaceJobsSlot(workspaceId);
+  if (slot.inflight) {
+    return slot.inflight;
+  }
+  const request = requestWorkspaceJobs(workspaceId, getToken, slot);
+  slot.inflight = request;
+  try {
+    return await request;
+  } finally {
+    slot.inflight = null;
   }
 }
 
@@ -2785,5 +2857,3 @@ export async function claimCredits(
   }
   return data as ClaimCreditsResponse;
 }
-
-

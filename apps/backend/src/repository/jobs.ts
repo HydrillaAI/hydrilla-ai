@@ -176,6 +176,33 @@ export async function updateJobResult(jobId: string, data: { resultGlbUrl?: stri
   }
 }
 
+/** Columns the GLB routes need. Leaves out factory_code and sculpt_spec, which can be huge. */
+const MESH_ACCESS_COLUMNS =
+  "id, user_id, status, engine, generate_type, result_kind, result_glb_url";
+
+/**
+ * Load just enough of a job to authorize a mesh download and find its S3 key.
+ */
+export async function getJobMeshAccess(jobId: string): Promise<JobRecord | null> {
+  try {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select(MESH_ACCESS_COLUMNS)
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error) {
+      throw error;
+    }
+    if (!data) {
+      return null;
+    }
+    return mapRow(data);
+  } catch (err: any) {
+    logger.error(err, "Failed to get job mesh access");
+    throw new Error(`Database error: ${err.message}`);
+  }
+}
+
 export async function getJob(jobId: string): Promise<JobRecord | null> {
   try {
     const { data, error } = await supabase.from("jobs").select("*").eq("id", jobId).single();
