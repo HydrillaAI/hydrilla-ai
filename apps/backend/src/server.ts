@@ -1,4 +1,4 @@
-// Touch this app so its Vercel project builds.
+// Touch this app so its Vercel project builds again.
 import express from "express";
 import cors from "cors";
 import path from "path";

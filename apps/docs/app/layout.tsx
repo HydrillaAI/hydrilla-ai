@@ -1,4 +1,4 @@
-// Touch this app so its Vercel project builds.
+// Touch this app so its Vercel project builds again.
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";

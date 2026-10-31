@@ -1,4 +1,4 @@
-// Touch this app so its Vercel project builds on the new account.
+// Touch this app so its Vercel project builds again.
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
