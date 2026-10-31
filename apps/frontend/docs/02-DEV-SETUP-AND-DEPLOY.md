@@ -95,6 +95,7 @@ These are defined in `apps/backend/vercel.json` and handled in `apps/backend/src
 |---|---|---|
 | `/api/cron/weekly-recap` | `30 0 * * 1` (Mon 00:30) | `runWeeklyRecap`: weekly email recap |
 | `/api/cron/expire-credits` | `5 0 * * *` (daily 00:05) | `expireCreditGrants`: expires claim-link / promo credits past `credits_expire_at` |
+| `/api/cron/gpu-auto-stop` | `* * * * *` (every minute) | Stops a GPU VM whose admin auto-stop time has passed |
 
 ## Database migrations
 

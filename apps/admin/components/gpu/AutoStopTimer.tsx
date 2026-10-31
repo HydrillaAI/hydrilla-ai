@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Timer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,8 @@ import type { GcpInstanceItem } from "@/lib/gpu-api";
 export const MIN_TIMER_MS = 5 * 60_000;
 export const MAX_TIMER_MS = 24 * 60 * 60_000;
 
-const STORAGE_KEY = "hydrilla-admin:gpu-auto-stop";
-// Another tab (or a failed attempt) owns the stop for this long before we retry.
-const CLAIM_MS = 30_000;
 const WARN_MS = 60_000;
+const RETRY_MS = 30_000;
 // Tolerance for client/GCP clock skew when deciding a timer predates the VM's last start.
 const CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -32,7 +30,6 @@ type AutoStopEntry = {
   startedAt: number;
   endsAt: number;
   durationMs: number;
-  firingAt?: number;
 };
 
 type AutoStopTimers = Record<string, AutoStopEntry>;
@@ -43,154 +40,45 @@ export function isStoppedStatus(status: string | undefined): boolean {
   return status !== undefined && STOPPED_STATUSES.has(status);
 }
 
-// --- Persistent store (localStorage, synced across tabs) ---
-
 const EMPTY: AutoStopTimers = {};
-const listeners = new Set<() => void>();
-let memoryRaw: string | null = null;
-let cache: { raw: string | null; value: AutoStopTimers } = { raw: null, value: EMPTY };
 
-function readRaw(): string | null {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return memoryRaw;
-  }
-}
-
-function writeRaw(raw: string | null) {
-  memoryRaw = raw;
-  try {
-    if (raw === null) {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(STORAGE_KEY, raw);
-    }
-  } catch {
-    // Storage blocked: the in-memory copy keeps the timer alive for this tab.
-  }
-}
-
-function parse(raw: string | null): AutoStopTimers {
-  if (!raw) {
-    return EMPTY;
-  }
-  try {
-    const data: unknown = JSON.parse(raw);
-    if (!data || typeof data !== "object") {
-      return EMPTY;
-    }
-    const timers: AutoStopTimers = {};
-    for (const [name, entry] of Object.entries(data as Record<string, Partial<AutoStopEntry>>)) {
-      if (
-        entry &&
-        typeof entry.startedAt === "number" &&
-        typeof entry.endsAt === "number" &&
-        typeof entry.durationMs === "number"
-      ) {
-        timers[name] = {
-          startedAt: entry.startedAt,
-          endsAt: entry.endsAt,
-          durationMs: entry.durationMs,
-          firingAt: typeof entry.firingAt === "number" ? entry.firingAt : undefined,
-        };
-      }
-    }
-    return timers;
-  } catch {
-    return EMPTY;
-  }
-}
-
-function getSnapshot(): AutoStopTimers {
-  const raw = readRaw();
-  if (raw !== cache.raw) {
-    cache = { raw, value: parse(raw) };
-  }
-  return cache.value;
-}
-
-function getServerSnapshot(): AutoStopTimers {
-  return EMPTY;
-}
-
-function emit() {
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY || event.key === null) {
-      listener();
-    }
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-function updateTimers(mutate: (timers: AutoStopTimers) => void) {
-  const next = { ...parse(readRaw()) };
-  mutate(next);
-  writeRaw(Object.keys(next).length > 0 ? JSON.stringify(next) : null);
-  emit();
-}
-
-function setTimer(name: string, entry: AutoStopEntry) {
-  updateTimers((timers) => {
-    timers[name] = entry;
-  });
-}
-
-function clearTimer(name: string) {
-  updateTimers((timers) => {
-    delete timers[name];
-  });
-}
-
-/** Marks the stop as in flight so other tabs don't fire it too. Returns false if someone else holds it. */
-function claimTimer(name: string, at: number): boolean {
-  const entry = parse(readRaw())[name];
-  if (!entry || at < entry.endsAt) {
-    return false;
-  }
-  if (entry.firingAt !== undefined && at - entry.firingAt < CLAIM_MS) {
-    return false;
-  }
-  setTimer(name, { ...entry, firingAt: at });
-  return true;
-}
-
-// --- Hook: ticks once a second and stops the VM when a timer runs out ---
+// --- Hook: shows the countdown. The deadline is stored on the backend. ---
 
 export type AutoStopController = {
   timers: AutoStopTimers;
   now: number;
-  start: (name: string, durationMs: number) => void;
-  extend: (name: string, byMs: number) => void;
-  cancel: (name: string) => void;
+  start: (name: string, durationMs: number) => Promise<void>;
+  extend: (name: string, byMs: number) => Promise<void>;
+  cancel: (name: string) => Promise<void>;
 };
 
 export function useAutoStopTimers({
   instances,
+  saved,
   onExpire,
+  onStart,
+  onExtend,
+  onCancel,
 }: {
   instances: GcpInstanceItem[] | undefined;
+  saved: AutoStopTimers | undefined;
   onExpire: (name: string) => Promise<void>;
+  onStart: (name: string, durationMs: number) => Promise<void>;
+  onExtend: (name: string, byMs: number) => Promise<void>;
+  onCancel: (name: string) => Promise<void>;
 }): AutoStopController {
-  const timers = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const timers = saved ?? EMPTY;
   const [now, setNow] = useState(0);
   const onExpireRef = useRef(onExpire);
+  const onCancelRef = useRef(onCancel);
   const warnedRef = useRef<Set<string>>(new Set());
+  const firingRef = useRef<Set<string>>(new Set());
+  const droppedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     onExpireRef.current = onExpire;
-  }, [onExpire]);
+    onCancelRef.current = onCancel;
+  }, [onExpire, onCancel]);
 
   useEffect(() => {
     const first = setTimeout(() => {
@@ -205,21 +93,26 @@ export function useAutoStopTimers({
     };
   }, []);
 
-  // Drop timers that no longer apply: the VM was stopped, or restarted after the timer was set.
+  // Drop a saved timer when the VM is already stopped or was started again after the timer.
   useEffect(() => {
     if (!instances) {
       return;
     }
     for (const [name, entry] of Object.entries(timers)) {
-      const inst = instances.find((i) => {
-        return i.name === name;
+      const inst = instances.find((item) => {
+        return item.name === name;
       });
       if (!inst) {
         continue;
       }
       const lastStart = inst.lastStartTimestamp ? Date.parse(inst.lastStartTimestamp) : NaN;
-      if (isStoppedStatus(inst.status) || lastStart > entry.startedAt + CLOCK_SKEW_MS) {
-        clearTimer(name);
+      const key = `${name}:${entry.endsAt}`;
+      if (
+        (isStoppedStatus(inst.status) || lastStart > entry.startedAt + CLOCK_SKEW_MS) &&
+        !droppedRef.current.has(key)
+      ) {
+        droppedRef.current.add(key);
+        void onCancelRef.current(name);
       }
     }
   }, [instances, timers]);
@@ -235,42 +128,27 @@ export function useAutoStopTimers({
         warnedRef.current.add(warnKey);
         toast.warning(`${name} auto-stops in under a minute.`);
       }
-      if (remaining > 0 || !claimTimer(name, now)) {
+      if (remaining > 0 || firingRef.current.has(warnKey)) {
         continue;
       }
-      onExpireRef
-        .current(name)
-        .then(() => {
-          clearTimer(name);
-        })
-        .catch((err: unknown) => {
-          toast.error(
-            `Auto-stop for ${name} failed: ${err instanceof Error ? err.message : String(err)}. Retrying in 30s.`,
-          );
-        });
+      firingRef.current.add(warnKey);
+      void onExpireRef.current(name).catch((err: unknown) => {
+        toast.error(
+          `Auto-stop for ${name} failed: ${err instanceof Error ? err.message : String(err)}. Retrying in 30s.`,
+        );
+        window.setTimeout(() => {
+          firingRef.current.delete(warnKey);
+        }, RETRY_MS);
+      });
     }
   }, [now, timers]);
 
   return {
     timers,
     now,
-    start: (name, durationMs) => {
-      const at = Date.now();
-      const ms = Math.min(MAX_TIMER_MS, Math.max(MIN_TIMER_MS, durationMs));
-      setTimer(name, { startedAt: at, endsAt: at + ms, durationMs: ms });
-    },
-    extend: (name, byMs) => {
-      const entry = timers[name];
-      if (!entry) {
-        return;
-      }
-      const at = Date.now();
-      const endsAt = Math.min(at + MAX_TIMER_MS, Math.max(entry.endsAt, at) + byMs);
-      setTimer(name, { ...entry, endsAt, durationMs: endsAt - entry.startedAt, firingAt: undefined });
-    },
-    cancel: (name) => {
-      clearTimer(name);
-    },
+    start: onStart,
+    extend: onExtend,
+    cancel: onCancel,
   };
 }
 
@@ -332,7 +210,8 @@ export function AutoStopTimer({
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] text-muted-foreground">
-            Stops at {new Date(entry.endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            Stops at {new Date(entry.endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, even if
+            this page is closed.
           </span>
           <div className="flex gap-1">
             <Button
@@ -341,7 +220,9 @@ export function AutoStopTimer({
               className="h-6 px-2 text-[11px]"
               disabled={expired || atMax}
               onClick={() => {
-                controller.extend(instanceName, 30 * 60_000);
+                void controller.extend(instanceName, 30 * 60_000).catch((err: unknown) => {
+                  toast.error(err instanceof Error ? err.message : "Could not extend the timer");
+                });
               }}
             >
               +30m
@@ -352,8 +233,11 @@ export function AutoStopTimer({
               className="h-6 px-2 text-[11px] text-muted-foreground"
               disabled={expired}
               onClick={() => {
-                controller.cancel(instanceName);
-                toast.success(`Auto-stop timer cancelled for ${instanceName}`);
+                void controller.cancel(instanceName).then(() => {
+                  toast.success(`Auto-stop timer cancelled for ${instanceName}`);
+                }).catch((err: unknown) => {
+                  toast.error(err instanceof Error ? err.message : "Could not cancel the timer");
+                });
               }}
             >
               <X className="h-3 w-3" />
@@ -428,8 +312,11 @@ export function AutoStopTimer({
           className="ml-auto h-7 text-xs"
           disabled={disabled || !inRange}
           onClick={() => {
-            controller.start(instanceName, durationMs);
-            toast.success(`${instanceName} will stop automatically in ${formatCountdown(durationMs)}`);
+            void controller.start(instanceName, durationMs).then(() => {
+              toast.success(`${instanceName} will stop automatically in ${formatCountdown(durationMs)}`);
+            }).catch((err: unknown) => {
+              toast.error(err instanceof Error ? err.message : "Could not start the timer");
+            });
           }}
         >
           Start timer
@@ -438,7 +325,7 @@ export function AutoStopTimer({
       <p className={`text-[11px] ${valid && !inRange ? "text-destructive" : "text-muted-foreground"}`}>
         {valid && !inRange
           ? "Pick between 5 minutes and 24 hours."
-          : "5 min – 24 h. Runs in this browser, so keep an admin tab open."}
+          : "5 min – 24 h. The VM stops at that time even if you close this page."}
       </p>
     </div>
   );

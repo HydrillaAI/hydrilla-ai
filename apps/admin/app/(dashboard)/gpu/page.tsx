@@ -28,10 +28,13 @@ import {
 } from "@/components/ui/dialog";
 import { AutoStopTimer, isStoppedStatus, useAutoStopTimers } from "@/components/gpu/AutoStopTimer";
 import {
+  cancelGpuAutoStop,
   clearGpuQueue,
+  extendGpuAutoStop,
   fetchGpuStatus,
   restartGpuService,
   runInstanceAction,
+  startGpuAutoStop,
   switchTargetInstance,
   trimMemory,
   updateGatewayUrl,
@@ -158,9 +161,28 @@ export default function GpuPage() {
 
   const autoStop = useAutoStopTimers({
     instances: status?.instances,
+    saved: status?.autoStop,
     onExpire: async (name) => {
-      await runInstanceAction("stop", token, name);
+      await runInstanceAction("stop", token, name).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!/already|terminated|not running/i.test(message)) {
+          throw err;
+        }
+      });
+      await cancelGpuAutoStop(name, token);
       toast.success(`Auto-stop timer finished. Stopping ${name}.`);
+      await load();
+    },
+    onStart: async (name, durationMs) => {
+      await startGpuAutoStop(name, durationMs, token);
+      await load();
+    },
+    onExtend: async (name, byMs) => {
+      await extendGpuAutoStop(name, byMs, token);
+      await load();
+    },
+    onCancel: async (name) => {
+      await cancelGpuAutoStop(name, token);
       await load();
     },
   });
