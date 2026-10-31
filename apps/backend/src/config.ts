@@ -65,6 +65,8 @@ export const config = {
       "http://127.0.0.1:3001",
     ]),
   ],
+  // Mesh viewers use signed S3 URLs; bucket CORS must allow GET/HEAD from corsOrigins.
+  // See apps/frontend/docs/09-ADMIN-AND-OPERATIONS.md (S3 CORS).
   s3: {
     bucket: process.env.S3_BUCKET || "hydrilla-outputs-1",
     region: process.env.S3_REGION || "us-east-1",
