@@ -12,6 +12,13 @@ import {
   type GcpInstanceAction,
 } from "../services/gcpCompute.js";
 import { setAppSetting, syncAppSettingsFromDb } from "../services/appSettings.js";
+import {
+  cancelGpuAutoStop,
+  clampAutoStopDuration,
+  extendGpuAutoStop,
+  getGpuAutoStopTimers,
+  startGpuAutoStop,
+} from "../services/gpuAutoStop.js";
 import { withInternalSecretHeaders } from "./threeD.js";
 
 /** Mounted under /api/admin (already requireAuth + requireAdmin). */
@@ -94,8 +101,59 @@ adminGpuRouter.get("/", async (_req, res) => {
     },
     instances: instanceResult.instances,
     staticIp: instanceResult.staticIp,
+    autoStop: await getGpuAutoStopTimers(),
     checkedAt: new Date().toISOString(),
   });
+});
+
+function autoStopInstanceName(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const name = raw.trim();
+  if (!/^[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?$/.test(name)) {
+    return null;
+  }
+  return name;
+}
+
+adminGpuRouter.post("/auto-stop", async (req, res) => {
+  const name = autoStopInstanceName(req.body?.instance);
+  const durationMs = clampAutoStopDuration(req.body?.durationMs);
+  if (!name) {
+    return res.status(400).json({ error: "instance name is required" });
+  }
+  if (durationMs === null) {
+    return res.status(400).json({ error: "duration must be between 5 minutes and 24 hours" });
+  }
+  const entry = await startGpuAutoStop(name, durationMs);
+  logger.info({ instance: name, endsAt: entry.endsAt }, "Admin started GPU auto-stop");
+  return res.json({ ok: true, instance: name, entry });
+});
+
+adminGpuRouter.post("/auto-stop/extend", async (req, res) => {
+  const name = autoStopInstanceName(req.body?.instance);
+  const byMs = clampAutoStopDuration(req.body?.byMs);
+  if (!name) {
+    return res.status(400).json({ error: "instance name is required" });
+  }
+  if (byMs === null) {
+    return res.status(400).json({ error: "extension must be between 5 minutes and 24 hours" });
+  }
+  const entry = await extendGpuAutoStop(name, byMs);
+  if (!entry) {
+    return res.status(404).json({ error: "No auto-stop timer for that instance" });
+  }
+  return res.json({ ok: true, instance: name, entry });
+});
+
+adminGpuRouter.post("/auto-stop/cancel", async (req, res) => {
+  const name = autoStopInstanceName(req.body?.instance);
+  if (!name) {
+    return res.status(400).json({ error: "instance name is required" });
+  }
+  await cancelGpuAutoStop(name);
+  return res.json({ ok: true, instance: name });
 });
 
 adminGpuRouter.post("/restart", async (req, res) => {

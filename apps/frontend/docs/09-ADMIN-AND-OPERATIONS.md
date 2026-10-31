@@ -37,7 +37,7 @@ The backend routes live in `apps/backend/src/routes/admin.ts` and the `admin*.ts
 
 | Action | Effect |
 |---|---|
-| `instance/start\|stop\|reset` | GCP Compute lifecycle. Stopping saves money; the UI has an auto-stop timer (`AutoStopTimer`) |
+| `instance/start\|stop\|reset` | GCP Compute lifecycle. Stopping saves money. Auto-stop is saved on the backend (`app_settings.gpu_auto_stop`). Cloud Scheduler calls `/api/cron/gpu-auto-stop` every minute, so the VM stops even if the admin page is closed |
 | `restart` | Restarts the pipeline service on the VM through the gateway |
 | `trim-memory` | Frees GPU/host memory without a restart |
 | `clear-queue` | Drops queued jobs and **refunds** their credits |

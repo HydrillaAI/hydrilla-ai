@@ -95,6 +95,7 @@ export type GpuStatus = {
   };
   instances?: GcpInstanceItem[];
   staticIp?: StaticIpInfo | null;
+  autoStop?: Record<string, { startedAt: number; endsAt: number; durationMs: number }>;
   checkedAt: string;
 };
 
@@ -183,6 +184,44 @@ export function switchTargetInstance(
     { method: "POST", body: JSON.stringify({ instance }) },
     getToken,
     "Failed to switch target instance",
+  );
+}
+
+export function startGpuAutoStop(
+  instance: string,
+  durationMs: number,
+  getToken: TokenGetter,
+): Promise<{ ok: boolean }> {
+  return request(
+    "/api/admin/gpu/auto-stop",
+    { method: "POST", body: JSON.stringify({ instance, durationMs }) },
+    getToken,
+    "Failed to start the auto-stop timer",
+  );
+}
+
+export function extendGpuAutoStop(
+  instance: string,
+  byMs: number,
+  getToken: TokenGetter,
+): Promise<{ ok: boolean }> {
+  return request(
+    "/api/admin/gpu/auto-stop/extend",
+    { method: "POST", body: JSON.stringify({ instance, byMs }) },
+    getToken,
+    "Failed to extend the auto-stop timer",
+  );
+}
+
+export function cancelGpuAutoStop(
+  instance: string,
+  getToken: TokenGetter,
+): Promise<{ ok: boolean }> {
+  return request(
+    "/api/admin/gpu/auto-stop/cancel",
+    { method: "POST", body: JSON.stringify({ instance }) },
+    getToken,
+    "Failed to cancel the auto-stop timer",
   );
 }
 

@@ -3,6 +3,8 @@ import { config, timingSafeEqualString } from "../config.js";
 import { logger } from "../logger.js";
 import { runWeeklyRecap } from "../services/weeklyRecap.js";
 import { expireCreditGrants } from "../services/credits.js";
+import { isGcpComputeConfigured } from "../services/gcpCompute.js";
+import { runDueGpuAutoStops } from "../services/gpuAutoStop.js";
 
 /**
  * Scheduled jobs (mounted under /api/cron). Vercel Cron calls these with
@@ -39,4 +41,23 @@ cronRouter.get("/expire-credits", async (req: Request, res: Response) => {
   }
   const expired = await expireCreditGrants();
   return res.json({ ok: true, expired });
+});
+
+/**
+ * GET /api/cron/gpu-auto-stop — called every minute by Cloud Scheduler, not by
+ * Vercel Cron. Stops a GPU VM whose admin timer has passed, including when
+ * nobody has the admin site open.
+ */
+cronRouter.get("/gpu-auto-stop", async (req: Request, res: Response) => {
+  if (!authorized(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  if (!isGcpComputeConfigured()) {
+    return res.json({ ok: true, skipped: "gcp not configured", stopped: [], failed: [] });
+  }
+  const result = await runDueGpuAutoStops();
+  if (result.failed.length > 0) {
+    return res.status(502).json({ ok: false, ...result });
+  }
+  return res.json({ ok: true, ...result });
 });
