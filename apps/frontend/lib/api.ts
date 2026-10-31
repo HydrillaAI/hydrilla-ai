@@ -1342,8 +1342,8 @@ export function getGlbUrl(job: Job): string | null {
 }
 
 /**
- * Convert any direct S3 or raw GLB URL into an auth-friendly backend proxy URL.
- * Prevents browser CORS errors when loading S3 models in ThreeViewer.
+ * Normalize a job id or S3/mesh URL into the job-id handle used by
+ * `loadGlbFromBestSource` (which then fetches a signed S3 URL). Not a byte proxy.
  */
 export function getProxiedGlbUrl(
   urlOrJobId: string | null | undefined,
@@ -1389,7 +1389,9 @@ export function getProxiedGlbUrl(
 }
 
 /**
- * Get proxy GLB URL from job ID (for BackendJob objects)
+ * Job-id handle for mesh loaders. Looks like a legacy `/api/3d/glb/:id` URL so
+ * `loadGlbFromBestSource` can extract the job id and exchange it for a signed S3 URL.
+ * Bytes are never streamed through the API — do not fetch this URL as a mesh file.
  */
 export function getProxyGlbUrl(jobId: string): string {
   return `${backendBase}/api/3d/glb/${jobId}`;
@@ -1426,9 +1428,10 @@ async function getTokenOrNull(getToken: () => Promise<string | null>): Promise<s
   }
 }
 
-// Search crawlers run page JavaScript, so without this they download every model on a
-// page (20-50 MB each), and the bytes are billed to the backend.
-const CRAWLER_UA = /bot|crawl|spider|slurp|googleother|google-inspectiontool/i;
+// Search crawlers run page JavaScript; without this they request every model on a page.
+// Keep in sync with apps/backend/src/lib/crawlerUa.ts.
+const CRAWLER_UA =
+  /bot|crawl|spider|slurp|googleother|google-inspectiontool|bytespider|petalbot|amazonbot|ahrefsbot|semrushbot|bingbot|yandex|baiduspider|duckduckbot|facebookexternalhit|linkedinbot|twitterbot|applebot|chatgpt|gptbot|claudebot|anthropic|perplexity|exasearch|elevenlabs|barkrowler|reflectionbot/i;
 
 function isCrawler(): boolean {
   return typeof navigator !== "undefined" && CRAWLER_UA.test(navigator.userAgent);

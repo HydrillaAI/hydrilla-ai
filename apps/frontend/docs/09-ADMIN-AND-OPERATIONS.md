@@ -92,6 +92,36 @@ There is no APM or alerting. GPU-offline and contact messages reach the team by 
 ### Run a promo
 Admin → Claim links → create a link. Set `max_claims`, the link expiry and, if you want, `credits_expire_at`. Share `/claim/<token>`.
 
+### S3 CORS (required for mesh viewers)
+
+Browsers load GLBs with short-lived signed URLs straight from the outputs bucket. The API **does not** stream mesh bytes as a CORS workaround anymore (that was billed as Fast Origin Transfer). If the bucket CORS is wrong, ThreeViewer fails instead of falling back to a proxy.
+
+Apply a CORS rule on the Hydrilla outputs bucket (same hosts as backend `CORS_ORIGINS` / production app origins), for example:
+
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedOrigins": [
+      "https://hydrilla.co",
+      "https://www.hydrilla.co",
+      "https://hydrilla.ai",
+      "https://www.hydrilla.ai",
+      "https://admin.hydrilla.ai",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3001"
+    ],
+    "ExposeHeaders": ["Content-Length", "Content-Type", "ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Also allow any extra preview/staging origins listed in `CORS_ORIGINS`. Mesh routes refuse known crawler user-agents with 403; backend `robots.txt` disallows `/api/3d/glb/` and `/api/3d/image-proxy`.
+
 ### Rotate a secret
 Edit the variable in the Vercel project(s) listed below and redeploy each one.
 

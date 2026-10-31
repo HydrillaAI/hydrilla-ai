@@ -37,6 +37,9 @@ apps/*/.env*
 apps/*/.env.local
 apps/*/.env.*.local
 
+# Full Vercel env files
+vercel-envs/
+
 # Allow example env files to be tracked
 !.env.example
 !apps/*/.env.example

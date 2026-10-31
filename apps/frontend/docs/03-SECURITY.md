@@ -73,7 +73,7 @@ Severity reflects our current judgement. Fix the **High** items before any marke
 
 | # | Severity | Gap | Evidence | Suggested fix |
 |---|---|---|---|---|
-| 1 | High | **Anyone with a job id can download its GLB.** `canServeJobGlb` only refuses when the caller *is signed in* and isn't the owner. Anonymous callers pass | `canServeJobGlb` in `apps/backend/src/routes/threeD.ts` (used by `/glb/:jobId` and `/glb/:jobId/signed-url`) | Deny when `!userId && job.userId` unless `isJobPubliclyPosted` |
+| 1 | Fixed | Anonymous GLB access was open to anyone with a job id | Was `canServeJobGlb` in `threeD.ts` | Anonymous only if publicly posted or ownerless; crawler UA → 403; no mesh streaming through the function |
 | 2 | High | **SSRF in Water image intake.** `admitWaterImageUrl` fetches any user URL with `redirect: "follow"` and no host or private-IP check | `apps/backend/src/lib/water/harness/imageIntake.ts` | Allow only https and our S3 hosts, or resolve the host and block private and metadata IP ranges; don't follow redirects |
 | 3 | High | **No rate limiting.** Nothing global, and nothing on public endpoints such as `POST /api/contact`, `POST /api/support`, `/api/3d/image-proxy` or `/api/community/posts/:id/view` | No limiter in `apps/backend/api/index.ts` or `apps/frontend/middleware.ts` | Add a per-IP limiter on public routes and a per-user limiter on spend routes, e.g. Upstash or Vercel KV |
 | 4 | Medium | **No security headers** (CSP, HSTS, X-Frame-Options, nosniff) on the frontend, backend or admin app | `headers()` in `apps/frontend/next.config.js` only sets Cache-Control and Content-Type; `apps/admin/next.config.ts` sets none | Copy the docs app's header set and tune the CSP |

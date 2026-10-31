@@ -16,6 +16,7 @@ import { createWorkspace, getWorkspace, getWorkspaceForUser, listWorkspacesForUs
 import { optionalAuth, requireAuth, syncUserToDatabase } from "../middleware/auth.js";
 import { normalizeGlbUrl, normalizePreviewUrl, unwrapImageProxyUrl } from "../utils/s3Urls.js";
 import { isWaterEngine, isWaterJobId, isWaterJobRow } from "../lib/engines.js";
+import { isCrawlerUserAgent } from "../lib/crawlerUa.js";
 import {
   generateImage,
   imageProviderAvailability,
@@ -2011,20 +2012,37 @@ threeDRouter.get("/health", async (_req, res) => {
 /**
  * Access rules shared by the GLB routes. Sends the error response and returns false
  * when the caller may not load this job's mesh.
+ *
+ * Anonymous callers may only load meshes that are on a published community post (or
+ * jobs with no owner). Authenticated callers may load their own or publicly posted meshes.
  */
 async function canServeJobGlb(job: JobRecord, jobId: string, userId: string | undefined, res: ExpressResponse): Promise<boolean> {
-  // Check ownership if user is authenticated and job has an owner.
-  // Models shared in a published community post are viewable by everyone.
-  if (job.userId && userId && job.userId !== userId && !(await isJobPubliclyPosted(jobId))) {
-    res.status(403).json({ error: "You don't have permission to access this job" });
-    return false;
-  }
   if (isWaterJobId(jobId) || isWaterJobRow(job as any)) {
     res.status(404).json({
       error: "Water jobs have no GLB mesh. Open via /api/water/jobs/:id (procedural Three.js).",
     });
     return false;
   }
+  if (!job.userId) {
+    return true;
+  }
+  if (userId && job.userId === userId) {
+    return true;
+  }
+  if (await isJobPubliclyPosted(jobId)) {
+    return true;
+  }
+  res.status(403).json({ error: "You don't have permission to access this job" });
+  return false;
+}
+
+/** Block crawlers before any S3 work (saves invocations and transfer). */
+function rejectCrawlerMeshRequest(req: ExpressRequest, res: ExpressResponse): boolean {
+  if (!isCrawlerUserAgent(typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined)) {
+    return false;
+  }
+  res.setHeader("X-Robots-Tag", "noindex");
+  res.status(403).json({ error: "Mesh and image bytes are not available to crawlers" });
   return true;
 }
 
@@ -2063,7 +2081,7 @@ async function redirectGlbToS3(_req: ExpressRequest, res: ExpressResponse, keys:
     res.redirect(302, url);
     return true;
   } catch (err: any) {
-    logger.warn({ keys, err: err?.message }, "Failed to redirect GLB to S3, streaming instead");
+    logger.warn({ keys, err: err?.message }, "Failed to redirect GLB to S3");
     return false;
   }
 }
@@ -2072,11 +2090,13 @@ async function redirectGlbToS3(_req: ExpressRequest, res: ExpressResponse, keys:
 // Signed S3 URL for a job's GLB
 // ============================================
 // Lets the browser download the mesh straight from S3 instead of streaming every byte
-// through this function (/glb/:jobId), which is billed as Active CPU. Same access rules
-// as /glb/:jobId. Responds 404 when the mesh is not in our bucket; the client then falls
-// back to /glb/:jobId.
+// through this function (/glb/:jobId), which is billed as Active CPU / Fast Origin Transfer.
 threeDRouter.get("/glb/:jobId/signed-url", optionalAuth, async (req, res) => {
+  if (rejectCrawlerMeshRequest(req, res)) {
+    return;
+  }
   res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Robots-Tag", "noindex");
   const { jobId } = req.params;
   const userId = req.userId;
 
@@ -2086,14 +2106,26 @@ threeDRouter.get("/glb/:jobId/signed-url", optionalAuth, async (req, res) => {
 
   try {
     const job = await getJobMeshAccess(jobId);
-    if (job && !(await canServeJobGlb(job, jobId, userId, res))) {
+    if (!job) {
+      // No DB row: only authenticated callers may probe legacy S3 keys.
+      if (!userId) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      const key = await findFirstExistingS3Key([
+        `image/${jobId}/mesh.glb`,
+        `text/${jobId}/mesh.glb`,
+      ]);
+      if (!key) {
+        return res.status(404).json({ error: "GLB file is not stored in S3 for this job" });
+      }
+      const url = await signGlbKey(key);
+      return res.json({ url, expiresInSeconds: GLB_SIGNED_URL_TTL_S });
+    }
+    if (!(await canServeJobGlb(job, jobId, userId, res))) {
       return;
     }
-    // Without a DB row, /glb/:jobId looks for the mesh under the usual keys; mirror that.
-    const ownedKey = job ? (job.resultGlbUrl ? extractOwnedS3KeyFromUrl(job.resultGlbUrl) : null) : null;
-    const candidates = job
-      ? (ownedKey ? glbKeyCandidates(ownedKey) : [])
-      : [`image/${jobId}/mesh.glb`, `text/${jobId}/mesh.glb`];
+    const ownedKey = job.resultGlbUrl ? extractOwnedS3KeyFromUrl(job.resultGlbUrl) : null;
+    const candidates = ownedKey ? glbKeyCandidates(ownedKey) : [];
     const key = candidates.length > 0 ? await findFirstExistingS3Key(candidates) : null;
     if (!key) {
       return res.status(404).json({ error: "GLB file is not stored in S3 for this job" });
@@ -2108,25 +2140,29 @@ threeDRouter.get("/glb/:jobId/signed-url", optionalAuth, async (req, res) => {
 });
 
 // ============================================
-// Proxy GLB file from S3 (to avoid CORS issues)
+// Redirect to signed S3 (compatibility; browsers should prefer /signed-url)
 // ============================================
 threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
+  if (rejectCrawlerMeshRequest(req, res)) {
+    return;
+  }
+  res.setHeader("X-Robots-Tag", "noindex");
   const { jobId } = req.params;
   const userId = req.userId;
 
   try {
-    // Ownership and the mesh key only. The full row includes factory code.
     const job = await getJobMeshAccess(jobId);
     if (!job) {
-      // Fallback: check S3 directly for this jobId if DB row is missing
-      if (s3Enabled && s3Client) {
-        const candidateKeys = [
-          `image/${jobId}/mesh.glb`,
-          `text/${jobId}/mesh.glb`,
-        ];
-        if (await redirectGlbToS3(req, res, candidateKeys)) {
-          return;
-        }
+      // Anonymous must not probe S3 by job id; authenticated may for legacy keys.
+      if (!userId || !s3Enabled || !s3Client) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      const candidateKeys = [
+        `image/${jobId}/mesh.glb`,
+        `text/${jobId}/mesh.glb`,
+      ];
+      if (await redirectGlbToS3(req, res, candidateKeys)) {
+        return;
       }
       return res.status(404).json({ error: "Job not found" });
     }
@@ -2135,15 +2171,11 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
       return;
     }
 
-    // Get GLB URL
     const glbUrl = job.resultGlbUrl;
     if (!glbUrl) {
       return res.status(404).json({ error: "GLB file not found for this job" });
     }
 
-    // If it's one of our current or legacy S3 URLs, fetch from the configured bucket.
-    // Old DB rows may still point at hydrilla-outputs/ap-south-1, but the object keys
-    // were migrated to the new bucket.
     const glbS3Key = extractOwnedS3KeyFromUrl(glbUrl);
     if (glbS3Key && s3Enabled && s3Client) {
       if (await redirectGlbToS3(req, res, glbKeyCandidates(glbS3Key))) {
@@ -2158,14 +2190,17 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
     }
     res.status(404).json({ error: "GLB file not found for this job" });
   } catch (err: any) {
-    logger.error({ err, jobId }, "Error proxying GLB file");
-    res.status(500).json({ error: err.message || "Failed to proxy GLB file" });
+    logger.error({ err, jobId }, "Error redirecting GLB file");
+    res.status(500).json({ error: err.message || "Failed to load GLB file" });
   }
 });
 
 // Old clients still request /image-proxy. Redirect them at the object instead of
 // copying the bytes through this function. The bucket allows public GetObject.
 threeDRouter.get("/image-proxy", async (req, res) => {
+  if (rejectCrawlerMeshRequest(req, res)) {
+    return;
+  }
   const imageUrl = typeof req.query.url === "string" ? req.query.url : "";
   if (!imageUrl) {
     return res.status(400).json({ error: "url query parameter is required" });
@@ -2173,7 +2208,10 @@ threeDRouter.get("/image-proxy", async (req, res) => {
   if (!isAllowedImageProxyUrl(imageUrl)) {
     return res.status(403).json({ error: "URL not allowed for proxying" });
   }
-  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Robots-Tag", "noindex");
+  // Public objects: CDN may cache the redirect so repeats skip this function.
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.setHeader("Vercel-CDN-Cache-Control", "max-age=86400, stale-while-revalidate=604800");
   res.redirect(302, imageUrl);
 });
 
