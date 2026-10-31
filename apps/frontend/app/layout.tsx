@@ -1,3 +1,4 @@
+// Touch this app so its Vercel project builds.
 import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
