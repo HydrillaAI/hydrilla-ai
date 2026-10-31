@@ -216,6 +216,24 @@ const upload = multer({
   },
 });
 
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+const DIRECT_UPLOAD_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".glb", ".gltf", ".obj"]);
+
+function directUploadContentType(filename: string, requestedType: unknown): string | null {
+  const ext = path.extname(filename).toLowerCase();
+  if (!DIRECT_UPLOAD_EXTENSIONS.has(ext)) return null;
+
+  const type = typeof requestedType === "string" ? requestedType.trim().toLowerCase() : "";
+  if (ext === ".glb") return "model/gltf-binary";
+  if (ext === ".gltf") return "model/gltf+json";
+  if (ext === ".obj") return "model/obj";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  return type.startsWith("image/") ? type : null;
+}
+
 /**
  * Read uploaded file bytes regardless of multer storage backend.
  * - With memory storage (Vercel): file.buffer is set.
@@ -3064,6 +3082,50 @@ const handleFileUpload = async (req: any, res: any) => {
     res.status(500).json({ error: err.message || "Failed to upload file" });
   }
 };
+
+/**
+ * Creates a short-lived S3 PUT URL so browsers can upload files without routing
+ * the file bytes through the API function. This keeps large uploads out of
+ * Vercel Fast Origin Transfer while preserving the existing authenticated API.
+ */
+threeDRouter.post("/upload-url", requireAuth, async (req, res) => {
+  const filename = typeof req.body?.filename === "string" ? path.basename(req.body.filename) : "";
+  const size = Number(req.body?.size);
+  const contentType = directUploadContentType(filename, req.body?.contentType);
+
+  if (!filename || !contentType) {
+    return res.status(400).json({ error: "Only images and 3D models (.glb, .gltf, .obj) are allowed." });
+  }
+  if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_UPLOAD_BYTES) {
+    return res.status(400).json({ error: "File size must be between 1 byte and 100 MB." });
+  }
+  if (!s3Enabled || !s3Client) {
+    return res.status(503).json({ error: "Direct uploads are not configured." });
+  }
+
+  try {
+    const key = `uploads/${Date.now()}-${randomUUID()}${path.extname(filename).toLowerCase()}`;
+    const putInput: PutObjectCommandInput = {
+      Bucket: config.s3.bucket,
+      Key: key,
+      ContentType: contentType,
+    };
+    const acl = process.env.S3_PUT_ACL?.trim();
+    const uploadHeaders: Record<string, string> = { "Content-Type": contentType };
+    if (acl === "public-read" || acl === "private") {
+      putInput.ACL = acl;
+      uploadHeaders["x-amz-acl"] = acl;
+    }
+
+    const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand(putInput), {
+      expiresIn: Math.min(config.s3.presignedUrlExpiry, 15 * 60),
+    });
+    return res.json({ uploadUrl, url: publicUrlForS3Key(key), uploadHeaders });
+  } catch (err: any) {
+    logger.error({ err, filename }, "Failed to create direct S3 upload URL");
+    return res.status(500).json({ error: "Failed to prepare direct upload." });
+  }
+});
 
 threeDRouter.post("/upload-image", requireAuth, uploadFlexible, handleFileUpload);
 threeDRouter.post("/upload-model", requireAuth, uploadFlexible, handleFileUpload);

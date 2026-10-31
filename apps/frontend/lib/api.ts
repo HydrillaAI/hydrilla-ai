@@ -861,16 +861,11 @@ export async function checkEarlyAccess(
   }
 }
 
-/**
- * Upload image file to backend and get URL (backend may use local uploads or S3).
- */
+/** Upload directly to S3 with an authenticated, short-lived URL from the API. */
 export async function uploadImage(
   file: File,
   getToken?: () => Promise<string | null>,
 ): Promise<string> {
-  const formData = new FormData();
-  formData.append("image", file);
-
   const headers: HeadersInit = {};
   if (getToken) {
     const token = await getToken();
@@ -879,10 +874,14 @@ export async function uploadImage(
     }
   }
 
-  const res = await fetch(`${backendBase}/api/3d/upload-image`, {
+  const res = await fetch(`${backendBase}/api/3d/upload-url`, {
     method: "POST",
-    headers,
-    body: formData,
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    }),
   });
 
   if (!res.ok) {
@@ -896,12 +895,25 @@ export async function uploadImage(
     throw new Error(errorText);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as { uploadUrl?: string; url?: string; uploadHeaders?: Record<string, string> };
+  if (!data.uploadUrl || !data.url || !data.uploadHeaders) {
+    throw new Error("The server returned an invalid direct-upload URL.");
+  }
+
+  const upload = await fetch(data.uploadUrl, {
+    method: "PUT",
+    headers: data.uploadHeaders,
+    body: file,
+  });
+  if (!upload.ok) {
+    throw new Error("Direct upload to storage failed. Please try again.");
+  }
+
   return data.url;
 }
 
 /**
- * Upload image via the Node backend (S3). Auth required.
+ * Upload image directly to S3 via an authenticated API-issued URL. Auth required.
  * Kept for callers that used the old GPU upload helper.
  */
 export async function uploadImageViaApi(
@@ -2785,5 +2797,3 @@ export async function claimCredits(
   }
   return data as ClaimCreditsResponse;
 }
-
-
