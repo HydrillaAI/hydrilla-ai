@@ -652,28 +652,34 @@ codeSculptRouter.patch("/jobs/:jobId/factory", requireAuth, async (req, res) => 
   }
 });
 
+function clientAssetUrl(url: unknown): string | null {
+  if (typeof url !== "string" || !url) {
+    return null;
+  }
+  if (url.startsWith("data:") || url.startsWith("blob:")) {
+    return null;
+  }
+  return url;
+}
+
 codeSculptRouter.get("/jobs/:jobId", requireAuth, async (req, res) => {
   try {
     const userId = req.userId!;
     const jobId = req.params.jobId;
-    const job = await getJobForUser(jobId, userId);
-    if (!job) return res.status(404).json({ error: "Job not found" });
-
     const { data } = await supabase
       .from("jobs")
       .select(
-        "id, status, engine, result_kind, llm_model, llm_provider, factory_code, sculpt_pass, sculpt_spec, preview_image_url, image_url, error_code, error_message, prompt, created_at, updated_at, llm_input_tokens, llm_output_tokens, llm_total_tokens, duration_ms"
+        "id, user_id, status, engine, result_kind, llm_model, llm_provider, sculpt_pass, preview_image_url, image_url, error_code, error_message, prompt, created_at, updated_at, llm_input_tokens, llm_output_tokens, llm_total_tokens, duration_ms, visual:sculpt_spec->visual"
       )
       .eq("id", jobId)
       .maybeSingle();
 
-    const tokenFromSpec =
-      data?.sculpt_spec && typeof data.sculpt_spec === "object"
-        ? (data.sculpt_spec as { tokenUsage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } })
-            .tokenUsage
-        : null;
-    const dbStatus = (data?.status || job.status) as string;
-    const updatedAtMs = Date.parse(data?.updated_at || job.updatedAt || "");
+    if (!data || (data.user_id && data.user_id !== userId)) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const dbStatus = String(data.status || "");
+    const updatedAtMs = Date.parse(String(data.updated_at || ""));
     const isStaleRun =
       (dbStatus === "RUN" || dbStatus === "WAIT") &&
       Number.isFinite(updatedAtMs) &&
@@ -681,51 +687,55 @@ codeSculptRouter.get("/jobs/:jobId", requireAuth, async (req, res) => {
     if (isStaleRun) {
       await updateCodeSculptResult(jobId, {
         status: "FAIL",
-        sculptPass: data?.sculpt_pass || "blockout",
+        sculptPass: data.sculpt_pass || "blockout",
         errorCode: "water_timeout",
         errorMessage:
           "The Water provider stopped responding and the job expired. Retry with Fast/Standard or another model.",
-        durationMs: Math.max(
-          0,
-          Date.now() - Date.parse(String(data?.created_at || job.createdAt || "")) || 0
-        ),
+        durationMs: Math.max(0, Date.now() - Date.parse(String(data.created_at || "")) || 0),
       }).catch((error) => {
         logger.warn({ error, jobId }, "Failed to expire stale Water job");
       });
     }
 
-    const scene = await loadWaterSceneForJob(jobId, userId);
+    const statusNow = isStaleRun ? "FAIL" : dbStatus;
+    const finished = statusNow === "DONE";
+    const finishedRow = await (async () => {
+      if (!finished) {
+        return null;
+      }
+      const code = await supabase.from("jobs").select("factory_code").eq("id", jobId).maybeSingle();
+      return code.data;
+    })();
+    const scene = finished ? await loadWaterSceneForJob(jobId, userId) : null;
     const visualEvidence =
-      data?.sculpt_spec && typeof data.sculpt_spec === "object"
-        ? (data.sculpt_spec as { visual?: unknown }).visual ?? null
-        : null;
+      data.visual && typeof data.visual === "object" ? data.visual : null;
 
     res.json({
       job: {
-        id: job.id,
-        status: isStaleRun ? "FAIL" : job.status,
-        prompt: job.prompt,
-        imageUrl: job.imageUrl,
-        previewImageUrl: job.previewImageUrl ?? data?.preview_image_url ?? null,
-        errorCode: isStaleRun ? "water_timeout" : job.errorCode,
+        id: data.id,
+        status: statusNow,
+        prompt: data.prompt,
+        imageUrl: clientAssetUrl(data.image_url),
+        previewImageUrl: clientAssetUrl(data.preview_image_url),
+        errorCode: isStaleRun ? "water_timeout" : data.error_code,
         errorMessage: isStaleRun
           ? "The Water provider stopped responding and the job expired. Retry with Fast/Standard or another model."
-          : job.errorMessage,
-        engine: data?.engine || "water",
-        resultKind: data?.result_kind || "three_factory",
-        llmModel: data?.llm_model || null,
-        llmProvider: data?.llm_provider || null,
-        factoryCode: data?.factory_code || null,
-        sculptPass: data?.sculpt_pass || null,
-        sculptSpec: data?.sculpt_spec || null,
-        llmInputTokens: data?.llm_input_tokens ?? tokenFromSpec?.inputTokens ?? null,
-        llmOutputTokens: data?.llm_output_tokens ?? tokenFromSpec?.outputTokens ?? null,
-        llmTotalTokens: data?.llm_total_tokens ?? tokenFromSpec?.totalTokens ?? null,
-        durationMs: typeof data?.duration_ms === "number" ? data.duration_ms : job.durationMs ?? null,
+          : data.error_message,
+        engine: data.engine || "water",
+        resultKind: data.result_kind || "three_factory",
+        llmModel: data.llm_model || null,
+        llmProvider: data.llm_provider || null,
+        factoryCode: finishedRow?.factory_code || null,
+        sculptPass: data.sculpt_pass || null,
+        sculptSpec: null,
+        llmInputTokens: data.llm_input_tokens ?? null,
+        llmOutputTokens: data.llm_output_tokens ?? null,
+        llmTotalTokens: data.llm_total_tokens ?? null,
+        durationMs: typeof data.duration_ms === "number" ? data.duration_ms : null,
         visualEvidence,
         scene,
-        createdAt: job.createdAt,
-        updatedAt: job.updatedAt,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
       },
     });
   } catch (err: any) {

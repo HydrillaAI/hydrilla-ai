@@ -1367,6 +1367,27 @@ threeDRouter.post("/edit-image", requireAuth, uploadFlexible, async (req, res) =
 // ============================================
 // Get Job Status (optional auth for viewing)
 // ============================================
+/** Status polls return URLs and job fields. Factory code, sculpt spec, and data URLs stay out. */
+function assetUrlForClient(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+  if (url.startsWith("data:") || url.startsWith("blob:")) {
+    return null;
+  }
+  return unwrapImageProxyUrl(url) || url;
+}
+
+function compactJobStatus(job: JobRecord): JobRecord {
+  return {
+    ...job,
+    imageUrl: assetUrlForClient(job.imageUrl),
+    previewImageUrl: assetUrlForClient(job.previewImageUrl),
+    factoryCode: null,
+    sculptSpec: null,
+  };
+}
+
 threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   const { jobId } = req.params;
@@ -1419,7 +1440,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
         job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
       }
       
-      return res.json({ job, creditsRefunded: job.status === "FAIL" });
+      return res.json({ job: compactJobStatus(job), creditsRefunded: job.status === "FAIL" });
     }
 
     // 20-minute timeout cap (allows 15+ min high-poly generations)
@@ -1465,7 +1486,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.status = "FAIL";
           job.errorMessage = timeoutMessage;
           job.creditsUsed = 0;
-          return res.json({ job, creditsRefunded: true });
+          return res.json({ job: compactJobStatus(job), creditsRefunded: true });
         }
 
         // Normalize URLs to ensure they're direct S3 URLs (not expired signed URLs)
@@ -1476,7 +1497,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
         }
         
-        return res.json({ job });
+        return res.json({ job: compactJobStatus(job) });
       }
     } catch (apiErr: any) {
       // External API is unreachable (timeout, network error, etc.)
@@ -1508,7 +1529,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.status = "FAIL";
           job.errorMessage = timeoutMessage;
           job.creditsUsed = 0;
-          return res.json({ job, creditsRefunded: true });
+          return res.json({ job: compactJobStatus(job), creditsRefunded: true });
         }
         
         // Normalize URLs to ensure they're direct S3 URLs (not expired signed URLs)
@@ -1519,7 +1540,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
         }
         
-        return res.json({ job, creditsRefunded: job.status === "FAIL" });
+        return res.json({ job: compactJobStatus(job), creditsRefunded: job.status === "FAIL" });
       }
       
       // If no job in DB and API is unreachable, return error
@@ -1542,7 +1563,7 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
           job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
         }
         
-        return res.json({ job });
+        return res.json({ job: compactJobStatus(job) });
       }
       return res.status(404).json({ error: "Job not found" });
     }
@@ -1753,7 +1774,7 @@ threeDRouter.get("/result/:jobId", requireAuth, async (req, res) => {
       if (job.previewImageUrl) {
         job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
       }
-      return res.json({ job });
+      return res.json({ job: compactJobStatus(job) });
     }
 
     // Fetch from API for latest result
@@ -1798,7 +1819,7 @@ threeDRouter.get("/result/:jobId", requireAuth, async (req, res) => {
       job.previewImageUrl = normalizePreviewUrl(jobId, job.previewImageUrl);
     }
 
-    res.json({ job });
+    res.json({ job: compactJobStatus(job) });
   } catch (err: any) {
     res.status(500).json({ error: gatewayErrorToUserMessage(err) });
   }
@@ -1958,14 +1979,11 @@ function signGlbKey(key: string): Promise<string> {
 }
 
 /**
- * Sends a request without a Bearer token straight to S3 with a signed URL, so the mesh
- * bytes skip this function (billed as Fast Origin Transfer). Requests with a token keep
- * the stream: a browser may forward Authorization across the redirect, and S3 rejects a
- * signed URL that also carries one. Returns false when nothing was sent and the caller
- * should stream instead.
+ * Redirects the browser to a signed S3 URL so the mesh bytes skip this function.
+ * Returns false when the object is not in the bucket.
  */
-async function redirectGlbToS3(req: ExpressRequest, res: ExpressResponse, keys: string[]): Promise<boolean> {
-  if (req.headers.authorization || !s3Enabled || !s3Client) {
+async function redirectGlbToS3(_req: ExpressRequest, res: ExpressResponse, keys: string[]): Promise<boolean> {
+  if (!s3Enabled || !s3Client) {
     return false;
   }
   try {
@@ -2042,25 +2060,6 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
         if (await redirectGlbToS3(req, res, candidateKeys)) {
           return;
         }
-        try {
-          const { key: _resolvedKey, out: s3Response } = await getFirstExistingS3Object(candidateKeys);
-          const contentLength = s3Response.ContentLength || 0;
-          res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-          res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-          res.setHeader("Content-Type", "model/gltf-binary");
-          res.setHeader("Content-Disposition", 'inline; filename="mesh.glb"');
-          res.setHeader("Cache-Control", "public, max-age=3600");
-          if (contentLength > 0) {
-            res.setHeader("Content-Length", contentLength.toString());
-          }
-          if (s3Response.Body) {
-            const stream = s3Response.Body as Readable;
-            stream.pipe(res);
-            return;
-          }
-        } catch {
-          // continue to 404
-        }
       }
       return res.status(404).json({ error: "Job not found" });
     }
@@ -2083,148 +2082,32 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
       if (await redirectGlbToS3(req, res, glbKeyCandidates(glbS3Key))) {
         return;
       }
-      try {
-        const { key: resolvedKey, out: s3Response } = await getFirstExistingS3Object(glbKeyCandidates(glbS3Key));
-          
-        // Get content length for progress tracking
-        const contentLength = s3Response.ContentLength || s3Response.ContentLength || 0;
-          
-        // Set CORS and cache headers (browser can cache GLB for 1 hour)
-        res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-        res.setHeader("Content-Type", "model/gltf-binary");
-        res.setHeader("Content-Disposition", `inline; filename="mesh.glb"`);
-        res.setHeader("Cache-Control", "public, max-age=3600");
-        if (contentLength > 0) {
-          res.setHeader("Content-Length", contentLength.toString());
-        }
-          
-        // Pipe S3 stream directly to response (no buffering = faster first byte)
-        if (s3Response.Body) {
-          const stream = s3Response.Body as Readable;
-          stream.on("error", (err: Error) => {
-            logger.error({ jobId, s3Key: resolvedKey, err: err.message }, "Error streaming from S3");
-            if (!res.headersSent) res.status(500).json({ error: "Failed to stream GLB file" });
-          });
-          stream.pipe(res);
-          return;
-        }
-      } catch (s3Err: any) {
-        logger.warn({ jobId, err: s3Err.message }, "Failed to fetch from S3, trying direct URL");
-      }
     }
 
-    // Fallback: proxy through backend by streaming the URL (no buffering = faster first byte)
-    try {
-      const response = await fetch(glbUrl);
-      if (!response.ok) {
-        return res.status(response.status).json({ error: "Failed to fetch GLB file" });
-      }
-
-      const contentLength = response.headers.get("content-length");
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-      res.setHeader("Content-Type", "model/gltf-binary");
-      res.setHeader("Content-Disposition", `inline; filename="mesh.glb"`);
-      res.setHeader("Cache-Control", "public, max-age=3600");
-      if (contentLength) res.setHeader("Content-Length", contentLength);
-
-      // Stream response body to client (Node 18+ Readable.fromWeb = faster first byte)
-      const body = response.body;
-      if (body) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fetch body is web ReadableStream; fromWeb accepts it at runtime
-        const nodeStream = Readable.fromWeb(body as any);
-        nodeStream.pipe(res);
-      } else {
-        const buffer = await response.arrayBuffer();
-        res.send(Buffer.from(buffer));
-      }
-    } catch (fetchErr: any) {
-      logger.error({ jobId, err: fetchErr.message }, "Failed to proxy GLB file");
-      res.status(500).json({ error: "Failed to load GLB file" });
+    if (glbUrl.startsWith("https://") || glbUrl.startsWith("http://")) {
+      res.setHeader("Cache-Control", "private, no-store");
+      res.redirect(302, glbUrl);
+      return;
     }
+    res.status(404).json({ error: "GLB file not found for this job" });
   } catch (err: any) {
     logger.error({ err, jobId }, "Error proxying GLB file");
     res.status(500).json({ error: err.message || "Failed to proxy GLB file" });
   }
 });
 
-// ============================================
-// Proxy image from S3 (to avoid CORS issues when the browser fetches image bytes)
-// ============================================
-// No requireAuth: <img> tags cannot send Bearer tokens. Access is limited by
-// isAllowedImageProxyUrl (Hydrilla S3 / GPU hosts only) — objects are already public.
+// Old clients still request /image-proxy. Redirect them at the object instead of
+// copying the bytes through this function. The bucket allows public GetObject.
 threeDRouter.get("/image-proxy", async (req, res) => {
-  const imageUrl = req.query.url as string;
+  const imageUrl = typeof req.query.url === "string" ? req.query.url : "";
   if (!imageUrl) {
     return res.status(400).json({ error: "url query parameter is required" });
   }
-
-  // Only allow proxying from known Hydrilla S3 buckets / GPU hosts
   if (!isAllowedImageProxyUrl(imageUrl)) {
     return res.status(403).json({ error: "URL not allowed for proxying" });
   }
-
-  try {
-    // If it's one of our current or legacy S3 URLs, fetch from the configured bucket.
-    const imageS3Key = extractOwnedS3KeyFromUrl(imageUrl);
-    if (imageS3Key && s3Enabled && s3Client) {
-      try {
-        const { key: resolvedKey, out: s3Response } = await getFirstExistingS3Object(imageKeyCandidates(imageS3Key));
-        const contentLength = s3Response.ContentLength || 0;
-        res.setHeader("Content-Type", contentTypeForImageKey(resolvedKey, s3Response.ContentType || undefined));
-        res.setHeader("Cache-Control", "public, max-age=3600");
-        // Objects are written once per job, so Vercel's CDN can serve repeat requests
-        // without running this function. Only when the requested key itself was found:
-        // a substitute candidate could be replaced once the real object is uploaded.
-        // A cached copy is shared by <img> tags and CORS fetches from any allowed origin,
-        // so it must not carry the per-origin CORS headers; the images are public and
-        // fetched without credentials, which a wildcard origin allows.
-        if (resolvedKey === imageS3Key) {
-          res.setHeader("Access-Control-Allow-Origin", "*");
-          res.removeHeader("Access-Control-Allow-Credentials");
-          res.setHeader("Vercel-CDN-Cache-Control", "max-age=86400, stale-while-revalidate=604800");
-        }
-        if (contentLength > 0) res.setHeader("Content-Length", contentLength.toString());
-
-        if (s3Response.Body) {
-          const stream = s3Response.Body as Readable;
-          stream.on("error", (err: Error) => {
-            logger.error({ s3Key: resolvedKey, err: err.message }, "Error streaming image from S3");
-            if (!res.headersSent) res.status(500).json({ error: "Failed to stream image" });
-          });
-          stream.pipe(res);
-          return;
-        }
-      } catch (s3Err: any) {
-        logger.warn({ err: s3Err.message }, "Failed to fetch image from S3, trying direct URL");
-      }
-    }
-
-    // Fallback: proxy through direct fetch
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: "Failed to fetch image" });
-    }
-
-    const contentType = response.headers.get("content-type") || "image/png";
-    const contentLength = response.headers.get("content-length");
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=3600");
-    if (contentLength) res.setHeader("Content-Length", contentLength);
-
-    const body = response.body;
-    if (body) {
-      const nodeStream = Readable.fromWeb(body as any);
-      nodeStream.pipe(res);
-    } else {
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
-    }
-  } catch (err: any) {
-    logger.error({ err: err.message }, "Error proxying image");
-    res.status(500).json({ error: err.message || "Failed to proxy image" });
-  }
+  res.setHeader("Cache-Control", "private, no-store");
+  res.redirect(302, imageUrl);
 });
 
 // ============================================
