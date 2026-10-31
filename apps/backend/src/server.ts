@@ -42,11 +42,13 @@ async function main() {
       allowedHeaders: [
         "Content-Type",
         "Authorization",
+        "If-None-Match",
         "webhook-id",
         "webhook-signature",
         "webhook-timestamp",
         "X-Hydrilla-Internal",
       ],
+      exposedHeaders: ["ETag"],
       credentials: true,
     })
   );

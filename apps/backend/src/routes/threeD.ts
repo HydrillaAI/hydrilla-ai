@@ -1,5 +1,5 @@
 import { Router, type Request as ExpressRequest, type Response as ExpressResponse } from "express";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -10,7 +10,7 @@ import { logger } from "../logger.js";
 import { config, timingSafeEqualString } from "../config.js";
 import { supabase } from "../db.js";
 import { isJobPubliclyPosted } from "../repository/community.js";
-import { createJob, getJob, listJobsForUser, updateJobResult, updateJobStatus, deleteJob, getJobForUser, getJobLineage, upsertJobParents, getJobParentIds } from "../repository/jobs.js";
+import { createJob, getJob, getJobMeshAccess, listJobsForUser, updateJobResult, updateJobStatus, deleteJob, getJobForUser, getJobLineage, upsertJobParents, getJobParentIds } from "../repository/jobs.js";
 import { createChat, getChatForUser, listChatsForUser, updateChatName, updateChatUpdatedAt, deleteChat, getOrCreateActiveChat } from "../repository/chats.js";
 import { createWorkspace, getWorkspace, getWorkspaceForUser, listWorkspacesForUser, listJobsForWorkspace, updateWorkspaceName, updateWorkspaceUpdatedAt, deleteWorkspace } from "../repository/workspaces.js";
 import { optionalAuth, requireAuth, syncUserToDatabase } from "../middleware/auth.js";
@@ -47,6 +47,11 @@ import {
 import { JobStatus, JobRecord, ChatRecord, WorkspaceRecord, GenerateType } from "../types.js";
 
 export const threeDRouter = Router();
+
+function ifNoneMatchIncludes(header: string | string[] | undefined, etag: string): boolean {
+  const raw = Array.isArray(header) ? header.join(",") : header || "";
+  return raw.split(",").some((part) => part.trim() === etag);
+}
 
 function compactVisualEvidence(spec: unknown): {
   gatePassed?: boolean;
@@ -450,22 +455,41 @@ async function getFirstExistingS3Object(keys: string[]) {
   throw lastErr || new Error("S3 object not found");
 }
 
-/** Like getFirstExistingS3Object, but checks with HEAD so no object bytes are downloaded. */
-async function findFirstExistingS3Key(keys: string[]): Promise<string | null> {
-  if (!s3Client) throw new Error("S3 client is not initialized");
-  for (const key of keys) {
-    try {
-      await s3Client.send(new HeadObjectCommand({ Bucket: config.s3.bucket, Key: key }));
-      return key;
-    } catch (err: any) {
-      const code = err?.Code || err?.name || err?.$metadata?.httpStatusCode;
-      if (code === "NoSuchKey" || code === "NotFound" || code === 404) {
-        continue;
-      }
-      throw err;
-    }
+async function s3KeyExists(key: string): Promise<boolean> {
+  if (!s3Client) {
+    throw new Error("S3 client is not initialized");
   }
-  return null;
+  try {
+    await s3Client.send(new HeadObjectCommand({ Bucket: config.s3.bucket, Key: key }));
+    return true;
+  } catch (err: any) {
+    const code = err?.Code || err?.name || err?.$metadata?.httpStatusCode;
+    if (code === "NoSuchKey" || code === "NotFound" || code === 404) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+/**
+ * HEAD so no object bytes are downloaded. The preferred key is checked first.
+ * Fallbacks run together only when that key is missing, so a hit stays one round trip.
+ */
+async function findFirstExistingS3Key(keys: string[]): Promise<string | null> {
+  const [preferred, ...fallbacks] = keys;
+  if (!preferred) {
+    return null;
+  }
+  if (await s3KeyExists(preferred)) {
+    return preferred;
+  }
+  if (fallbacks.length === 0) {
+    return null;
+  }
+  const found = await Promise.all(
+    fallbacks.map(async (key) => ((await s3KeyExists(key)) ? key : ""))
+  );
+  return found.find((key) => key.length > 0) ?? null;
 }
 
 /**
@@ -1909,8 +1933,51 @@ type GpuFeatures = {
   edit_image: boolean;
 };
 
+type GpuProbe = Awaited<ReturnType<typeof probeGpuVm>>;
+
+/** Page loads ask health more than once. Reuse a fresh probe; job submit still probes live. */
+const GPU_HEALTH_TTL_MS = 15_000;
+const gpuHealthCache: { at: number; value: GpuProbe | null; pending: Promise<GpuProbe> | null } = {
+  at: 0,
+  value: null,
+  pending: null,
+};
+
+function freshGpuHealth(): GpuProbe | null {
+  if (!gpuHealthCache.value) {
+    return null;
+  }
+  if (Date.now() - gpuHealthCache.at >= GPU_HEALTH_TTL_MS) {
+    return null;
+  }
+  return gpuHealthCache.value;
+}
+
+function probeGpuForHealth(): Promise<GpuProbe> {
+  const fresh = freshGpuHealth();
+  if (fresh) {
+    return Promise.resolve(fresh);
+  }
+  if (gpuHealthCache.pending) {
+    return gpuHealthCache.pending;
+  }
+  const pending = probeGpuVm()
+    .then((value) => {
+      gpuHealthCache.at = Date.now();
+      gpuHealthCache.value = value;
+      gpuHealthCache.pending = null;
+      return value;
+    })
+    .catch((err) => {
+      gpuHealthCache.pending = null;
+      throw err;
+    });
+  gpuHealthCache.pending = pending;
+  return pending;
+}
+
 threeDRouter.get("/health", async (_req, res) => {
-  const [providers, gpu] = await Promise.all([imageProviderAvailability(), probeGpuVm()]);
+  const [providers, gpu] = await Promise.all([imageProviderAvailability(), probeGpuForHealth()]);
   const imageAvailable = providers.openai || providers.gemini;
   const features: GpuFeatures = {
     text_to_image: imageAvailable,
@@ -2018,7 +2085,7 @@ threeDRouter.get("/glb/:jobId/signed-url", optionalAuth, async (req, res) => {
   }
 
   try {
-    const job = await getJob(jobId);
+    const job = await getJobMeshAccess(jobId);
     if (job && !(await canServeJobGlb(job, jobId, userId, res))) {
       return;
     }
@@ -2048,8 +2115,8 @@ threeDRouter.get("/glb/:jobId", optionalAuth, async (req, res) => {
   const userId = req.userId;
 
   try {
-    // Get job to verify ownership and get GLB URL
-    const job = await getJob(jobId);
+    // Ownership and the mesh key only. The full row includes factory code.
+    const job = await getJobMeshAccess(jobId);
     if (!job) {
       // Fallback: check S3 directly for this jobId if DB row is missing
       if (s3Enabled && s3Client) {
@@ -3303,6 +3370,13 @@ threeDRouter.get("/workspaces/:workspaceId/jobs", requireAuth, async (req, res) 
       };
     });
 
+    const etag = `"${createHash("sha1").update(JSON.stringify(normalizedJobs)).digest("base64url")}"`;
+    res.setHeader("ETag", etag);
+    res.setHeader("Cache-Control", "private, no-cache");
+    res.setHeader("Vary", "Authorization");
+    if (ifNoneMatchIncludes(req.headers["if-none-match"], etag)) {
+      return res.status(304).end();
+    }
     res.json({ jobs: normalizedJobs });
   } catch (err: any) {
     logger.error(err, "Failed to list workspace jobs");

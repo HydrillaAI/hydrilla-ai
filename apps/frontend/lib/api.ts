@@ -1406,6 +1406,7 @@ const GLB_PROXY_PATH = "/api/3d/glb/";
 // Signed URLs live for an hour; stop reusing them a little before that.
 const SIGNED_GLB_REUSE_MS = 50 * 60 * 1000;
 const signedGlbUrls = new Map<string, { url: string; reuseUntil: number }>();
+const signedGlbInflight = new Map<string, Promise<string | null>>();
 
 function proxiedGlbJobId(url: string): string | null {
   const index = url.indexOf(GLB_PROXY_PATH);
@@ -1433,14 +1434,10 @@ function isCrawler(): boolean {
   return typeof navigator !== "undefined" && CRAWLER_UA.test(navigator.userAgent);
 }
 
-async function fetchSignedGlbUrl(
+async function requestSignedGlbUrl(
   jobId: string,
   getToken: () => Promise<string | null>,
 ): Promise<string | null> {
-  const cached = signedGlbUrls.get(jobId);
-  if (cached && cached.reuseUntil > Date.now()) {
-    return cached.url;
-  }
   try {
     const token = await getTokenOrNull(getToken);
     const res = await fetch(`${backendBase}${GLB_PROXY_PATH}${encodeURIComponent(jobId)}/signed-url`, {
@@ -1458,6 +1455,27 @@ async function fetchSignedGlbUrl(
     return body.url;
   } catch {
     return null;
+  }
+}
+
+async function fetchSignedGlbUrl(
+  jobId: string,
+  getToken: () => Promise<string | null>,
+): Promise<string | null> {
+  const cached = signedGlbUrls.get(jobId);
+  if (cached && cached.reuseUntil > Date.now()) {
+    return cached.url;
+  }
+  const pending = signedGlbInflight.get(jobId);
+  if (pending) {
+    return pending;
+  }
+  const request = requestSignedGlbUrl(jobId, getToken);
+  signedGlbInflight.set(jobId, request);
+  try {
+    return await request;
+  } finally {
+    signedGlbInflight.delete(jobId);
   }
 }
 
@@ -1960,12 +1978,28 @@ export async function fetchWorkspace(
   }
 }
 
-/**
- * Get all jobs for a workspace
- */
-export async function fetchWorkspaceJobs(
+type WorkspaceJobsSlot = {
+  etag: string;
+  jobs: BackendJob[];
+  inflight: Promise<BackendJob[]> | null;
+};
+
+const workspaceJobsSlots = new Map<string, WorkspaceJobsSlot>();
+
+function workspaceJobsSlot(workspaceId: string): WorkspaceJobsSlot {
+  const existing = workspaceJobsSlots.get(workspaceId);
+  if (existing) {
+    return existing;
+  }
+  const created: WorkspaceJobsSlot = { etag: "", jobs: [], inflight: null };
+  workspaceJobsSlots.set(workspaceId, created);
+  return created;
+}
+
+async function requestWorkspaceJobs(
   workspaceId: string,
-  getToken?: () => Promise<string | null>,
+  getToken: (() => Promise<string | null>) | undefined,
+  slot: WorkspaceJobsSlot,
 ): Promise<BackendJob[]> {
   try {
     const headers: HeadersInit = { "Content-Type": "application/json" };
@@ -1975,9 +2009,12 @@ export async function fetchWorkspaceJobs(
         headers["Authorization"] = `Bearer ${token}`;
       }
     }
+    if (slot.etag) {
+      headers["If-None-Match"] = slot.etag;
+    }
 
     const response = await fetch(
-      `${backendBase}/api/3d/workspaces/${workspaceId}/jobs?t=${Date.now()}`,
+      `${backendBase}/api/3d/workspaces/${workspaceId}/jobs`,
       {
         method: "GET",
         headers,
@@ -1985,22 +2022,55 @@ export async function fetchWorkspaceJobs(
       },
     );
 
+    if (response.status === 304) {
+      return slot.jobs;
+    }
+
     if (!response.ok) {
       if (response.status === 404) {
+        slot.etag = "";
+        slot.jobs = [];
         return [];
       }
       throw new Error(`Failed to fetch workspace jobs: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.jobs || [];
+    const jobs = (data.jobs || []) as BackendJob[];
+    const etag = response.headers.get("ETag");
+    slot.jobs = jobs;
+    if (etag) {
+      slot.etag = etag;
+    }
+    return jobs;
   } catch (err: any) {
     if (isApiUnavailableError(err)) {
       console.warn("Failed to fetch workspace jobs (backend unavailable):", err.message);
-      return [];
+      return slot.jobs;
     }
     console.error("Failed to fetch workspace jobs:", err);
-    return [];
+    return slot.jobs;
+  }
+}
+
+/**
+ * Get all jobs for a workspace.
+ * Repeat polls send the last ETag and reuse the previous list when nothing changed.
+ */
+export async function fetchWorkspaceJobs(
+  workspaceId: string,
+  getToken?: () => Promise<string | null>,
+): Promise<BackendJob[]> {
+  const slot = workspaceJobsSlot(workspaceId);
+  if (slot.inflight) {
+    return slot.inflight;
+  }
+  const request = requestWorkspaceJobs(workspaceId, getToken, slot);
+  slot.inflight = request;
+  try {
+    return await request;
+  } finally {
+    slot.inflight = null;
   }
 }
 
