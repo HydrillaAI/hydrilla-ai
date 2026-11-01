@@ -213,12 +213,59 @@ export async function listExpiringCredits(userId: string, bonus: number): Promis
 }
 
 /**
+ * If the user still has a paid plan label but no active/past_due subscription,
+ * demote them to free tier. Covers missed on_hold webhooks after the spend gate was removed.
+ */
+async function demotePaidCreditsIfNotEntitled(userId: string): Promise<CreditsRow | null> {
+  const row = await getCreditsRow(userId);
+  if (!row || !row.plan) {
+    return row;
+  }
+
+  const { data: entitled } = await supabase
+    .from("user_subscriptions")
+    .select("id")
+    .eq("user_id", userId)
+    .in("status", ["active", "past_due"])
+    .limit(1);
+  if (entitled && entitled.length > 0) {
+    return row;
+  }
+
+  const nextReset = addOneMonth(new Date()).toISOString();
+  const { data: updated, error } = await supabase
+    .from("user_credits")
+    .update({
+      plan: null,
+      credits_total: FREE_TIER_CREDITS,
+      credits_used: 0,
+      subscription_id: null,
+      reset_at: nextReset,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id)
+    .select("id, credits_used, credits_total, credits_bonus, plan, reset_at")
+    .single();
+
+  if (error || !updated) {
+    logger.warn({ error, userId, plan: row.plan }, "Failed to demote paid credits without entitled subscription");
+    return row;
+  }
+
+  const mapped = mapCreditsRow(updated)!;
+  await insertPeriodResetLedger(userId, mapped, "Demoted to free after billing ended");
+  logger.info({ userId, previousPlan: row.plan }, "Demoted paid credits to free (no entitled subscription)");
+  return mapped;
+}
+
+/**
  * Ensure a user has a credits row. Creates free-tier (100 credits) with reset_at if missing.
  */
 export async function ensureCreditsRow(userId: string): Promise<CreditsRow | null> {
   const existing = await getCreditsRow(userId);
   if (existing) {
     await expireCreditGrants(userId);
+    await demotePaidCreditsIfNotEntitled(userId);
     return applyFreePeriodResetIfDue(userId);
   }
 
