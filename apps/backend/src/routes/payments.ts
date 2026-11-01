@@ -713,7 +713,7 @@ paymentsRouter.get("/credits", requireAuth, async (req: Request, res: Response) 
     }
 
     // Free monthly hard-reset when period is due (preserves bonus).
-    // applyFreePeriodResetIfDue also skips users with on_hold/paused/failed subs.
+    // on_hold / failed subs are free-tier; only active / past_due skip this reset.
     if (credits && !subscriptionPlan && !credits.plan) {
       const resetRow = await applyFreePeriodResetIfDue(userId);
       if (resetRow) {
@@ -1385,7 +1385,7 @@ async function handleSubscriptionCancelled(data: any, eventType: string) {
   }
 }
 
-/** subscription.on_hold - Payment failed, subscription paused */
+/** subscription.on_hold - Payment failed. Drop paid access to free tier; generation still works. */
 async function handleSubscriptionOnHold(data: any) {
   try {
     const subscriptionId = data.subscription_id;
@@ -1405,11 +1405,7 @@ async function handleSubscriptionOnHold(data: any) {
       .eq("dodo_subscription_id", subscriptionId)
       .maybeSingle();
     if (subRow?.user_id) {
-      await supabase
-        .from("user_credits")
-        .update({ plan: null, updated_at: new Date().toISOString() })
-        .eq("user_id", subRow.user_id);
-      if (isSlotPlan(subRow.plan)) await releaseSlot(subRow.user_id);
+      await endPaidAccess(subRow.user_id, subscriptionId);
     }
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionOnHold");
@@ -1417,7 +1413,7 @@ async function handleSubscriptionOnHold(data: any) {
   }
 }
 
-/** subscription.failed */
+/** subscription.failed — same as on_hold: fall back to free tier, generation stays allowed. */
 async function handleSubscriptionFailed(data: any) {
   try {
     const subscriptionId = data.subscription_id;
@@ -1437,11 +1433,7 @@ async function handleSubscriptionFailed(data: any) {
       .eq("dodo_subscription_id", subscriptionId)
       .maybeSingle();
     if (subRow?.user_id) {
-      if (isSlotPlan(subRow.plan)) await releaseSlot(subRow.user_id);
-      await supabase
-        .from("user_credits")
-        .update({ plan: null, updated_at: new Date().toISOString() })
-        .eq("user_id", subRow.user_id);
+      await endPaidAccess(subRow.user_id, subscriptionId);
     }
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionFailed");
