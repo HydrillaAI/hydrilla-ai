@@ -244,6 +244,19 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
       return res.status(400).json({ error: "Valid email is required" });
     }
 
+    // Bind checkout to the signed-in account email so webhook email fallbacks cannot mis-attribute.
+    const checkoutEmail = await (async () => {
+      if (!userId) {
+        return email.trim();
+      }
+      const { data: me } = await supabase.from("users").select("email").eq("id", userId).maybeSingle();
+      const accountEmail = (me?.email || "").trim();
+      if (accountEmail) {
+        return accountEmail;
+      }
+      return email.trim();
+    })();
+
     if (userId) {
       const existingSub = await getActiveSubscription(userId);
       const existing = entitledPlan(existingSub);
@@ -267,7 +280,7 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
       return res.status(500).json({ error: `Payment product for ${paidPlan} plan not configured` });
     }
 
-    const hasUsedTrial = await checkUserTrialUsed(userId, email);
+    const hasUsedTrial = await checkUserTrialUsed(userId, checkoutEmail);
     const applyTrial = !hasUsedTrial;
 
     const returnUrl = config.dodoPayment.returnUrl ||
@@ -278,7 +291,7 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
 
     const session = await dodo.checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
-      customer: { email },
+      customer: { email: checkoutEmail },
       return_url: returnUrl,
       cancel_url: cancelUrl,
       subscription_data: {
@@ -287,12 +300,12 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
       metadata: {
         plan: paidPlan,
         user_id: userId || "",
-        email,
+        email: checkoutEmail,
         is_trial: applyTrial ? "true" : "false",
       },
     });
 
-    logger.info({ plan: paidPlan, email, sessionId: session.session_id, applyTrial }, "Checkout session created");
+    logger.info({ plan: paidPlan, email: checkoutEmail, sessionId: session.session_id, applyTrial }, "Checkout session created");
 
     captureServerEvent(userId, "checkout_session_created", {
       plan: paidPlan,
@@ -1096,7 +1109,7 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
     const previousMeta = existingSub?.metadata && typeof existingSub.metadata === "object" ? existingSub.metadata : {};
 
     const userId = await resolveClerkUserId({
-      userId: nonEmptyString(data._callerUserId) || nonEmptyString(data?.metadata?.user_id) || existingSub?.user_id || null,
+      userId: nonEmptyString(data._callerUserId) || nonEmptyString(data?.metadata?.user_id),
       email,
       subscriptionId,
       metadata: { ...(previousMeta as Record<string, unknown>), ...(data?.metadata || {}), raw: data },
@@ -1292,20 +1305,26 @@ async function handleSubscriptionRenewed(data: any, webhookId: string) {
         .select("user_id")
         .eq("dodo_subscription_id", subscriptionId)
         .maybeSingle();
-      const userId = subRow?.user_id ?? (email ? await findUserIdByEmail(email) : null);
-      const userEmail = userId
-        ? (await supabase.from("users").select("email").eq("id", userId).maybeSingle()).data?.email ?? email
-        : email;
-      if (userId && userEmail) {
-        await upsertUserCredits({
-          userId,
-          email: userEmail,
-          plan,
-          creditsTotal: credits,
-          subscriptionId,
-          resetAt: currentPeriodEnd,
-          resetUsed: true,
-        });
+      const userId = subRow?.user_id || null;
+      if (!userId) {
+        logger.error(
+          { subscriptionId, email },
+          "subscription.renewed missing Clerk user_id on subscription row; refusing email-only credit grant"
+        );
+      } else {
+        const userEmail =
+          (await supabase.from("users").select("email").eq("id", userId).maybeSingle()).data?.email ?? email;
+        if (userEmail) {
+          await upsertUserCredits({
+            userId,
+            email: userEmail,
+            plan,
+            creditsTotal: credits,
+            subscriptionId,
+            resetAt: currentPeriodEnd,
+            resetUsed: true,
+          });
+        }
       }
     }
 
@@ -1316,8 +1335,7 @@ async function handleSubscriptionRenewed(data: any, webhookId: string) {
         .from("user_subscriptions")
         .select("user_id")
         .eq("dodo_subscription_id", subscriptionId)
-        .maybeSingle()).data?.user_id ??
-      (email ? await findUserIdByEmail(email) : null);
+        .maybeSingle()).data?.user_id ?? null;
     captureServerEvent(renewUserId, "subscription_renewed", {
       plan: plan || "unknown",
       credits,
@@ -1462,15 +1480,32 @@ async function handleSubscriptionUpdated(data: any) {
       return;
     }
 
-    const allowed = new Set(["pending", "active", "on_hold", "failed"]);
+    if (status === "on_hold") {
+      await handleSubscriptionOnHold(data);
+      return;
+    }
+    if (status === "failed") {
+      await handleSubscriptionFailed(data);
+      return;
+    }
+
+    const allowed = new Set(["pending", "active"]);
     const plan = resolvePaidPlan(data, data.product_id);
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (allowed.has(status)) patch.status = status;
-    if (plan) patch.plan = plan;
+    if (allowed.has(status)) {
+      patch.status = status;
+    }
+    if (plan) {
+      patch.plan = plan;
+    }
     const periodStart = data.current_period_start || data.previous_billing_date;
     const periodEnd = data.current_period_end || data.next_billing_date;
-    if (periodStart) patch.current_period_start = periodStart;
-    if (periodEnd) patch.current_period_end = periodEnd;
+    if (periodStart) {
+      patch.current_period_start = periodStart;
+    }
+    if (periodEnd) {
+      patch.current_period_end = periodEnd;
+    }
     if (data.cancel_at_next_billing_date === false) {
       const { data: existing } = await supabase
         .from("user_subscriptions")
@@ -1481,7 +1516,9 @@ async function handleSubscriptionUpdated(data: any) {
       patch.metadata = { ...previousMeta, cancel_at_next_billing_date: false };
     }
     const { error } = await writeUserSubscription("update", patch, subscriptionId);
-    if (error) logger.error({ error, subscriptionId }, "Failed to apply subscription.updated");
+    if (error) {
+      logger.error({ error, subscriptionId }, "Failed to apply subscription.updated");
+    }
   } catch (error: any) {
     logger.error({ error: error?.message }, "Error in handleSubscriptionUpdated");
     throw error;
@@ -1592,6 +1629,7 @@ async function handleRefundSucceeded(data: any, webhookId: string) {
 /**
  * Always prefer a Clerk user_… id. Local and production share this database, so
  * webhooks must never persist payment/subscription rows keyed only by email.
+ * Existing subscription owner wins over webhook metadata to prevent reassignment.
  */
 async function resolveClerkUserId(opts: {
   userId?: string | null;
@@ -1599,11 +1637,6 @@ async function resolveClerkUserId(opts: {
   subscriptionId?: string | null;
   metadata?: Record<string, unknown> | null;
 }): Promise<string | null> {
-  const fromParam = nonEmptyString(opts.userId);
-  if (fromParam) {
-    return fromParam;
-  }
-
   const meta = opts.metadata && typeof opts.metadata === "object" ? opts.metadata : {};
   const raw = meta.raw && typeof meta.raw === "object" ? (meta.raw as Record<string, unknown>) : meta;
   const rawMeta =
@@ -1612,9 +1645,7 @@ async function resolveClerkUserId(opts: {
     nonEmptyString(meta.user_id) ||
     nonEmptyString(rawMeta.user_id) ||
     nonEmptyString(raw.user_id);
-  if (fromMeta) {
-    return fromMeta;
-  }
+  const candidate = nonEmptyString(opts.userId) || fromMeta;
 
   if (opts.subscriptionId) {
     const { data: sub } = await supabase
@@ -1623,8 +1654,22 @@ async function resolveClerkUserId(opts: {
       .eq("dodo_subscription_id", opts.subscriptionId)
       .maybeSingle();
     if (sub?.user_id) {
+      if (candidate && candidate !== sub.user_id) {
+        logger.warn(
+          { subscriptionId: opts.subscriptionId, existing: sub.user_id, candidate },
+          "Ignoring webhook user_id that conflicts with existing subscription owner"
+        );
+      }
       return sub.user_id;
     }
+  }
+
+  if (candidate) {
+    const { data: user } = await supabase.from("users").select("id").eq("id", candidate).maybeSingle();
+    if (user?.id) {
+      return user.id;
+    }
+    logger.warn({ candidate }, "Resolved Clerk user_id not found in users table");
   }
 
   const email = nonEmptyString(opts.email);
@@ -1854,12 +1899,11 @@ async function handleCreditAdded(data: any, webhookId: string) {
       }
     }
 
-    if (!userId && resolvedEmail) {
-      userId = await findUserIdByEmail(resolvedEmail);
-    }
-
     if (!userId) {
-      logger.warn({ data }, "credit.added: could not resolve user_id");
+      logger.warn(
+        { subscriptionId, email: resolvedEmail || null },
+        "credit.added: missing Clerk user_id on subscription; refusing email-only credit grant"
+      );
       return;
     }
 
