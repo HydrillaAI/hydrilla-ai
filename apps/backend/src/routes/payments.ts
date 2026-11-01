@@ -1974,8 +1974,8 @@ function inferPaymentMode(metadata: unknown): DodoPaymentMode | null {
   ) {
     return "live";
   }
-  // Sync/admin writes without invoice URLs are production charges.
-  if (meta.source === "sync") {
+  // Sync/admin/backfill writes without invoice URLs are production charges.
+  if (meta.source === "sync" || meta.source === "backfill") {
     return "live";
   }
   return null;
