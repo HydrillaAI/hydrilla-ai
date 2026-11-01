@@ -1721,6 +1721,13 @@ async function recordSubscriptionPayment(params: {
     );
   }
 
+  const previousMeta =
+    params.metadata && typeof params.metadata === "object" ? params.metadata : {};
+  const metadata = {
+    ...previousMeta,
+    dodo_mode: currentDodoPaymentMode(),
+  };
+
   const { error } = await supabase.from("subscription_payments").upsert(
     {
       email: params.email || null,
@@ -1732,7 +1739,7 @@ async function recordSubscriptionPayment(params: {
       status: params.status,
       plan: params.plan ? canonicalizePlan(params.plan) || params.plan : null,
       webhook_id: params.webhookId || null,
-      metadata: params.metadata || null,
+      metadata,
     },
     { onConflict: "dodo_payment_id" }
   );
@@ -1937,9 +1944,54 @@ async function handleCreditAdded(data: any, webhookId: string) {
 // ============================================================================
 
 const BILLING_PAYMENT_COLUMNS =
-  "id, created_at, amount_cents, currency, status, plan, dodo_payment_id, dodo_subscription_id, email, user_id";
+  "id, created_at, amount_cents, currency, status, plan, dodo_payment_id, dodo_subscription_id, email, user_id, metadata";
 
-/** Every charge for this person: the signed-in id, every Clerk id with the same email, and rows saved only by email. */
+type DodoPaymentMode = "test" | "live";
+
+function currentDodoPaymentMode(): DodoPaymentMode {
+  return config.dodoPayment.mode === "live" ? "live" : "test";
+}
+
+/** Infer test vs live for rows written before dodo_mode was stamped (local and prod share one DB). */
+function inferPaymentMode(metadata: unknown): DodoPaymentMode | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+  const meta = metadata as Record<string, unknown>;
+  if (meta.dodo_mode === "test" || meta.dodo_mode === "live") {
+    return meta.dodo_mode;
+  }
+  const blob = JSON.stringify(meta);
+  if (
+    blob.includes("test.dodopayments.com") ||
+    blob.includes("test.checkout.dodopayments.com")
+  ) {
+    return "test";
+  }
+  if (
+    blob.includes("live.dodopayments.com") ||
+    blob.includes("checkout.dodopayments.com")
+  ) {
+    return "live";
+  }
+  // Sync/admin writes without invoice URLs are production charges.
+  if (meta.source === "sync") {
+    return "live";
+  }
+  return null;
+}
+
+function paymentBelongsToCurrentMode(metadata: unknown): boolean {
+  const mode = inferPaymentMode(metadata);
+  const current = currentDodoPaymentMode();
+  if (mode) {
+    return mode === current;
+  }
+  // Untagged legacy rows: only show in live so local test history stays clean.
+  return current === "live";
+}
+
+/** Every charge for this person in the current Dodo mode (test local vs live prod). */
 async function listPaymentsForPerson(userId: string) {
   const { data: me, error: meErr } = await supabase
     .from("users")
@@ -1976,6 +2028,9 @@ async function listPaymentsForPerson(userId: string) {
 
   const merged = new Map<string, any>();
   for (const row of [...(byEmail.data || []), ...(byUser.data || [])]) {
+    if (!paymentBelongsToCurrentMode(row.metadata)) {
+      continue;
+    }
     merged.set(row.id, row);
   }
   const rows = Array.from(merged.values()).sort(
@@ -2079,10 +2134,10 @@ async function checkUserTrialUsed(userId?: string | null, email?: string | null)
       if (hasUsedPlanOrTrial) return true;
     }
 
-    // 4. Check payment history: any succeeded payment also means already paid customer
+    // 4. Succeeded payment in this Dodo mode (test vs live) means already a paid customer
     let payQuery = supabase
       .from("subscription_payments")
-      .select("id")
+      .select("id, metadata")
       .eq("status", "succeeded");
 
     if (resolvedUserId && email) {
@@ -2093,8 +2148,8 @@ async function checkUserTrialUsed(userId?: string | null, email?: string | null)
       payQuery = payQuery.eq("email", email);
     }
 
-    const { data: payments } = await payQuery.limit(1);
-    if (payments && payments.length > 0) {
+    const { data: payments } = await payQuery.limit(25);
+    if ((payments || []).some((row) => paymentBelongsToCurrentMode(row.metadata))) {
       return true;
     }
 
