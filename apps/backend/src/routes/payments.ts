@@ -1086,21 +1086,32 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
       logger.info({ subscriptionId, productId }, "subscription.active: unknown product_id, skipping credit grant");
     }
 
-    const callerUserId = nonEmptyString(data._callerUserId);
-    const metadataUserId = nonEmptyString(data?.metadata?.user_id);
-    const userId: string | null = callerUserId || metadataUserId || (email ? await findUserIdByEmail(email) : null);
+    const { data: existingSub } = subscriptionId
+      ? await supabase
+          .from("user_subscriptions")
+          .select("user_id, metadata")
+          .eq("dodo_subscription_id", subscriptionId)
+          .maybeSingle()
+      : { data: null };
+    const previousMeta = existingSub?.metadata && typeof existingSub.metadata === "object" ? existingSub.metadata : {};
+
+    const userId = await resolveClerkUserId({
+      userId: nonEmptyString(data._callerUserId) || nonEmptyString(data?.metadata?.user_id) || existingSub?.user_id || null,
+      email,
+      subscriptionId,
+      metadata: { ...(previousMeta as Record<string, unknown>), ...(data?.metadata || {}), raw: data },
+    });
 
     logger.info({ subscriptionId, productId, plan, email, credits, userId }, "Subscription activated");
 
-    if (!userId && !email) {
-      logger.error({ data, keys: Object.keys(data || {}) }, "subscription.active missing user_id and customer email");
+    if (!userId) {
+      logger.error(
+        { data, keys: Object.keys(data || {}), email, subscriptionId },
+        "subscription.active missing Clerk user_id; refusing email-only write (local/prod share DB)"
+      );
       return;
     }
 
-    const { data: existingSub } = subscriptionId
-      ? await supabase.from("user_subscriptions").select("metadata").eq("dodo_subscription_id", subscriptionId).maybeSingle()
-      : { data: null };
-    const previousMeta = existingSub?.metadata && typeof existingSub.metadata === "object" ? existingSub.metadata : {};
     const cancelScheduled = data.cancel_at_next_billing_date === true || previousMeta.cancel_at_next_billing_date === true;
 
     const trialDays = Number(data.trial_period_days ?? 0);
@@ -1586,6 +1597,51 @@ async function handleRefundSucceeded(data: any, webhookId: string) {
   }
 }
 
+/**
+ * Always prefer a Clerk user_… id. Local and production share this database, so
+ * webhooks must never persist payment/subscription rows keyed only by email.
+ */
+async function resolveClerkUserId(opts: {
+  userId?: string | null;
+  email?: string | null;
+  subscriptionId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}): Promise<string | null> {
+  const fromParam = nonEmptyString(opts.userId);
+  if (fromParam) {
+    return fromParam;
+  }
+
+  const meta = opts.metadata && typeof opts.metadata === "object" ? opts.metadata : {};
+  const raw = meta.raw && typeof meta.raw === "object" ? (meta.raw as Record<string, unknown>) : meta;
+  const rawMeta =
+    raw.metadata && typeof raw.metadata === "object" ? (raw.metadata as Record<string, unknown>) : {};
+  const fromMeta =
+    nonEmptyString(meta.user_id) ||
+    nonEmptyString(rawMeta.user_id) ||
+    nonEmptyString(raw.user_id);
+  if (fromMeta) {
+    return fromMeta;
+  }
+
+  if (opts.subscriptionId) {
+    const { data: sub } = await supabase
+      .from("user_subscriptions")
+      .select("user_id")
+      .eq("dodo_subscription_id", opts.subscriptionId)
+      .maybeSingle();
+    if (sub?.user_id) {
+      return sub.user_id;
+    }
+  }
+
+  const email = nonEmptyString(opts.email);
+  if (email) {
+    return await findUserIdByEmail(email);
+  }
+  return null;
+}
+
 async function recordSubscriptionPayment(params: {
   paymentId: string;
   subscriptionId?: string | null;
@@ -1597,12 +1653,41 @@ async function recordSubscriptionPayment(params: {
   plan?: string | null;
   webhookId?: string | null;
   metadata?: Record<string, unknown>;
-}) {
-  if (!params.paymentId) return;
+}): Promise<string | null> {
+  if (!params.paymentId) {
+    return null;
+  }
+
+  const resolvedUserId = await resolveClerkUserId({
+    userId: params.userId,
+    email: params.email,
+    subscriptionId: params.subscriptionId,
+    metadata: params.metadata || null,
+  });
+
+  // Never blank out a Clerk id that was already stored for this payment.
+  const { data: existing } = await supabase
+    .from("subscription_payments")
+    .select("user_id")
+    .eq("dodo_payment_id", params.paymentId)
+    .maybeSingle();
+  const userId = resolvedUserId || existing?.user_id || null;
+
+  if (!userId) {
+    logger.warn(
+      {
+        paymentId: params.paymentId,
+        email: params.email || null,
+        subscriptionId: params.subscriptionId || null,
+      },
+      "subscription_payments upsert without Clerk user_id (email-only); local/prod share this DB"
+    );
+  }
+
   const { error } = await supabase.from("subscription_payments").upsert(
     {
       email: params.email || null,
-      user_id: params.userId || null,
+      user_id: userId,
       dodo_payment_id: params.paymentId,
       dodo_subscription_id: params.subscriptionId || null,
       amount_cents: params.amountCents ?? 0,
@@ -1617,6 +1702,7 @@ async function recordSubscriptionPayment(params: {
   if (error) {
     logger.error({ error, paymentId: params.paymentId }, "Failed to upsert subscription_payments");
   }
+  return userId;
 }
 
 /** payment.succeeded - Log payment record AND activate subscription if not yet active.
@@ -1640,7 +1726,7 @@ async function handlePaymentSucceeded(data: any, webhookId: string) {
 
     logger.info({ paymentId, subscriptionId, email, amountCents, plan }, "Payment succeeded");
 
-    await recordSubscriptionPayment({
+    const resolvedUserId = await recordSubscriptionPayment({
       paymentId,
       subscriptionId,
       email,
@@ -1652,7 +1738,7 @@ async function handlePaymentSucceeded(data: any, webhookId: string) {
       webhookId,
       metadata: { raw: data },
     });
-    onPaymentSucceeded(data.metadata?.user_id || (email ? await findUserIdByEmail(email) : null));
+    onPaymentSucceeded(resolvedUserId);
 
     // ── Subscription activation fallback ────────────────────────────────────
     // subscription.active may never reach localhost; activate here if the
@@ -1686,7 +1772,7 @@ async function handlePaymentSucceeded(data: any, webhookId: string) {
             current_period_end: sub.current_period_end,
             recurring_pre_tax_amount: sub.recurring_pre_tax_amount ?? amountCents,
             metadata: sub.metadata || data.metadata || {},
-            _callerUserId: data.metadata?.user_id || null,
+            _callerUserId: resolvedUserId || data.metadata?.user_id || null,
           };
 
           await handleSubscriptionActive(subData, `payment-fallback-${webhookId}`);
@@ -1709,13 +1795,17 @@ async function handlePaymentFailed(data: any, webhookId: string) {
   try {
     const paymentId = data.payment_id || data.id;
     const subscriptionId = data.subscription_id;
-    const email: string = data.customer?.email || "";
+    const email: string =
+      data.customer?.email ||
+      data.metadata?.email ||
+      data.email ||
+      "";
     const amountCents: number = data.total_amount || data.amount || 0;
     const currency: string = data.currency || "INR";
 
     logger.info({ paymentId, subscriptionId, email }, "Payment failed");
 
-    await recordSubscriptionPayment({
+    const resolvedUserId = await recordSubscriptionPayment({
       paymentId,
       subscriptionId,
       email,
@@ -1728,7 +1818,7 @@ async function handlePaymentFailed(data: any, webhookId: string) {
       metadata: { raw: data },
     });
     onPaymentFailed(
-      data.metadata?.user_id || (email ? await findUserIdByEmail(email) : null),
+      resolvedUserId,
       resolvePaidPlan(data, data.product_cart?.[0]?.product_id || data.product_id)
     );
   } catch (error: any) {
