@@ -34,8 +34,6 @@ type RefundRpcRow = {
   bonus_restored?: number;
 };
 
-const HOLD_BLOCK_STATUSES = new Set(["on_hold", "paused", "failed"]);
-
 function addOneMonth(from: Date): Date {
   const next = new Date(from.getTime());
   next.setUTCMonth(next.getUTCMonth() + 1);
@@ -105,8 +103,8 @@ async function insertPeriodResetLedger(
 /**
  * Free tier: when reset_at is due (or missing), hard-reset period to 100/0 and advance reset_at.
  * Bonus is preserved. Paid plans are left alone (Dodo renewal owns their reset).
- * Skips users who still have a subscription row (including on_hold/paused/failed) so hold
- * does not look like free tier and wipe a paid allotment.
+ * Only skips users with entitled paid access (active / past_due). on_hold / failed / paused
+ * are treated as free so they can keep generating after billing fails.
  */
 export async function applyFreePeriodResetIfDue(userId: string): Promise<CreditsRow | null> {
   const row = await getCreditsRow(userId);
@@ -121,7 +119,7 @@ export async function applyFreePeriodResetIfDue(userId: string): Promise<Credits
     .from("user_subscriptions")
     .select("status")
     .eq("user_id", userId)
-    .in("status", ["active", "past_due", "on_hold", "paused", "failed", "pending"])
+    .in("status", ["active", "past_due"])
     .limit(1);
   if (subs && subs.length > 0) {
     return row;
@@ -251,32 +249,6 @@ export async function ensureCreditsRow(userId: string): Promise<CreditsRow | nul
   return null;
 }
 
-async function subscriptionBlocksSpend(userId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("user_subscriptions")
-    .select("status")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (error) {
-    logger.warn({ error, userId }, "Failed to load subscription for spend gate");
-    return false;
-  }
-
-  const rows = data || [];
-  if (rows.length === 0) {
-    return false;
-  }
-
-  // Block only when the latest relevant status is a hold/pause/fail and none are active/past_due.
-  const hasEntitled = rows.some((row) => row.status === "active" || row.status === "past_due");
-  if (hasEntitled) {
-    return false;
-  }
-  return rows.some((row) => HOLD_BLOCK_STATUSES.has(String(row.status || "")));
-}
-
 async function insertSpendLedger(
   userId: string,
   amount: number,
@@ -304,7 +276,8 @@ async function insertSpendLedger(
 
 /**
  * Deduct credits for the user. Atomic RPC only (fail closed if RPC missing).
- * Spends period remaining first, then bonus. Blocks when subscription is on_hold/paused/failed.
+ * Spends period remaining first, then bonus. on_hold / failed billing does not block spend —
+ * those users are on free-tier credits and can keep generating.
  */
 export async function deductCredit(
   userId: string,
@@ -313,13 +286,6 @@ export async function deductCredit(
 ): Promise<{ ok: true; remaining: number } | { ok: false; error: string }> {
   if (amount <= 0) {
     return { ok: true, remaining: 0 };
-  }
-
-  if (await subscriptionBlocksSpend(userId)) {
-    return {
-      ok: false,
-      error: "Subscription is on hold. Update billing to continue generating.",
-    };
   }
 
   const row = await ensureCreditsRow(userId);
