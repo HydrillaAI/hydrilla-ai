@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla vs Tripo",
   path: "/compare/tripo",
   absoluteTitle: true,
+  keywords: [
+    "Hydrilla vs Tripo",
+    "Tripo 3D alternative",
+    "BlueFox vs Tripo",
+    "best 3D AI generator",
+    "best 3D AI generator in India",
+  ],
 });
 
 export default function CompareTripoPage() {

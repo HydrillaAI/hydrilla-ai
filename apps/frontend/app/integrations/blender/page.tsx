@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla for Blender",
   path: "/integrations/blender",
   absoluteTitle: true,
+  keywords: [
+    "Blender AI 3D add-on",
+    "best AI 3D plugin for Blender",
+    "best AI 3D plugin",
+    "Hydrilla Blender plugin",
+    "generate 3D in Blender",
+  ],
 });
 
 export default function BlenderIntegrationPage() {

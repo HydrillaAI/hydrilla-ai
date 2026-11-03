@@ -5,7 +5,7 @@ Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D m
 Last updated: 2026-10-24
 
 ## Names
-- Hydrilla AI is the product and company; Hawan Research Labs is its research lab. https://hydrilla.ai/about
+- Hydrilla AI is the product and company (Hydrilla AI Private Limited, registered in Tirupati, Andhra Pradesh, India); Hawan Research Labs is its research lab. https://hydrilla.ai/about
 - Hawan Research Labs is Hydrilla AI's research lab, where the 3D research happens and BlueFox is built. https://hydrilla.ai/research
 - BlueFox, Hydrilla's 3D model, is built by Hydrilla AI. Its current version is BlueFox 1, generally available to everyone in Hydrilla. https://hydrilla.ai/bluefox
 - Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use. https://hydrilla.ai/water
@@ -50,8 +50,10 @@ Last updated: 2026-10-24
 - https://hydrilla.ai/compare/meshy: Hydrilla and Meshy, side by side
 - https://hydrilla.ai/compare/tripo: Hydrilla and Tripo, side by side
 - https://hydrilla.ai/compare/hyper3d: Hydrilla and Hyper3D, side by side
+- https://hydrilla.ai/compare/trellis: Hydrilla and Trellis, side by side
+- https://hydrilla.ai/compare/sloyd: Hydrilla and Sloyd, side by side
 - https://hydrilla.ai/compare/how-to-choose: neutral criteria for choosing an AI 3D generator
-- https://hydrilla.ai/about: the company
+- https://hydrilla.ai/about: the company (Hydrilla AI Private Limited, Tirupati, Andhra Pradesh, India)
 - https://hydrilla.ai/research: Hawan Research Labs and the BlueFox 1 model card
 - https://hydrilla.ai/careers: hiring
 - https://hydrilla.ai/contact: support, press, and general enquiries
@@ -844,6 +846,14 @@ Checked 24 Oct 2026
 BlueFox next to Rodin on inputs, formats, and developer access.
 Checked 24 Oct 2026
 
+#### [Hydrilla vs Trellis](https://hydrilla.ai/compare/trellis)
+Managed studio workspace with BlueFox next to open-weights checkpoints.
+Checked 24 Oct 2026
+
+#### [Hydrilla vs Sloyd](https://hydrilla.ai/compare/sloyd)
+Open-domain segmented meshes next to parametric templates and generators.
+Checked 24 Oct 2026
+
 #### [How to choose an AI 3D generator](https://hydrilla.ai/compare/how-to-choose)
 Ten criteria and a bake-off method for any tool you are weighing.
 
@@ -949,6 +959,70 @@ Checked 24 Oct 2026 | Hydrilla Team
 
 ---
 
+URL: https://hydrilla.ai/compare/trellis
+
+## How does Hydrilla compare to Trellis?
+
+Hydrilla AI and Trellis take different routes to 3D generation. Hydrilla is a hosted AI 3D workspace running BlueFox, Hydrilla's 3D model, with plugins, an API, and Water Agent, while Trellis is an open-weights 3D model released by Microsoft Research that teams host on their own GPUs.
+
+### Side by side
+
+| | Hydrilla | Trellis (confirm on github.com/microsoft/TRELLIS) |
+|---|---|---|
+| Model | [BlueFox 1](https://hydrilla.ai/bluefox), hosted in Hydrilla | TRELLIS open-weights checkpoints, run on your own GPU or a third-party host |
+| Inputs | A text prompt or one reference image | Image or text variants, per its repository |
+| Output | Segmented mesh with UVs and PBR maps | Structured 3D latents decoded to radiance fields, Gaussian splats, or meshes |
+| Export formats | Four formats ([list](https://hydrilla.ai/features#exports)) | GLB and Gaussian splat ply exports in the reference code |
+| Engine and DCC tools | Four plugins plus a local Bridge ([integrations](https://hydrilla.ai/integrations)) | Community scripts and ComfyUI nodes; no first-party DCC bridge |
+| API and agents | Managed REST API and an MCP server ([API](https://hydrilla.ai/api)) | Self-hosted Python inference or third-party inference endpoints |
+| Pricing model | Monthly credit plans with a Free tier; costs per model on [pricing](https://hydrilla.ai/pricing) | Open-source code under MIT license; you pay for GPU hardware and hosting |
+| Model card | Published on [research](https://hydrilla.ai/research#model-card), with limits | Research paper and GitHub repository documentation |
+| AI 3D agent | [Water Agent](https://hydrilla.ai/water) builds and revises whole asset sets in conversation, on every plan, no credits | None included in the repository |
+
+### When each one fits
+
+Hydrilla fits studios and artists who want a managed workspace, segmented parts with PBR maps, plugins that connect through a local Bridge, and an AI 3D agent that plans and revises whole asset sets without managing GPU servers. Trellis fits ML engineers and technical teams who have Linux GPUs, want to inspect or fine-tune open weights locally, or need 3D Gaussian splat outputs from code.
+
+### Check before you decide
+
+Trellis checkpoints, community integrations, and license terms live in its public repository. Check [github.com/microsoft/TRELLIS](https://github.com/microsoft/TRELLIS) before you plan infrastructure around it, and run a [bake-off](https://hydrilla.ai/compare/how-to-choose) on your own brief.
+
+Checked 24 Oct 2026 | Hydrilla Team
+
+---
+
+URL: https://hydrilla.ai/compare/sloyd
+
+## How does Hydrilla compare to Sloyd?
+
+Hydrilla AI and Sloyd approach 3D creation differently. Hydrilla runs BlueFox, Hydrilla's 3D model, to generate segmented 3D meshes with PBR maps from open prompts or reference images, while Sloyd combines a parametric template editor with text and image generation.
+
+### Side by side
+
+| | Hydrilla | Sloyd (confirm on sloyd.ai) |
+|---|---|---|
+| Approach | Open-domain generation with [BlueFox 1](https://hydrilla.ai/bluefox) | Parametric template generator plus text, image, and 3D-to-3D tools |
+| Inputs | A text prompt or one reference image | Sliders on parametric templates, text prompts, or an image |
+| Output | Segmented mesh with UVs and PBR maps | Low-poly template meshes or generated textured meshes |
+| Export formats | Four formats ([list](https://hydrilla.ai/features#exports)) | GLB, OBJ, FBX, and STL, per its site |
+| Engine and DCC tools | Four plugins linked by a local Bridge ([integrations](https://hydrilla.ai/integrations)) | Blender, Unity, Unreal, and Roblox plugins listed on its site |
+| API and agents | Job-based REST API and an MCP server ([API](https://hydrilla.ai/api)) | Real-time template SDK and generation API |
+| Pricing model | Monthly credit plans with a Free tier and Hourly plans ([pricing](https://hydrilla.ai/pricing)) | Free tier plus Plus, Studio, and Enterprise subscription plans |
+| Model card | Published on [research](https://hydrilla.ai/research#model-card), with intended use and limits | Confirm on sloyd.ai |
+| AI 3D agent | [Water Agent](https://hydrilla.ai/water) builds and revises whole asset sets in conversation, on every plan, no credits | Confirm on sloyd.ai |
+
+### When each one fits
+
+Hydrilla suits studios and artists who start from custom reference photos, concept art, or scene briefs, and want segmented meshes with PBR maps plus Water Agent to direct whole sets inside their tools. Sloyd suits teams that want slider-driven variations on categories covered by its template library or need STL exports for printing.
+
+### Check before you decide
+
+Sloyd's template library, generated modes, and plans change over time. Confirm each row on [sloyd.ai](https://www.sloyd.ai) before you commit, then test both tools using the [buying guide](https://hydrilla.ai/compare/how-to-choose).
+
+Checked 24 Oct 2026 | Hydrilla Team
+
+---
+
 URL: https://hydrilla.ai/compare/how-to-choose
 
 ## How do you choose an AI 3D generator?
@@ -1001,8 +1075,10 @@ Hydrilla AI is the product and company; Hawan Research Labs is its research lab.
 
 | Fact | Detail |
 |---|---|
-| Company | Hydrilla AI |
+| Company | Hydrilla AI (Hydrilla AI Private Limited) |
 | Founders | Tharak Nagaveti, Dharani Kumar, and Tejesh Varma |
+| Registered office | Tirupati, Andhra Pradesh, India |
+| Availability | Worldwide (web workspace, plugins, MCP server, and REST API) |
 
 Want to see who builds Hydrilla, or work with us? Meet the [team](https://hydrilla.ai/team), or see how we [hire](https://hydrilla.ai/careers).
 

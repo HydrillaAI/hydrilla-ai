@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla for Unreal Engine",
   path: "/integrations/unreal",
   absoluteTitle: true,
+  keywords: [
+    "Unreal Engine AI 3D plugin",
+    "best AI 3D plugin for Unreal Engine",
+    "best AI 3D plugin",
+    "Hydrilla Unreal plugin",
+    "generate 3D in Unreal Editor",
+  ],
 });
 
 export default function UnrealIntegrationPage() {

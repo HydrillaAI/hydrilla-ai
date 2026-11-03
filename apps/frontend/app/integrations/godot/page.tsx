@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla for Godot 4",
   path: "/integrations/godot",
   absoluteTitle: true,
+  keywords: [
+    "Godot 4 AI 3D plugin",
+    "best AI 3D plugin for Godot",
+    "best AI 3D plugin",
+    "Hydrilla Godot plugin",
+    "generate 3D in Godot 4",
+  ],
 });
 
 export default function GodotIntegrationPage() {

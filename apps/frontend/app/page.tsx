@@ -12,6 +12,20 @@ export const metadata = createPageMetadata({
   title: HOME_TITLE,
   path: "/",
   absoluteTitle: true,
+  keywords: [
+    "Hydrilla AI",
+    "best 3D AI generator",
+    "best 3D AI generator in India",
+    "best AI 3D plugin",
+    "BlueFox 3D model",
+    "Water Agent AI 3D",
+    "text to 3D",
+    "image to 3D",
+    "Blender AI 3D add-on",
+    "Unity AI 3D plugin",
+    "Unreal Engine AI 3D plugin",
+    "Godot 4 AI 3D plugin",
+  ],
 });
 
 /** CDN can serve a fresh prerender for an hour — cuts cold TTFB on `/`. */

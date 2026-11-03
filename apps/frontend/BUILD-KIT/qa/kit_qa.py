@@ -61,15 +61,15 @@ for f,t in ALL:
     for m in re.finditer(r'33 ?%',t):
         if 'Hourly Pro' not in t[max(0,m.start()-160):m.end()+160]: hits.append(f)
 res('"33%" only beside Hourly Pro', not hits, ', '.join(hits))
-scan('Competitors named only on /compare pages', r'\b(Meshy|Tripo|Hyper3D|Rodin|Deemos)\b', flags=0,
+scan('Competitors named only on /compare pages', r'\b(Meshy|Tripo|Hyper3D|Rodin|Deemos|Trellis|TRELLIS|Sloyd)\b', flags=0,
      allow=lambda f: f.startswith('pages/compare') or f in ('seo-geo/llms.txt','seo-geo/llms-full.txt','nav-footer.md','seo-geo/schema.md (JSON)'))
 # llms: competitors only in compare lines
-bad=[l for l in (llms+'\n'+llmsf).split('\n') if re.search(r'Meshy|Tripo|Hyper3D|Rodin',l) and 'compare' not in l.lower() and not l.startswith('|')]
+bad=[l for l in (llms+'\n'+llmsf).split('\n') if re.search(r'Meshy|Tripo|Hyper3D|Rodin|Trellis|TRELLIS|Sloyd',l) and 'compare' not in l.lower() and not l.startswith('|')]
 # llms-full contains compare page bodies; check by section
 sec=re.split(r'\n---\n',llmsf); bad=[]
 for s_ in sec:
     u=re.search(r'URL: (\S+)',s_)
-    if re.search(r'Meshy|Tripo|Hyper3D|Rodin',s_) and not (u and '/compare' in u.group(1)) and 'URL:' in s_: bad.append(u.group(1))
+    if re.search(r'Meshy|Tripo|Hyper3D|Rodin|Trellis|TRELLIS|Sloyd',s_) and not (u and '/compare' in u.group(1)) and 'URL:' in s_: bad.append(u.group(1))
 res('llms-full: competitors only inside compare page sections', not bad, ', '.join(bad))
 scan('No em dashes or exclamation marks in copy', r'—|(?<![<`])!(?!\[|--)', flags=0, allow=lambda f: f.startswith('seo-geo/schema'))
 # 3. brand line placement
@@ -110,7 +110,7 @@ for k,v in pages.items():
     if lines and "BlueFox, Hydrilla's 3D model" not in lines[0] and k not in ('changelog','brand','research','compare-how-to-choose'):
         warn.append(k)
 res('First prose mention of BlueFox reads "BlueFox, Hydrilla\'s 3D model"', not warn, ', '.join(warn))
-okp={'bluefox','research','docs','changelog','compare-meshy','compare-tripo','compare-hyper3d','brand'}
+okp={'bluefox','research','docs','changelog','compare-meshy','compare-tripo','compare-hyper3d','compare-trellis','compare-sloyd','brand'}
 bad=[]
 for k,v in pages.items():
     for l in (v['copy']+'\n'+v['meta']).split('\n'):

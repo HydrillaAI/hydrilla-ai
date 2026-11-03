@@ -18,7 +18,12 @@ export function GET() {
   for (const [slug, spec] of Object.entries(API_SPECS)) {
     lines.push(`- [${spec.method} ${spec.path}](${SITE.docsUrl}/api/${slug}): ${spec.summary}`);
   }
-  lines.push("", `Full content: ${SITE.docsUrl}/llms-full.txt`, "");
+  lines.push(
+    "",
+    `Full developer docs content: ${SITE.docsUrl}/llms-full.txt`,
+    `Product & company index (BlueFox, Water Agent, plugins, comparisons): ${SITE.studioUrl}/llms.txt`,
+    "",
+  );
 
   return new Response(lines.join("\n"), {
     headers: { "Content-Type": "text/plain; charset=utf-8" },

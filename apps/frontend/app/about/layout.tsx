@@ -8,6 +8,14 @@ export const metadata = createPageMetadata({
   ogTitle: "About Hydrilla AI",
   path: "/about",
   absoluteTitle: true,
+  keywords: [
+    "Hydrilla AI",
+    "Hydrilla AI Private Limited",
+    "3D AI generator India",
+    "best 3D AI generator in India",
+    "Hawan Research Labs",
+    "BlueFox 3D model",
+  ],
 });
 
 export default function AboutLayout({ children }: { children: ReactNode }) {

@@ -12,6 +12,15 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla integrations",
   path: "/integrations",
   absoluteTitle: true,
+  keywords: [
+    "best AI 3D plugin",
+    "AI 3D plugin for Blender",
+    "AI 3D plugin for Unity",
+    "AI 3D plugin for Unreal Engine",
+    "AI 3D plugin for Godot 4",
+    "MCP server for 3D generation",
+    "3D DCC bridge",
+  ],
 });
 
 const TOOL_CARDS = [

@@ -35,6 +35,8 @@ const ROUTE_FILES: Record<string, string> = {
   "compare/meshy": "compare-meshy.md",
   "compare/tripo": "compare-tripo.md",
   "compare/hyper3d": "compare-hyper3d.md",
+  "compare/trellis": "compare-trellis.md",
+  "compare/sloyd": "compare-sloyd.md",
   "compare/how-to-choose": "compare-how-to-choose.md",
   about: "about.md",
   research: "research.md",

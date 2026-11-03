@@ -6,12 +6,21 @@ import { PickleLinkCards, type PickleLinkItem } from "@/components/layout/Pickle
 import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Compare Hydrilla with Meshy, Tripo, Hyper3D | Hydrilla AI",
+  title: "Compare Hydrilla with Meshy, Tripo, Hyper3D, Trellis, Sloyd | Hydrilla AI",
   description:
-    "Factual comparisons of Hydrilla with Meshy, Tripo, and Hyper3D, plus a neutral guide to choosing an AI 3D generator. Dates checked.",
+    "Factual comparisons of Hydrilla with Meshy, Tripo, Hyper3D Rodin, Trellis, and Sloyd, plus a neutral guide to choosing an AI 3D generator. Dates checked.",
   ogTitle: "Compare Hydrilla",
   path: "/compare",
   absoluteTitle: true,
+  keywords: [
+    "best 3D AI generator",
+    "AI 3D generator comparison",
+    "Hydrilla vs Meshy",
+    "Hydrilla vs Tripo",
+    "Hydrilla vs Hyper3D Rodin",
+    "Hydrilla vs Trellis",
+    "Hydrilla vs Sloyd",
+  ],
 });
 
 const CARDS = [
@@ -35,6 +44,20 @@ const CARDS = [
     tileDetail: "Checked 24 Oct 2026",
     href: "/compare/hyper3d",
     line: "BlueFox next to Rodin on inputs, formats, and developer access.",
+  },
+  {
+    title: "Hydrilla vs Trellis",
+    tileLabel: "vs Trellis",
+    tileDetail: "Checked 24 Oct 2026",
+    href: "/compare/trellis",
+    line: "Managed studio workspace with BlueFox next to open-weights checkpoints.",
+  },
+  {
+    title: "Hydrilla vs Sloyd",
+    tileLabel: "vs Sloyd",
+    tileDetail: "Checked 24 Oct 2026",
+    href: "/compare/sloyd",
+    line: "Open-domain segmented meshes next to parametric templates and generators.",
   },
   {
     title: "How to choose an AI 3D generator",

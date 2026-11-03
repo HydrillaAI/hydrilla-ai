@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla vs Hyper3D",
   path: "/compare/hyper3d",
   absoluteTitle: true,
+  keywords: [
+    "Hydrilla vs Hyper3D",
+    "Hydrilla vs Rodin",
+    "Hyper3D Rodin alternative",
+    "BlueFox vs Rodin",
+    "best 3D AI generator",
+  ],
 });
 
 export default function CompareHyper3dPage() {

@@ -4,8 +4,8 @@
 |---|---|
 | Route | `/compare` |
 | Status | Rewrite |
-| Title (absolute, do not append the template suffix) | Compare Hydrilla with Meshy, Tripo, Hyper3D \| Hydrilla AI |
-| Meta description | Factual comparisons of Hydrilla with Meshy, Tripo, and Hyper3D, plus a neutral guide to choosing an AI 3D generator. Dates checked. |
+| Title (absolute, do not append the template suffix) | Compare Hydrilla with Meshy, Tripo, Hyper3D, Trellis, Sloyd \| Hydrilla AI |
+| Meta description | Factual comparisons of Hydrilla with Meshy, Tripo, Hyper3D Rodin, Trellis, and Sloyd, plus a neutral guide to choosing an AI 3D generator. Dates checked. |
 | OG title | Compare Hydrilla |
 | H1 | Compare Hydrilla with other AI 3D tools |
 | Canonical | `https://hydrilla.ai/compare` (self) |
@@ -13,7 +13,7 @@
 | Schema type | CollectionPage + ItemList (full JSON-LD rules in `seo-geo/schema.md`) |
 
 ## Layout note
-Hub: hero, 4 cards with "Checked" dates, method note. Use the site's existing components. `Visual:` lines are placeholders for real captures (leave a `TODO(kit): visual` slot; never generate or reuse unrelated images). `Alt text:` is that image's alt.
+Hub: hero, 6 cards with "Checked" dates, method note. Use the site's existing components. `Visual:` lines are placeholders for real captures (leave a `TODO(kit): visual` slot; never generate or reuse unrelated images). `Alt text:` is that image's alt.
 
 ## Page copy (render only what is between the markers; `**[Section …]**` labels are structure, not text)
 
@@ -38,8 +38,16 @@ Card 3 title: [Hydrilla vs Hyper3D →](/compare/hyper3d)
 Card 3 line: BlueFox next to Rodin on inputs, formats, and developer access.
 Card 3 date: Checked 24 Oct 2026
 
-Card 4 title: [How to choose an AI 3D generator →](/compare/how-to-choose)
-Card 4 line: Ten criteria and a bake-off method for any tool you are weighing.
+Card 4 title: [Hydrilla vs Trellis →](/compare/trellis)
+Card 4 line: Managed studio workspace with BlueFox next to open-weights checkpoints.
+Card 4 date: Checked 24 Oct 2026
+
+Card 5 title: [Hydrilla vs Sloyd →](/compare/sloyd)
+Card 5 line: Open-domain segmented meshes next to parametric templates and generators.
+Card 5 date: Checked 24 Oct 2026
+
+Card 6 title: [How to choose an AI 3D generator →](/compare/how-to-choose)
+Card 6 line: Ten criteria and a bake-off method for any tool you are weighing.
 
 **[Section 3: Method]**
 
@@ -55,4 +63,6 @@ Cards only .
 - `/compare/how-to-choose`
 - `/compare/hyper3d`
 - `/compare/meshy`
+- `/compare/sloyd`
+- `/compare/trellis`
 - `/compare/tripo`

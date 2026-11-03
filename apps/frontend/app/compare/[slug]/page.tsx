@@ -31,8 +31,23 @@ const FORMAT_DATE = (iso: string) => {
   }
 };
 
+const DEDICATED_OR_REDIRECTED_SLUGS = new Set([
+  "meshy",
+  "tripo",
+  "hyper3d",
+  "trellis",
+  "sloyd",
+  "how-to-choose",
+  "hydrilla-vs-meshy",
+  "hydrilla-vs-tripo",
+  "hydrilla-vs-luma",
+  "best-ai-3d-generators",
+]);
+
 export function generateStaticParams() {
-  return getArticles("compare").map((article) => ({ slug: article.slug }));
+  return getArticles("compare")
+    .filter((article) => !DEDICATED_OR_REDIRECTED_SLUGS.has(article.slug))
+    .map((article) => ({ slug: article.slug }));
 }
 
 export async function generateMetadata({ params }: Props) {

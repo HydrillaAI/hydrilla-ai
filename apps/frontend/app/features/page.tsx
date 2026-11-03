@@ -13,6 +13,14 @@ export const metadata = createPageMetadata({
   ogTitle: "Generate, check, and export 3D with BlueFox",
   path: "/features",
   absoluteTitle: true,
+  keywords: [
+    "AI 3D workspace",
+    "best 3D AI generator",
+    "best 3D AI generator in India",
+    "segmented 3D mesh generator",
+    "PBR 3D model generator",
+    "GLB FBX OBJ USDZ 3D export",
+  ],
 });
 
 const EXPORT_ROWS = [

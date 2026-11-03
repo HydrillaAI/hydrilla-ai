@@ -82,10 +82,12 @@ const NAMES: Record<string, string> = {
   "/blog/reference-images": "Reference Images for Image to 3D: A Guide",
   "/blog/import-ai-meshes": "Import AI 3D Meshes into Unity, Unreal, Godot",
   "/changelog": "Hydrilla Changelog: AI 3D Product Updates",
-  "/compare": "Compare Hydrilla with Meshy, Tripo, Hyper3D",
+  "/compare": "Compare Hydrilla with Meshy, Tripo, Hyper3D, Trellis, and Sloyd",
   "/compare/meshy": "Hydrilla vs Meshy: AI 3D Tools Side by Side",
   "/compare/tripo": "Hydrilla vs Tripo: Inputs, Exports, and API",
   "/compare/hyper3d": "Hydrilla vs Hyper3D Rodin: Facts Side by Side",
+  "/compare/trellis": "Hydrilla vs Trellis: Studio Workspace and Open Weights",
+  "/compare/sloyd": "Hydrilla vs Sloyd: Generative 3D and Parametric Templates",
   "/compare/how-to-choose": "How to Choose an AI 3D Model Generator",
   "/about": "About: The AI 3D Company Behind BlueFox",
   "/research": "Research: The BlueFox 1 AI 3D Model Card",
@@ -130,6 +132,8 @@ const SECTION: Record<string, { name: string; path: string }> = {
   "/compare/meshy": { name: "Resources", path: "/docs" },
   "/compare/tripo": { name: "Resources", path: "/docs" },
   "/compare/hyper3d": { name: "Resources", path: "/docs" },
+  "/compare/trellis": { name: "Resources", path: "/docs" },
+  "/compare/sloyd": { name: "Resources", path: "/docs" },
   "/compare/how-to-choose": { name: "Resources", path: "/docs" },
   "/about": { name: "Company", path: "/about" },
   "/research": { name: "Company", path: "/about" },
@@ -285,10 +289,30 @@ export function getKitJsonLd(path: string) {
       "@type": "Organization",
       "@id": ORG,
       name: "Hydrilla AI",
-      alternateName: "Hydrilla",
+      legalName: "Hydrilla AI Private Limited",
+      alternateName: ["Hydrilla", "Hydrilla.ai"],
       url: "https://hydrilla.ai",
       description: "Hydrilla AI is an AI 3D workspace for studio and artist pipelines.",
-      disambiguatingDescription: "AI 3D software company that builds the Hydrilla workspace and BlueFox, Hydrilla's 3D model",
+      disambiguatingDescription: "AI 3D software company in India that builds the Hydrilla workspace and BlueFox, Hydrilla's 3D model",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar",
+        addressLocality: "Tirupati",
+        addressRegion: "Andhra Pradesh",
+        postalCode: "517502",
+        addressCountry: "IN",
+      },
+      foundingLocation: {
+        "@type": "Place",
+        name: "India",
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: "Tirupati",
+          addressRegion: "Andhra Pradesh",
+          addressCountry: "IN",
+        },
+      },
+      areaServed: "Worldwide",
       sameAs: [
         "https://x.com/hydrillaai",
         "https://www.linkedin.com/company/hydrilla-ai",
@@ -299,6 +323,7 @@ export function getKitJsonLd(path: string) {
         "@type": "ContactPoint",
         email: "founders@hydrilla.ai",
         contactType: "customer support",
+        areaServed: "Worldwide",
       },
       subOrganization: {
         "@id": "https://hydrilla.ai/research#lab",
@@ -470,11 +495,103 @@ export function getKitJsonLd(path: string) {
     );
   }
   if (path.startsWith("/integrations/") && path !== "/integrations/connect") {
+    const pluginDetails: Record<
+      string,
+      {
+        description: string;
+        subCategory: string;
+        requirements: string;
+        downloadUrl?: string;
+        featureList: string[];
+      }
+    > = {
+      "/integrations/blender": {
+        description:
+          "The Hydrilla add-on for Blender generates 3D models from a prompt or image inside your scene with BlueFox, runs Water Agent inside Blender, and receives GLB models from Studio over the local Bridge.",
+        subCategory: "Blender 3D Add-on",
+        requirements: "Blender",
+        downloadUrl: "https://hydrilla.ai/plugins/hydrilla-blender.zip",
+        featureList: [
+          "Generate 3D models from text or images in the Blender N-panel sidebar",
+          "Direct whole 3D asset sets inside Blender with Water Agent",
+          "Receive segmented GLB meshes with UVs and PBR maps from Studio via local Bridge",
+          "Sign in with Studio browser session or API key",
+        ],
+      },
+      "/integrations/unity": {
+        description:
+          "The Hydrilla plugin for Unity generates 3D models with BlueFox inside the Unity Editor, supports Water Agent workflows, and imports GLB assets into Assets/Hydrilla via the API or local Bridge.",
+        subCategory: "Unity Editor 3D Plugin",
+        requirements: "Unity Editor",
+        downloadUrl: "https://hydrilla.ai/plugins/hydrilla-unity.zip",
+        featureList: [
+          "Generate 3D assets from Window > Hydrilla > Generate 3D in Unity Editor",
+          "Import segmented GLB models with PBR maps directly into Assets/Hydrilla",
+          "Receive Studio sends over the local Bridge on port 7345",
+          "Works with Water Agent for multi-asset scene briefs",
+        ],
+      },
+      "/integrations/unreal": {
+        description:
+          "The Hydrilla Python editor plugin for Unreal Engine runs BlueFox 3D generation from the toolbar and imports GLB meshes into Content/Hydrilla for the glTF importer.",
+        subCategory: "Unreal Engine 3D Plugin",
+        requirements: "Unreal Engine with Python Editor Script Plugin",
+        downloadUrl: "https://hydrilla.ai/plugins/hydrilla-unreal.zip",
+        featureList: [
+          "Run text-to-3D and image-to-3D jobs from the Unreal Editor toolbar",
+          "Land GLB assets in Content/Hydrilla for Unreal's glTF importer",
+          "Receive meshes from Hydrilla Studio over the local Bridge",
+          "Works with Water Agent inside Unreal Engine",
+        ],
+      },
+      "/integrations/godot": {
+        description:
+          "The Hydrilla editor dock plugin for Godot 4 generates GLB 3D models with BlueFox and receives Studio sends over the local Bridge into res://hydrilla/.",
+        subCategory: "Godot 4 Editor Plugin",
+        requirements: "Godot 4",
+        downloadUrl: "https://hydrilla.ai/plugins/hydrilla-godot.zip",
+        featureList: [
+          "Godot 4 editor dock for prompt and image to 3D generation",
+          "Native glTF / GLB import into res://hydrilla/",
+          "Local Bridge listener for Hydrilla Studio sends",
+          "Works with Water Agent inside Godot 4",
+        ],
+      },
+      "/integrations/mcp": {
+        description:
+          "Hydrilla's local stdio MCP server lets Cursor, Claude Code, and other Model Context Protocol agents generate 3D models with BlueFox through the Hydrilla REST API.",
+        subCategory: "Model Context Protocol (MCP) Server",
+        requirements: "Node.js and an MCP client (Cursor, Claude Code, etc.)",
+        downloadUrl: "https://hydrilla.ai/plugins/hydrilla-mcp.zip",
+        featureList: [
+          "Local stdio Model Context Protocol server for 3D generation",
+          "Submit text-to-3D and image-to-3D jobs from AI coding agents",
+          "Poll task completion and return finished 3D mesh files",
+        ],
+      },
+    };
+    const meta = pluginDetails[path];
     nodes.push({
       "@type": "SoftwareApplication",
       "@id": `https://hydrilla.ai${path}#software`,
       name,
-      applicationCategory: "DeveloperApplication",
+      applicationCategory: "DesignApplication",
+      ...(meta
+        ? {
+            applicationSubCategory: meta.subCategory,
+            description: meta.description,
+            operatingSystem: "Windows, macOS, Linux",
+            softwareRequirements: meta.requirements,
+            ...(meta.downloadUrl ? { downloadUrl: meta.downloadUrl } : {}),
+            featureList: meta.featureList,
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "USD",
+              description: "Free plugin download; uses Hydrilla account or API key",
+            },
+          }
+        : {}),
       url: `https://hydrilla.ai${path}`,
       publisher: { "@id": ORG },
       isPartOf: { "@id": SOFTWARE },
@@ -482,6 +599,24 @@ export function getKitJsonLd(path: string) {
     const install = INTEGRATION_HOWTO[path];
     if (install) {
       nodes.push(howTo(`https://hydrilla.ai${path}#howto`, install.name, install.steps));
+    }
+    if (path === "/integrations/blender") {
+      nodes.push(
+        faq("https://hydrilla.ai/integrations/blender#faq", [
+          [
+            "The add-on says I'm signed out.",
+            "Leave the Connect browser tab open while you work, then choose Sync again. An API key also works if you prefer keys to browser sign-in.",
+          ],
+          [
+            "Nothing arrives when I send from Studio.",
+            "Check that Run Bridge is active in the Hydrilla panel and Blender is open on a scene, then send again. Formats other than GLB are covered on exports.",
+          ],
+          [
+            "The model looks too small or too large.",
+            "Blender works in meters with Z up. Check the units table before you scale anything by hand.",
+          ],
+        ]),
+      );
     }
   }
   if (path === "/integrations") {
@@ -522,7 +657,14 @@ export function getKitJsonLd(path: string) {
   if (path === "/compare") {
     nodes.push({
       "@type": "ItemList",
-      itemListElement: ["/compare/meshy", "/compare/tripo", "/compare/hyper3d", "/compare/how-to-choose"].map((item, index) => ({
+      itemListElement: [
+        "/compare/meshy",
+        "/compare/tripo",
+        "/compare/hyper3d",
+        "/compare/trellis",
+        "/compare/sloyd",
+        "/compare/how-to-choose",
+      ].map((item, index) => ({
         "@type": "ListItem",
         position: index + 1,
         url: `https://hydrilla.ai${item}`,
@@ -572,7 +714,11 @@ export function getKitJsonLd(path: string) {
           ? { name: "Tripo", sameAs: "https://www.tripo3d.ai" }
           : path === "/compare/hyper3d"
             ? { name: "Hyper3D", sameAs: "https://hyper3d.ai" }
-            : null;
+            : path === "/compare/trellis"
+              ? { name: "Trellis", sameAs: "https://github.com/microsoft/TRELLIS" }
+              : path === "/compare/sloyd"
+                ? { name: "Sloyd", sameAs: "https://www.sloyd.ai" }
+                : null;
     nodes.push({
       "@type": "Article",
       "@id": `https://hydrilla.ai${path}#article`,
