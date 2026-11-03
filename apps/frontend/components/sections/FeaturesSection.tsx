@@ -5,7 +5,7 @@ import Link from "next/link";
 import { SignUpButton, useAuth } from "@clerk/nextjs";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import { featureImage, cloudinaryLoader } from "@/lib/cloudinary";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, SANS_FONT, SECTION_WEIGHT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 import { FEATURES_SECTION } from "@/lib/features-section";
 
 type FeatureCard = {
@@ -261,7 +261,7 @@ function FeatureRow({
         >
           <Heading
             className="order-1 w-full text-left text-[clamp(2.25rem,8vw,2.85rem)] font-medium leading-[1.08] tracking-[-0.035em] text-balance text-[#1d1c1a] md:text-[2.75rem] lg:max-w-[18ch] lg:text-[2.5rem]"
-            style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
+            style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT }}
           >
             {card.title}
           </Heading>
@@ -269,7 +269,7 @@ function FeatureRow({
           <div className="order-3 flex w-full flex-col">
             <p
               className="w-full max-w-none text-[1.0625rem] font-normal leading-[1.55] text-[#3a3834] sm:text-[1.125rem] lg:max-w-[34rem] lg:text-[1.1875rem]"
-              style={{ fontFamily: GEIST_FONT, fontWeight: DESCRIPTION_WEIGHT }}
+              style={{ fontFamily: BODY_FONT, fontWeight: DESCRIPTION_WEIGHT }}
             >
               {card.description}
             </p>
@@ -324,13 +324,13 @@ function FeatureRow({
       >
         <Heading
           className="text-[1.85rem] font-medium leading-[1.1] tracking-[-0.03em] text-[#1d1c1a] sm:text-[2.1rem] lg:text-[2.4rem] xl:text-[2.6rem]"
-          style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
+          style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT }}
         >
           {card.title}
         </Heading>
         <p
           className="mt-5 max-w-[32rem] text-[1.05rem] font-normal leading-[1.55] text-[#1d1c1a] sm:text-[1.125rem] lg:text-[1.2rem]"
-          style={{ fontFamily: GEIST_FONT, fontWeight: DESCRIPTION_WEIGHT }}
+          style={{ fontFamily: BODY_FONT, fontWeight: DESCRIPTION_WEIGHT }}
         >
           {card.description}
         </p>
@@ -401,13 +401,13 @@ export default function FeaturesSection({
               as="h2"
               id="features-heading"
               className="text-[2rem] font-medium leading-[1.05] tracking-[-0.04em] text-[#1d1c1a] sm:text-[2.5rem] lg:text-[3rem]"
-              style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
+              style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT }}
             >
               From first prompt to production.
             </BlurReveal>
             <p
               className="mx-auto mt-4 max-w-2xl text-[1.05rem] font-normal leading-[1.55] text-[#55534e] sm:text-[1.125rem]"
-              style={{ fontFamily: GEIST_FONT, fontWeight: DESCRIPTION_WEIGHT }}
+              style={{ fontFamily: BODY_FONT, fontWeight: DESCRIPTION_WEIGHT }}
             >
               Generate, refine, and export production-ready 3D assets for games, film, architecture,
               and digital products.

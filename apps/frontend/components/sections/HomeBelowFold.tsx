@@ -4,7 +4,7 @@ import React, { Suspense } from "react";
 import dynamic from "next/dynamic";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import CtaSection from "@/components/sections/CtaSection";
-import { SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT } from "@/lib/fonts";
 
 /**
  * Below-the-fold homepage sections.
@@ -48,7 +48,7 @@ function MissionSection() {
           duration={0.8}
           blurPx={14}
           className="text-center text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-medium leading-tight tracking-tight text-[#111]"
-          style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
+          style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT }}
         >
           Our mission is to build intelligent workflows that accelerate animation and 3D production.
         </BlurReveal>

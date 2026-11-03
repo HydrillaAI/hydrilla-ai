@@ -6,7 +6,7 @@ import { SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import { PuppetStage } from "@/components/sections/PuppetStage";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, SANS_FONT, SECTION_WEIGHT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 
 /* Design tokens (shared with the other landing sections) */
 const INK = "#000c1f";
@@ -145,9 +145,9 @@ export default function CtaSection() {
         .cta-title {
           margin: 0;
           max-width: 21ch;
-          font-family: ${SANS_FONT};
+          font-family: ${HEADING_FONT};
           font-size: clamp(2.375rem, 1.6rem + 3vw, 4.25rem);
-          font-weight: ${SECTION_WEIGHT};
+          font-weight: ${HEADING_WEIGHT};
           color: ${INK};
           letter-spacing: -0.045em;
           line-height: 1;
@@ -156,7 +156,7 @@ export default function CtaSection() {
         .cta-lede {
           margin: clamp(1.25rem, 1rem + 0.6vw, 1.75rem) 0 0;
           max-width: 31rem;
-          font-family: ${GEIST_FONT};
+          font-family: ${BODY_FONT};
           font-weight: ${DESCRIPTION_WEIGHT};
           font-size: clamp(1rem, 0.95rem + 0.2vw, 1.125rem);
           line-height: 1.55;
@@ -239,7 +239,7 @@ export default function CtaSection() {
         }
         .cta-note {
           margin: 1.25rem 0 0;
-          font-family: ${GEIST_FONT};
+          font-family: ${BODY_FONT};
           font-size: 0.8125rem;
           color: ${INK_TERTIARY};
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { BODY_FONT, SANS_FONT, SECTION_WEIGHT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 
 export default function DesignPartnersSection() {
   return (
@@ -15,7 +15,7 @@ export default function DesignPartnersSection() {
         </p>
         <p
           className="text-neutral-600 text-sm leading-6 sm:text-base sm:leading-7"
-          style={{ fontFamily: GEIST_FONT, fontWeight: DESCRIPTION_WEIGHT }}
+          style={{ fontFamily: BODY_FONT, fontWeight: DESCRIPTION_WEIGHT }}
         >
           Studios and teams building production workflows with Hydrilla.
         </p>

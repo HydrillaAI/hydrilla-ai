@@ -7,7 +7,7 @@ import { Plus } from "lucide-react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import { FAQ_ITEMS } from "@/lib/faq";
 import { FaqAnswer } from "@/components/sections/FaqAnswer";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, SANS_FONT, SECTION_WEIGHT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 
 /* Design tokens (shared with the other landing sections) */
 const INK = "#000c1f";
@@ -141,9 +141,9 @@ export default function FAQSection({ hideHeader = false }: { hideHeader?: boolea
         }
         .faq-title {
           margin: 0;
-          font-family: ${SANS_FONT};
+          font-family: ${HEADING_FONT};
           font-size: clamp(2.25rem, 1.7rem + 2.4vw, 3.75rem);
-          font-weight: ${SECTION_WEIGHT};
+          font-weight: ${HEADING_WEIGHT};
           color: ${INK};
           letter-spacing: -0.035em;
           line-height: 1.05;
@@ -252,7 +252,7 @@ export default function FAQSection({ hideHeader = false }: { hideHeader?: boolea
           padding: 1rem 1.25rem;
           border-radius: 1.25rem 1.25rem 1.25rem 0.375rem;
           background: ${SURFACE};
-          font-family: ${GEIST_FONT};
+          font-family: ${BODY_FONT};
           font-weight: ${DESCRIPTION_WEIGHT};
           font-size: 0.975rem;
           color: ${INK_SECONDARY};

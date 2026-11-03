@@ -7,7 +7,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import { WHY_HYDRILLA_MEDIA, cloudinaryLoader } from "@/lib/cloudinary";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, SANS_FONT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
 /* Design tokens (shared with the other landing sections) */
@@ -156,8 +156,8 @@ function CardTitle({
         className
       )}
       style={{
-        fontFamily: SANS_FONT,
-        fontWeight: SECTION_WEIGHT,
+        fontFamily: HEADING_FONT,
+        fontWeight: HEADING_WEIGHT,
         textShadow: light ? TEXT_SHADOW : undefined,
       }}
     >
@@ -305,7 +305,7 @@ function StatCard({ value, media, className }: { value: string; media: Media; cl
       <div className="absolute inset-0 z-10 flex items-center justify-center">
         <p
           className="m-0 text-[clamp(2.75rem,2rem+2.4vw,4rem)] font-medium leading-none tracking-[-0.05em] text-white"
-          style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT, textShadow: "0 2px 16px rgba(0,0,0,0.45)" }}
+          style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT, textShadow: "0 2px 16px rgba(0,0,0,0.45)" }}
         >
           {value}
         </p>
@@ -331,7 +331,7 @@ function BlueFoxCard({ className }: { className?: string }) {
         </CardTitle>
         <p
           className="m-0 max-w-[26rem] text-[14px] leading-[1.55] text-white/85 sm:text-[15px]"
-          style={{ fontFamily: GEIST_FONT, fontWeight: DESCRIPTION_WEIGHT, textShadow: TEXT_SHADOW }}
+          style={{ fontFamily: BODY_FONT, fontWeight: DESCRIPTION_WEIGHT, textShadow: TEXT_SHADOW }}
         >
           BlueFox, Hydrilla&apos;s 3D model, turns a prompt or a picture into a segmented 3D model with UVs
           and PBR textures.
@@ -366,8 +366,8 @@ export default function WhyHydrilla() {
             id="why-hydrilla-heading"
             style={{
               margin: 0,
-              fontFamily: SANS_FONT,
-              fontWeight: SECTION_WEIGHT,
+              fontFamily: HEADING_FONT,
+              fontWeight: HEADING_WEIGHT,
               color: INK,
               fontSize: "clamp(2.25rem, 1.7rem + 2.4vw, 3.75rem)",
               letterSpacing: "-0.035em",

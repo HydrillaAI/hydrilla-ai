@@ -6,7 +6,7 @@ import Link from "next/link";
 import { SignInButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import { BLUEFOX_SHOWCASE, cloudinaryImage, cloudinaryVideo } from "@/lib/cloudinary";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, SANS_FONT, SECTION_WEIGHT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 
 interface ShowcaseItem {
   id: string;
@@ -444,7 +444,7 @@ export default function Showcase() {
           <BlurReveal
             as="h2"
             className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-medium text-[#111] leading-tight tracking-tight"
-            style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
+            style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT }}
           >
             The Industry&apos;s Best Generative 3D Models
           </BlurReveal>
@@ -660,7 +660,7 @@ export default function Showcase() {
                     <p 
                       className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-normal text-white leading-[1.25]"
                       style={{
-                        fontFamily: GEIST_FONT,
+                        fontFamily: BODY_FONT,
                         fontWeight: DESCRIPTION_WEIGHT,
                         color: "#ffffff",
                         textShadow: "0 1px 2px rgba(0,0,0,0.9)",

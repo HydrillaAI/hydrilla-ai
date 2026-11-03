@@ -5,7 +5,7 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "motion/react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import { cloudinaryImage, cloudinaryLoader } from "@/lib/cloudinary";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 
 /**
  * Step art is portrait (2:3) and contained in a square card, so it draws at about
@@ -155,8 +155,8 @@ function StepRow({ step }: { step: Step }) {
           <h3
             className="m-0"
             style={{
-              fontFamily: SANS_FONT,
-              fontWeight: SECTION_WEIGHT,
+              fontFamily: HEADING_FONT,
+              fontWeight: HEADING_WEIGHT,
               color: INK,
               fontSize: "clamp(2rem, 1.6rem + 1.6vw, 2.75rem)",
               lineHeight: 1.05,
@@ -169,7 +169,7 @@ function StepRow({ step }: { step: Step }) {
           <p
             className="m-0"
             style={{
-              fontFamily: GEIST_FONT,
+              fontFamily: BODY_FONT,
               fontWeight: DESCRIPTION_WEIGHT,
               color: INK_SECONDARY,
               fontSize: "clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem)",
@@ -210,9 +210,9 @@ export default function HowItWorks() {
             id="howitworks-heading"
             style={{
               margin: 0,
-              fontFamily: SANS_FONT,
+              fontFamily: HEADING_FONT,
               fontSize: "clamp(2.25rem, 1.7rem + 2.4vw, 3.75rem)",
-              fontWeight: SECTION_WEIGHT,
+              fontWeight: HEADING_WEIGHT,
               color: INK,
               letterSpacing: "-0.035em",
               lineHeight: 1.05,

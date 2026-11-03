@@ -7,7 +7,7 @@ import { Play, Pause } from "lucide-react";
 import SeeWorkspaceButton from "../SeeWorkspaceButton";
 import { BlurReveal } from "@/components/ui/BlurReveal";
 import { WORKFLOW_DEMO, cloudinaryLoader } from "@/lib/cloudinary";
-import { SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
 export default function AppShowcase() {
@@ -79,7 +79,7 @@ export default function AppShowcase() {
           <BlurReveal
             as="h2"
             className="text-3xl sm:text-4xl md:text-5xl lg:text-[2.75rem] font-medium text-[#111] tracking-tight leading-[1.12]"
-            style={{ fontFamily: SANS_FONT, fontWeight: SECTION_WEIGHT }}
+            style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT }}
           >
             Workflow for you
           </BlurReveal>

@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { savePendingHeroPrompt } from "@/lib/pendingHeroPrompt";
-import { GEIST_FONT, DESCRIPTION_WEIGHT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 import { PromptBox } from "../PromptBox";
 import { HeroStage } from "./HeroStage";
 
@@ -68,8 +68,8 @@ export default function Hero() {
           <h1
             className="text-balance font-medium text-[#000c1f]"
             style={{
-              fontFamily: SANS_FONT,
-              fontWeight: SECTION_WEIGHT,
+              fontFamily: HEADING_FONT,
+              fontWeight: HEADING_WEIGHT,
               fontSize: "clamp(3.4rem, calc(2.15rem + 5vw), 6.5rem)",
               lineHeight: 0.92,
               letterSpacing: "-0.03em",
@@ -80,7 +80,7 @@ export default function Hero() {
 
           <p
             className="max-w-xl text-pretty text-lg leading-[1.5] tracking-[-0.015em] text-[#000c1f]/68 sm:text-xl md:text-[1.65rem]"
-            style={{ fontFamily: GEIST_FONT, fontWeight: DESCRIPTION_WEIGHT }}
+            style={{ fontFamily: BODY_FONT, fontWeight: DESCRIPTION_WEIGHT }}
           >
             AI-powered 3D generation for creators, studios, and platforms.
           </p>

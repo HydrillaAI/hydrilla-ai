@@ -8,6 +8,8 @@ import { ConditionalNavbar } from "../components/layout/ConditionalNavbar";
 import { CLERK_JS_VERSION, clerkPreconnectHost } from "@/lib/clerkConfig";
 import { DM_Sans } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
+// Only the variable file: the "geist/font/serif" barrel registers (and preloads) all five cuts.
+import { GeistSerif } from "geist/font/serif/variable";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
@@ -119,7 +121,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       signInFallbackRedirectUrl="/app/studio"
       signUpFallbackRedirectUrl="/app/studio"
     >
-    <html lang="en" className={`${dmSans.variable} ${dmSansItalic.variable} ${GeistSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${dmSans.variable} ${dmSansItalic.variable} ${GeistSans.variable} ${GeistSerif.variable}`} suppressHydrationWarning>
         <head>
           <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="" />
           {/* S3 outputs only load in the app, so warm DNS only (a full preconnect goes unused on marketing pages). */}

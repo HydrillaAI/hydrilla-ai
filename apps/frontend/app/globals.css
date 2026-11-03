@@ -3716,9 +3716,9 @@ input.range-minimal::-moz-range-track {
 
 .mob-pricing-title {
   margin: 0;
-  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-serif), "Geist Serif", Georgia, "Times New Roman", serif;
   font-size: 48px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.1;
   letter-spacing: -0.03em;
   color: var(--mp-text);
@@ -3731,7 +3731,7 @@ input.range-minimal::-moz-range-track {
 .mob-pricing-subtitle {
   margin: 0;
   max-width: 36rem;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 18px;
   font-weight: 400;
   line-height: 1.55;
@@ -3742,7 +3742,7 @@ input.range-minimal::-moz-range-track {
 .mob-pricing-note {
   margin: 0;
   max-width: 34rem;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 15px;
   font-weight: 400;
   line-height: 1.55;
@@ -3813,7 +3813,7 @@ input.range-minimal::-moz-range-track {
 
 .mob-pricing-save {
   margin: 12px 0 0;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;
@@ -3860,9 +3860,9 @@ input.range-minimal::-moz-range-track {
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-serif), "Geist Serif", Georgia, "Times New Roman", serif;
   font-size: 24px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.25;
   letter-spacing: -0.02em;
 }
@@ -3882,7 +3882,7 @@ input.range-minimal::-moz-range-track {
 
 .mob-pricing-audience {
   margin: 8px 0 0;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;
@@ -4012,7 +4012,7 @@ input.range-minimal::-moz-range-track {
 
 .mob-pricing-access {
   margin: 16px 0 0;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 13px;
   font-weight: 400;
   line-height: 1.5;
@@ -4026,7 +4026,7 @@ input.range-minimal::-moz-range-track {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;
@@ -4103,7 +4103,7 @@ input.range-minimal::-moz-range-track {
   caption-side: bottom;
   padding: 14px 20px 18px;
   text-align: left;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 13px;
   font-weight: 400;
   line-height: 1.5;
@@ -4117,9 +4117,9 @@ input.range-minimal::-moz-range-track {
 
 .mob-pricing-faq h2 {
   margin: 0 0 8px;
-  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-serif), "Geist Serif", Georgia, "Times New Roman", serif;
   font-size: 24px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .mob-pricing-faq dl > div {
@@ -4135,7 +4135,7 @@ input.range-minimal::-moz-range-track {
 
 .mob-pricing-faq dd {
   margin: 8px 0 0;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 15px;
   font-weight: 400;
   line-height: 1.55;
@@ -4145,7 +4145,7 @@ input.range-minimal::-moz-range-track {
 .mob-pricing-foot {
   margin-top: 48px;
   text-align: center;
-  font-family: var(--font-geist-sans), "Geist", sans-serif;
+  font-family: var(--font-dm-sans), "DM Sans", Arial, Helvetica, sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;

@@ -6,7 +6,7 @@ import { cloudinaryLoader } from "@/lib/cloudinary";
 import Link from "next/link";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { BlurReveal } from "@/components/ui/BlurReveal";
-import { DESCRIPTION_WEIGHT, GEIST_FONT, SANS_FONT, SECTION_WEIGHT } from "@/lib/fonts";
+import { HEADING_FONT, HEADING_WEIGHT, BODY_FONT, SANS_FONT, DESCRIPTION_WEIGHT } from "@/lib/fonts";
 
 const CLOUDINARY_LANDING_BASE =
   "https://res.cloudinary.com/dqizbxc9e/image/upload";
@@ -174,14 +174,14 @@ function Features({ items }: { items: Industry["features"] }) {
         >
           <h4
             className="m-0 text-lg font-medium"
-            style={{ fontFamily: SANS_FONT, color: INK, letterSpacing: "-0.02em", lineHeight: 1.3 }}
+            style={{ fontFamily: HEADING_FONT, fontWeight: HEADING_WEIGHT, color: INK, letterSpacing: "-0.02em", lineHeight: 1.3 }}
           >
             {f.title}
           </h4>
           <p
             className="m-0 text-base"
             style={{
-              fontFamily: GEIST_FONT,
+              fontFamily: BODY_FONT,
               fontWeight: DESCRIPTION_WEIGHT,
               color: INK_SECONDARY,
               letterSpacing: "-0.011em",
@@ -198,8 +198,8 @@ function Features({ items }: { items: Industry["features"] }) {
 
 const panelHeadingStyle: React.CSSProperties = {
   margin: 0,
-  fontFamily: SANS_FONT,
-  fontWeight: SECTION_WEIGHT,
+  fontFamily: HEADING_FONT,
+  fontWeight: HEADING_WEIGHT,
   color: INK,
   fontSize: "clamp(1.625rem, 1.35rem + 1vw, 2.25rem)",
   lineHeight: 1.12,
@@ -258,8 +258,8 @@ export default function IndustrySection() {
             id="industry-heading"
             style={{
               margin: 0,
-              fontFamily: SANS_FONT,
-              fontWeight: SECTION_WEIGHT,
+              fontFamily: HEADING_FONT,
+              fontWeight: HEADING_WEIGHT,
               color: INK,
               fontSize: "clamp(2.25rem, 1.7rem + 2.4vw, 3.75rem)",
               letterSpacing: "-0.035em",
