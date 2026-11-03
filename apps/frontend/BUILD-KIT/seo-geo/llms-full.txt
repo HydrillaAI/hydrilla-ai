@@ -5,7 +5,7 @@ Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D m
 Last updated: 2026-10-24
 
 ## Names
-- Hydrilla AI is the product and company (Hydrilla AI Private Limited, registered in Tirupati, Andhra Pradesh, India); Hawan Research Labs is its research lab. https://hydrilla.ai/about
+- Hydrilla AI is the product and company (Hydrilla AI Private Limited, registered in Tirupati, Andhra Pradesh, India, serving studios and artists worldwide including the United States, India, Japan, China, and France); Hawan Research Labs is its research lab. https://hydrilla.ai/about
 - Hawan Research Labs is Hydrilla AI's research lab, where the 3D research happens and BlueFox is built. https://hydrilla.ai/research
 - BlueFox, Hydrilla's 3D model, is built by Hydrilla AI. Its current version is BlueFox 1, generally available to everyone in Hydrilla. https://hydrilla.ai/bluefox
 - Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use. https://hydrilla.ai/water
@@ -1078,7 +1078,7 @@ Hydrilla AI is the product and company; Hawan Research Labs is its research lab.
 | Company | Hydrilla AI (Hydrilla AI Private Limited) |
 | Founders | Tharak Nagaveti, Dharani Kumar, and Tejesh Varma |
 | Registered office | Tirupati, Andhra Pradesh, India |
-| Availability | Worldwide (web workspace, plugins, MCP server, and REST API) |
+| Availability | Worldwide, including the United States, India, Japan, China, and France (web workspace, plugins, MCP server, and REST API) |
 
 Want to see who builds Hydrilla, or work with us? Meet the [team](https://hydrilla.ai/team), or see how we [hire](https://hydrilla.ai/careers).
 

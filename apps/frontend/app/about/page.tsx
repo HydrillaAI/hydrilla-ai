@@ -94,7 +94,7 @@ export default function AboutPage() {
                     </tr>
                     <tr>
                       <th>Availability</th>
-                      <td>Worldwide (web workspace, plugins, MCP server, and REST API)</td>
+                      <td>Worldwide, including the United States, India, Japan, China, and France (web workspace, plugins, MCP server, and REST API)</td>
                     </tr>
                   </tbody>
                 </table>

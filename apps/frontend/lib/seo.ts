@@ -252,6 +252,15 @@ function founderNodes() {
   );
 }
 
+const SERVED_REGIONS = [
+  { "@type": "Country" as const, name: "India", identifier: "IN" },
+  { "@type": "Country" as const, name: "United States", identifier: "US" },
+  { "@type": "Country" as const, name: "Japan", identifier: "JP" },
+  { "@type": "Country" as const, name: "China", identifier: "CN" },
+  { "@type": "Country" as const, name: "France", identifier: "FR" },
+  { "@type": "Place" as const, name: "Worldwide" },
+];
+
 export function getHomepageJsonLd() {
   return {
     "@context": "https://schema.org",
@@ -294,7 +303,7 @@ export function getHomepageJsonLd() {
             addressCountry: "IN",
           },
         },
-        areaServed: "Worldwide",
+        areaServed: SERVED_REGIONS,
         knowsAbout: [
           "AI 3D Model Generation",
           "Text to 3D",
@@ -312,7 +321,7 @@ export function getHomepageJsonLd() {
           contactType: "customer support",
           email: CONTACT_EMAIL,
           url: absoluteUrl("/contact"),
-          areaServed: "Worldwide",
+          areaServed: SERVED_REGIONS,
           availableLanguage: ["English"],
         },
       },

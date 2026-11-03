@@ -265,6 +265,15 @@ function offer(name: string, price: string, description: string) {
   };
 }
 
+const SERVED_REGIONS = [
+  { "@type": "Country", name: "India", identifier: "IN" },
+  { "@type": "Country", name: "United States", identifier: "US" },
+  { "@type": "Country", name: "Japan", identifier: "JP" },
+  { "@type": "Country", name: "China", identifier: "CN" },
+  { "@type": "Country", name: "France", identifier: "FR" },
+  { "@type": "Place", name: "Worldwide" },
+];
+
 export function getKitJsonLd(path: string) {
   const name = NAMES[path] || path;
   const pageType =
@@ -312,7 +321,7 @@ export function getKitJsonLd(path: string) {
           addressCountry: "IN",
         },
       },
-      areaServed: "Worldwide",
+      areaServed: SERVED_REGIONS,
       sameAs: [
         "https://x.com/hydrillaai",
         "https://www.linkedin.com/company/hydrilla-ai",
@@ -323,7 +332,7 @@ export function getKitJsonLd(path: string) {
         "@type": "ContactPoint",
         email: "founders@hydrilla.ai",
         contactType: "customer support",
-        areaServed: "Worldwide",
+        areaServed: SERVED_REGIONS,
       },
       subOrganization: {
         "@id": "https://hydrilla.ai/research#lab",
