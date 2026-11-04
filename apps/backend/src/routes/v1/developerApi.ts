@@ -9,6 +9,7 @@ import {
   cancelGpuJob,
   assertGpuReadyFor3d,
   GpuOfflineError,
+  gpuFailureCode,
 } from "../../services/gpuGateway.js";
 import {
   generateImage,
@@ -26,7 +27,7 @@ import {
   type InputImage,
   type UsageCall,
 } from "../../services/imageProviders/index.js";
-import { createJob, getJob, updateJobStatus } from "../../repository/jobs.js";
+import { createJob, getJob, recordFailedJob, updateJobStatus } from "../../repository/jobs.js";
 import { recordDeveloperApiKeyUsage } from "../../repository/developerApiKeys.js";
 import { recordImageUsage, type ImageUsageRecord } from "../../repository/imageUsage.js";
 import { uploadBufferToS3 } from "../../lib/s3Upload.js";
@@ -149,6 +150,14 @@ developerV1Router.post(
           : err instanceof Error
             ? err.message
             : "GPU is currently offline or restarting.";
+      await recordFailedJob({
+        userId,
+        generateType: "ImageTo3D",
+        errorCode: gpuFailureCode(err),
+        errorMessage: message,
+        imageUrl: typeof body.image_url === "string" ? body.image_url.trim() : null,
+        source: "api",
+      });
       trackKeyUsage(req, "/v1/3d/image-to-3d", 503, 0, {
         error: "gpu_offline",
       });
@@ -245,6 +254,14 @@ developerV1Router.post(
       await refundCredit(userId, CREDITS_3D);
       const message = err instanceof Error ? err.message : "Failed to initiate 3D reconstruction";
       logger.error({ err, userId }, "Developer image-to-3d failed");
+      await recordFailedJob({
+        userId,
+        generateType: "ImageTo3D",
+        errorCode: gpuFailureCode(err),
+        errorMessage: message,
+        imageUrl: typeof body.image_url === "string" ? body.image_url.trim() : null,
+        source: "api",
+      });
       trackKeyUsage(req, "/v1/3d/image-to-3d", 500, 0, {
         error: message,
       });
@@ -308,6 +325,14 @@ developerV1Router.post(
           : err instanceof Error
             ? err.message
             : "GPU is currently offline or restarting.";
+      await recordFailedJob({
+        userId,
+        generateType: "TextTo3D",
+        errorCode: gpuFailureCode(err),
+        errorMessage: message,
+        prompt,
+        source: "api",
+      });
       trackKeyUsage(req, "/v1/3d/text-to-3d", 503, 0, {
         error: "gpu_offline",
       });
@@ -440,6 +465,14 @@ developerV1Router.post(
       }
       const message = err instanceof Error ? err.message : "Failed to execute text-to-3d generation";
       logger.error({ err, userId }, "Developer text-to-3d failed");
+      await recordFailedJob({
+        userId,
+        generateType: "TextTo3D",
+        errorCode: gpuFailureCode(err),
+        errorMessage: message,
+        prompt,
+        source: "api",
+      });
       trackKeyUsage(req, "/v1/3d/text-to-3d", 500, 0, {
         error: message,
       });
