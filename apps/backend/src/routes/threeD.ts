@@ -10,7 +10,7 @@ import { logger } from "../logger.js";
 import { config, timingSafeEqualString } from "../config.js";
 import { supabase } from "../db.js";
 import { isJobPubliclyPosted } from "../repository/community.js";
-import { createJob, getJob, getJobMeshAccess, listJobsForUser, updateJobResult, updateJobStatus, deleteJob, getJobForUser, getJobLineage, upsertJobParents, getJobParentIds } from "../repository/jobs.js";
+import { createJob, recordFailedJob, getJob, getJobMeshAccess, listJobsForUser, updateJobResult, updateJobStatus, deleteJob, getJobForUser, getJobLineage, upsertJobParents, getJobParentIds } from "../repository/jobs.js";
 import { createChat, getChatForUser, listChatsForUser, updateChatName, updateChatUpdatedAt, deleteChat, getOrCreateActiveChat } from "../repository/chats.js";
 import { createWorkspace, getWorkspace, getWorkspaceForUser, listWorkspacesForUser, listJobsForWorkspace, updateWorkspaceName, updateWorkspaceUpdatedAt, deleteWorkspace } from "../repository/workspaces.js";
 import { optionalAuth, requireAuth, syncUserToDatabase } from "../middleware/auth.js";
@@ -43,6 +43,7 @@ import { runDeduplicated3DSubmission } from "../services/inFlight3d.js";
 import {
   assertGpuReadyFor3d,
   GpuOfflineError,
+  gpuFailureCode,
   probeGpuVm,
 } from "../services/gpuGateway.js";
 import { JobStatus, JobRecord, ChatRecord, WorkspaceRecord, GenerateType } from "../types.js";
@@ -975,6 +976,20 @@ threeDRouter.post("/generate", requireAuth, async (req, res) => {
     if (err?.status === 402) {
       return res.status(402).json({ error: err.message });
     }
+    const failureCode = gpuFailureCode(err);
+    if (failureCode.startsWith("gpu_") && req.userId) {
+      const failedBody = (req.body || {}) as { prompt?: unknown; imageUrl?: unknown; workspaceId?: unknown };
+      const failedImageUrl = typeof failedBody.imageUrl === "string" ? failedBody.imageUrl : null;
+      await recordFailedJob({
+        userId: req.userId,
+        generateType: "ImageTo3D",
+        errorCode: failureCode,
+        errorMessage: err?.message || failureCode,
+        prompt: typeof failedBody.prompt === "string" ? failedBody.prompt : null,
+        imageUrl: unwrapImageProxyUrl(failedImageUrl) || failedImageUrl,
+        workspaceId: typeof failedBody.workspaceId === "string" ? failedBody.workspaceId : null,
+      });
+    }
     if (err instanceof GpuOfflineError || err?.name === "GpuOfflineError") {
       return res.status(503).json({
         error: err.message,
@@ -1251,7 +1266,19 @@ threeDRouter.post("/text-to-image", requireAuth, async (req, res) => {
 
     // Text→3D clients set for3d/intent so we do not burn image credits when GPU is down
     if (wantsTextTo3dGpuGate(body)) {
-      await assertGpuReadyFor3d();
+      try {
+        await assertGpuReadyFor3d();
+      } catch (gpuErr: any) {
+        await recordFailedJob({
+          userId,
+          generateType: "TextTo3D",
+          errorCode: gpuFailureCode(gpuErr),
+          errorMessage: gpuErr?.message || "GPU unavailable",
+          prompt,
+          workspaceId: typeof body.workspaceId === "string" ? body.workspaceId : null,
+        });
+        throw gpuErr;
+      }
     }
 
     await runProviderImageJob(res, userId, "text-to-image", prompt, options, {
