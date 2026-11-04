@@ -9,8 +9,8 @@ export const metadata = createPageMetadata({
   path: "/about",
   absoluteTitle: true,
   keywords: [
+    "Hydrilla",
     "Hydrilla AI",
-    "Hydrilla AI Private Limited",
     "3D AI generator India",
     "best 3D AI generator in India",
     "best 3D AI generator US",

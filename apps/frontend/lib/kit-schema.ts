@@ -298,17 +298,12 @@ export function getKitJsonLd(path: string) {
       "@type": "Organization",
       "@id": ORG,
       name: "Hydrilla AI",
-      legalName: "Hydrilla AI Private Limited",
       alternateName: ["Hydrilla", "Hydrilla.ai"],
       url: "https://hydrilla.ai",
       description: "Hydrilla AI is an AI 3D workspace for studio and artist pipelines.",
-      disambiguatingDescription: "AI 3D software company in India that builds the Hydrilla workspace and BlueFox, Hydrilla's 3D model",
+      disambiguatingDescription: "AI 3D software company that builds the Hydrilla workspace and BlueFox, Hydrilla's 3D model",
       address: {
         "@type": "PostalAddress",
-        streetAddress: "5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar",
-        addressLocality: "Tirupati",
-        addressRegion: "Andhra Pradesh",
-        postalCode: "517502",
         addressCountry: "IN",
       },
       foundingLocation: {
@@ -316,8 +311,6 @@ export function getKitJsonLd(path: string) {
         name: "India",
         address: {
           "@type": "PostalAddress",
-          addressLocality: "Tirupati",
-          addressRegion: "Andhra Pradesh",
           addressCountry: "IN",
         },
       },

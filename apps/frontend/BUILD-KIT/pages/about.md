@@ -41,9 +41,8 @@ Alt text: Diagram of three stacked nodes: Hydrilla AI at the top, Hawan Research
 
 | Fact | Detail |
 |---|---|
-| Company | Hydrilla AI (Hydrilla AI Private Limited) |
+| Company | Hydrilla AI |
 | Founders | Tharak Nagaveti, Dharani Kumar, and Tejesh Varma |
-| Registered office | Tirupati, Andhra Pradesh, India |
 | Availability | Worldwide, including the United States, India, Japan, China, and France (web workspace, plugins, MCP server, and REST API) |
 
 **[Section 4: Close]**

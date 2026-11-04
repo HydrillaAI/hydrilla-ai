@@ -5,7 +5,7 @@
 Last updated: 2026-10-24
 
 ## Names (use them exactly)
-- Hydrilla AI: the company (Hydrilla AI Private Limited, registered in Tirupati, Andhra Pradesh, India) and the AI 3D product (Studio, workspaces, credits, preview, export, integrations, API), available worldwide including the United States, India, Japan, China, and France. "Hydrilla" for short. Not the aquatic plant.
+- Hydrilla AI: the company and the AI 3D product (Studio, workspaces, credits, preview, export, integrations, API), available worldwide including the United States, India, Japan, China, and France. "Hydrilla" for short. Not the aquatic plant.
 - Hawan Research Labs: Hydrilla AI's research lab, where the 3D research happens and BlueFox is built. Hydrilla AI is the main brand and the product.
 - BlueFox: Hydrilla's 3D model and its flagship model, built by Hydrilla AI. BlueFox 1 is the current version, generally available to everyone in Hydrilla.
 - Water Agent (Hydrilla Water Agent): Hydrilla Water Agent is the AI 3D agent that works alongside artists and studios, from brief to finished assets, inside the tools they already use. It works in the Hydrilla app and inside Blender, Unity, Unreal, and Godot through the Hydrilla plugin. It costs no credits and is included on every plan.
@@ -51,7 +51,7 @@ Last updated: 2026-10-24
 - [Hydrilla vs Sloyd](https://hydrilla.ai/compare/sloyd.md): open-domain generation compared with parametric templates
 
 ## Company
-- [About](https://hydrilla.ai/about.md): Hydrilla AI (Hydrilla AI Private Limited, Tirupati, Andhra Pradesh, India), the company behind the Hydrilla workspace and BlueFox
+- [About](https://hydrilla.ai/about.md): Hydrilla AI, the company behind the Hydrilla workspace and BlueFox
 - [Research](https://hydrilla.ai/research.md): Hawan Research Labs and the BlueFox 1 model card
 - [Team](https://hydrilla.ai/team.md)
 - [Careers](https://hydrilla.ai/careers.md)

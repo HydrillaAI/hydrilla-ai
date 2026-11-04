@@ -82,15 +82,11 @@ export default function AboutPage() {
                   <tbody>
                     <tr>
                       <th>Company</th>
-                      <td>Hydrilla AI (Hydrilla AI Private Limited)</td>
+                      <td>Hydrilla AI</td>
                     </tr>
                     <tr>
                       <th>Founders</th>
                       <td>Tharak Nagaveti, Dharani Kumar, and Tejesh Varma</td>
-                    </tr>
-                    <tr>
-                      <th>Registered office</th>
-                      <td>Tirupati, Andhra Pradesh, India</td>
                     </tr>
                     <tr>
                       <th>Availability</th>

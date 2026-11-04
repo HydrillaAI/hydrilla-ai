@@ -269,7 +269,6 @@ export function getHomepageJsonLd() {
         "@type": "Organization",
         "@id": ENTITY_IDS.hydrilla,
         name: "Hydrilla AI",
-        legalName: "Hydrilla AI Private Limited",
         alternateName: ["Hydrilla", "Hydrilla AI", "Hydrilla.ai"],
         url: SITE_URL,
         logo: {
@@ -280,17 +279,13 @@ export function getHomepageJsonLd() {
         },
         description: DEFAULT_DESCRIPTION,
         disambiguatingDescription:
-          "AI 3D software company in India that builds the Hydrilla workspace, Water Agent, and BlueFox, Hydrilla's 3D model",
+          "AI 3D software company that builds the Hydrilla workspace, Water Agent, and BlueFox, Hydrilla's 3D model",
         email: CONTACT_EMAIL,
         sameAs: [...SOCIAL_PROFILES],
         subOrganization: { "@id": ENTITY_IDS.hawan },
         founder: founderNodes(),
         address: {
           "@type": "PostalAddress",
-          streetAddress: "5-40A, Ullipatteda, Muthyal Reddy Palli, S V Nagar",
-          addressLocality: "Tirupati",
-          addressRegion: "Andhra Pradesh",
-          postalCode: "517502",
           addressCountry: "IN",
         },
         foundingLocation: {
@@ -298,8 +293,6 @@ export function getHomepageJsonLd() {
           name: "India",
           address: {
             "@type": "PostalAddress",
-            addressLocality: "Tirupati",
-            addressRegion: "Andhra Pradesh",
             addressCountry: "IN",
           },
         },
