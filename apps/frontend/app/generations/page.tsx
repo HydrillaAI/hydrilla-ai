@@ -25,12 +25,14 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+// Failed jobs stay out of the workspace generations. A failed 3D job keeps its input
+// photo, so without this check it would be listed as an image.
 function isImageJob(job: BackendJob): boolean {
-  return Boolean(job.previewImageUrl || job.imageUrl) && !job.resultGlbUrl && !isWaterJob(job);
+  return job.status !== "FAIL" && Boolean(job.previewImageUrl || job.imageUrl) && !job.resultGlbUrl && !isWaterJob(job);
 }
 
 function is3DJob(job: BackendJob): boolean {
-  return Boolean(job.resultGlbUrl) || isWaterJob(job);
+  return job.status !== "FAIL" && (Boolean(job.resultGlbUrl) || isWaterJob(job));
 }
 
 function GenerationCard({
