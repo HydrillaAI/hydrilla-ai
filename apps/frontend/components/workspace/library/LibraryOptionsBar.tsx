@@ -161,7 +161,7 @@ export const LibraryOptionsBar = memo(function LibraryOptionsBar({
                       }
                     }}
                   />
-                ) : kind === "3d" && !failed ? (
+                ) : kind === "3d" ? (
                   <span className="flex h-full w-full items-center justify-center text-neutral-300">
                     <span className="h-5 w-5 animate-pulse rounded-md bg-neutral-200" />
                   </span>

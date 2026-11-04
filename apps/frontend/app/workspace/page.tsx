@@ -943,14 +943,8 @@ function WorkspacePage() {
     return job.status === "RUN" || job.status === "WAIT";
   }, [is3DGenerationType]);
   const shouldShowIn3DLibrary = useCallback((job: BackendJob): boolean => {
-    // Show completed 3D outputs, in-progress 3D jobs (mesh + Water), and failed mesh
-    // jobs (GPU offline, queue full, ...) as red-dot cards. Jobs the user cancelled stay hidden.
-    if (job.status === "FAIL") {
-      if (isWaterJobFn(job) || isWaterJobId(job.id) || !is3DGenerationType(job.generateType)) {
-        return false;
-      }
-      return !/cancel/i.test(job.errorMessage || "");
-    }
+    // Show completed 3D outputs and in-progress 3D jobs (mesh + Water).
+    if (job.status === "FAIL") return false;
     if (
       job.resultGlbUrl ||
       hasRealFactoryCode(job) ||
