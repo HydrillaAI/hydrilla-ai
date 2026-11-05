@@ -35,6 +35,10 @@ const REDIRECT_PAIRS = [
 ];
 
 const nextConfig = {
+  // Permit testing the dev server from another device on this local network.
+  // Next blocks cross-origin development assets by default, which prevents
+  // Clerk's sign-in flow from completing when opened via the Mac's LAN IP.
+  allowedDevOrigins: ["10.52.7.94"],
   // Disable Next's automatic 308 trailing-slash redirect so explicit 301 rules
   // in `redirects()` fire in a single hop for both `/path` and `/path/`.
   skipTrailingSlashRedirect: true,
