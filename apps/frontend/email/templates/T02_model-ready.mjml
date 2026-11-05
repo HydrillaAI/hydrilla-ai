@@ -20,7 +20,7 @@ data: event.kind, event.prompt, event.thumbnail_url, event.studio_url, event.dow
 <mj-raw>{% if event.thumbnail_url %}</mj-raw>
 <mj-image src="{{ event.thumbnail_url | default: '' }}" alt="Preview of your model" border-radius="8px" />
 <mj-raw>{% endif %}{% if event.prompt %}</mj-raw>
-<mj-text css-class="muted" font-size="14px">Prompt: {{ event.prompt | default: "" | escape | truncate: 140 }}</mj-text>
+<mj-text css-class="muted" font-size="14px">Prompt: {{ event.prompt | default: "" | truncate: 140 | replace: "<", "&lt;" | replace: ">", "&gt;" }}</mj-text>
 <mj-raw>{% endif %}</mj-raw>
 <mj-button href="{{ event.studio_url | default: 'https://hydrilla.ai/app/studio' }}">Open in Studio</mj-button>
 <mj-raw>{% if event.download_url %}</mj-raw>

@@ -16,6 +16,6 @@ facts: do not promise a reply time until the team agrees one
 data: name, company
 -->
 <mj-text>Hi {{ trigger.name | default: "there" }},</mj-text>
-<mj-text>Thanks for your interest in Hydrilla{% if trigger.company %} for {{ trigger.company | default: "" | escape }}{% endif %}. We've received your details and someone from the team will be in touch.</mj-text>
+<mj-text>Thanks for your interest in Hydrilla{% if trigger.company %} for {{ trigger.company | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" }}{% endif %}. We've received your details and someone from the team will be in touch.</mj-text>
 <mj-text>If you'd rather talk it through now, you can pick a time that suits you.</mj-text>
 <mj-button href="https://cal.com/hydrilla">Book a demo</mj-button>

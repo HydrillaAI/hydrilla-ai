@@ -138,11 +138,12 @@ Hydrilla AI Pvt Ltd, address
 
 ### Rules for every email
 
-The build checks the first four automatically (`npm run email:build:strict`).
+The build checks the first five automatically (`npm run email:build:strict`).
 
 - Subject is 50 characters or fewer.
 - No emoji and no exclamation marks.
 - Every personalised value has a fallback, for example "Hi there," when there is no first name.
+- Text typed by users never uses Liquid's `escape` filter, because in Customer.io it percent-encodes text and spaces show as `%20`. Replace `<` and `>` with `&lt;` and `&gt;` instead, so typed HTML stays harmless.
 - Transactional emails read `trigger.*` data, and automations read `event.*` data.
 - The only contact address in email text is `hi@hydrilla.ai`.
 - Don't promise a reply time until the team agrees one.

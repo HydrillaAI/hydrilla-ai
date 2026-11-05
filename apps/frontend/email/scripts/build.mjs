@@ -54,6 +54,7 @@ function lint(meta, body, file) {
   for (const w of BANNED) if (text.toLowerCase().includes(w)) issues.push(`banned word "${w}"`);
   for (const [, expr] of text.matchAll(/\{\{([^}]*(?:customer|trigger|event)\.[^}]*)\}\}/g)) {
     if (!expr.includes("default")) issues.push(`Liquid variable without fallback: {{${expr.trim()}}}`);
+    if (/\|\s*escape\b/.test(expr)) issues.push(`Customer.io's escape filter percent-encodes text, so spaces show as %20. Replace < and > instead: {{${expr.trim()}}}`);
   }
   return issues.map((i) => `${file}: ${i}`);
 }
