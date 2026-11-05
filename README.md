@@ -82,6 +82,35 @@ Run each app from the repo root, in separate terminal tabs:
 > [!TIP]
 > **💡 Port Tip:** `apps/docs` defaults to port 3001, the same as `apps/admin`, so `pnpm dev:docs` runs it on **3002** so both can run at the same time.
 
+### 5. Test from a Phone or Another Device on Your Wi-Fi
+
+`localhost` always means the device currently opening the page. Therefore, a phone cannot reach services running on your Mac through `http://localhost:3000` or `http://localhost:4000`.
+
+For a local-network test, connect the phone and Mac to the same Wi-Fi, find the Mac's Wi-Fi address, and use it instead:
+
+```bash
+ipconfig getifaddr en0
+```
+
+For example, if the command returns `10.52.7.94`, open this on the phone:
+
+```text
+http://10.52.7.94:3000
+```
+
+Before starting the servers, update the local environment values so browser API calls are sent to the Mac rather than to the phone itself:
+
+```env
+# apps/frontend/.env or apps/frontend/.env.local
+NEXT_PUBLIC_BACKEND_URL=http://10.52.7.94:4000
+
+# apps/backend/.env or apps/backend/.env.local
+FRONTEND_URL=http://10.52.7.94:3000
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://10.52.7.94:3000
+```
+
+Restart `pnpm dev:frontend` and `pnpm dev:backend` after changing environment values. The frontend's `allowedDevOrigins` setting must also include the Mac's Wi-Fi address; update [`apps/frontend/next.config.js`](./apps/frontend/next.config.js) if that address changes. These are local-only settings—do not commit `.env` files or secrets.
+
 ---
 
 ## 🛠️ Summary of Common Workflows
