@@ -30,7 +30,7 @@ function parseTemplate(raw, file) {
   for (const key of ["id", "name", "layout", "kind", "sender", "topic", "trigger", "subject", "preheader", "footer_reason", "optional"]) {
     if (!(key in meta)) throw new Error(`${file}: metadata "${key}" is required`);
   }
-  if (!["hi", "rishi"].includes(meta.sender)) throw new Error(`${file}: sender must be "hi" or "rishi"`);
+  if (meta.sender !== "hi") throw new Error(`${file}: sender must be "hi"`);
   if (!["transactional", "campaign", "broadcast"].includes(meta.kind)) {
     throw new Error(`${file}: kind must be transactional, campaign or broadcast`);
   }

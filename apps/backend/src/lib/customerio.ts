@@ -10,10 +10,9 @@ import { logger } from "../logger.js";
 
 export type Attributes = Record<string, string | number | boolean | null | undefined>;
 
-/** Two senders only. Replies go to real mailboxes on the root domain. */
+/** One sender for every email. Replies go to the real mailbox on the root domain. */
 export const SENDERS = {
   hi: { from: "Hydrilla <hi@mail.hydrilla.ai>", replyTo: "hi@hydrilla.ai" },
-  rishi: { from: "Rishi from Hydrilla <rishi@mail.hydrilla.ai>", replyTo: "rishi@hydrilla.ai" },
 } as const;
 
 export type SenderKey = keyof typeof SENDERS;

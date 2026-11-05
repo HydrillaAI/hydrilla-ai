@@ -3,7 +3,7 @@ id: R05
 name: Cancellation question
 layout: personal
 kind: campaign
-sender: rishi
+sender: hi
 category: retention
 topic: news-and-tips
 trigger: event subscription_cancelled; wait 3 days
@@ -17,4 +17,4 @@ optional: true
 <mj-text>You cancelled your Hydrilla plan a few days ago. I'd like to know why, so we can fix what got in the way.</mj-text>
 <mj-text>Was it the price, the quality of the models, a missing feature, or something else? A one-line reply is enough.</mj-text>
 <mj-text>Thanks for giving Hydrilla a try.</mj-text>
-<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>
+<mj-text>Tejesh Varma,<br />Head of Growth<br />Team Hydrilla AI</mj-text>

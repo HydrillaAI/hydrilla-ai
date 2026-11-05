@@ -43,15 +43,15 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
   { id: "T11_contact-received", name: "We've got your message", kind: "transactional", sender: "hi", topic: null, trigger: "contact, support or feedback form", purpose: "Receipt for any message sent to the team." },
   { id: "T12_enterprise-received", name: "Thanks for your interest in Hydrilla for teams", kind: "transactional", sender: "hi", topic: null, trigger: "enterprise form", purpose: "Receipt with the demo booking link. A person follows up." },
 
-  // From Rishi
-  { id: "T01_welcome", name: "Welcome to Hydrilla", kind: "transactional", sender: "rishi", topic: null, trigger: "account_created", purpose: "A short personal welcome and three first steps." },
-  { id: "L02_first-model-nudge", name: "Text or image? Pick the faster start", kind: "campaign", sender: "rishi", topic: "news-and-tips", trigger: "account_created, 2 days later, only if no generation_completed", purpose: "The single onboarding nudge." },
-  { id: "C04_checkout-help", name: "Anything I can help with?", kind: "campaign", sender: "rishi", topic: "news-and-tips", trigger: "checkout_started, 24 hours later, unless subscription_activated", purpose: "One human question after an unfinished checkout." },
-  { id: "T08_credits-granted", name: "{n} credits added to your account", kind: "transactional", sender: "rishi", topic: null, trigger: "admin adds credits to a user", purpose: "Tells them credits were added directly." },
-  { id: "R02_win-back", name: "Your Hydrilla account is waiting", kind: "campaign", sender: "rishi", topic: "news-and-tips", trigger: "last_seen_at older than 30 days, once", purpose: "The only win-back. No click means silent suppression." },
-  { id: "R05_cancel-question", name: "A short question", kind: "campaign", sender: "rishi", topic: "news-and-tips", trigger: "subscription_cancelled, 3 days later", purpose: "One question about why they left." },
-  { id: "W01_weekly-recap", name: "Your week in Hydrilla", kind: "campaign", sender: "rishi", topic: "weekly-recap", trigger: "weekly_recap_ready (Mondays, active people only)", purpose: "Models made, credits left, one tip, and the week's news." },
-  { id: "N01_release-news", name: "Release news", kind: "broadcast", sender: "rishi", topic: "news-and-tips", trigger: "sent by hand for real releases, at most 2 a month", purpose: "What shipped and what to do with it." },
+  // Signed by Tejesh
+  { id: "T01_welcome", name: "Welcome to Hydrilla", kind: "transactional", sender: "hi", topic: null, trigger: "account_created", purpose: "A short personal welcome and three first steps." },
+  { id: "L02_first-model-nudge", name: "Text or image? Pick the faster start", kind: "campaign", sender: "hi", topic: "news-and-tips", trigger: "account_created, 2 days later, only if no generation_completed", purpose: "The single onboarding nudge." },
+  { id: "C04_checkout-help", name: "Anything I can help with?", kind: "campaign", sender: "hi", topic: "news-and-tips", trigger: "checkout_started, 24 hours later, unless subscription_activated", purpose: "One human question after an unfinished checkout." },
+  { id: "T08_credits-granted", name: "{n} credits added to your account", kind: "transactional", sender: "hi", topic: null, trigger: "admin adds credits to a user", purpose: "Tells them credits were added directly." },
+  { id: "R02_win-back", name: "Your Hydrilla account is waiting", kind: "campaign", sender: "hi", topic: "news-and-tips", trigger: "last_seen_at older than 30 days, once", purpose: "The only win-back. No click means silent suppression." },
+  { id: "R05_cancel-question", name: "A short question", kind: "campaign", sender: "hi", topic: "news-and-tips", trigger: "subscription_cancelled, 3 days later", purpose: "One question about why they left." },
+  { id: "W01_weekly-recap", name: "Your week in Hydrilla", kind: "campaign", sender: "hi", topic: "weekly-recap", trigger: "weekly_recap_ready (Mondays, active people only)", purpose: "Models made, credits left, one tip, and the week's news." },
+  { id: "N01_release-news", name: "Release news", kind: "broadcast", sender: "hi", topic: "news-and-tips", trigger: "sent by hand for real releases, at most 2 a month", purpose: "What shipped and what to do with it." },
 
   // Internal alerts to the team inbox
   { id: "INT01_new-message", name: "New message from {name}", kind: "transactional", sender: "hi", topic: null, trigger: "contact, enterprise, support or feedback form", purpose: "Tells the team a message arrived.", internal: true },

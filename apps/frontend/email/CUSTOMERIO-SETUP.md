@@ -6,8 +6,8 @@ State of the "Hydrilla AI" workspace (218428) as of 25 Oct 2026, and what is sti
 
 **Sending:**
 - **Domain:** `mail.hydrilla.ai` is verified, with link tracking on `email.mail.hydrilla.ai`.
-- **From identities:** `Hydrilla <hi@mail.hydrilla.ai>` (4) and `Rishi from Hydrilla <rishi@mail.hydrilla.ai>` (5).
-- **Reply-to identities:** `hi@hydrilla.ai` (6) and `rishi@hydrilla.ai` (7). Every email replies to the real mailbox.
+- **From identity:** `Hydrilla <hi@mail.hydrilla.ai>` (4), used for every email.
+- **Reply-to identity:** `hi@hydrilla.ai` (6). Every email replies to the real mailbox.
 - **Layout:** every email uses "Hydrilla full HTML (pass-through)" (layout 2). Our templates are complete HTML documents with their own footer and unsubscribe links. The workspace default "Empty Layout" is unchanged for other emails.
 - **Editor:** all our emails use the Code editor (`html`).
 
@@ -24,12 +24,12 @@ State of the "Hydrilla AI" workspace (218428) as of 25 Oct 2026, and what is sti
 
 | ID | Name | Trigger Name |
 |---|---|---|
-| 2 | T01 Welcome (Rishi) | `T01_welcome` |
+| 2 | T01 Welcome (signed by Tejesh) | `T01_welcome` |
 | 4 | INT01 New message alert (internal) | `INT01_new-message` |
 | 5 | INT02 GPU offline alert (internal) | `INT02_gpu-offline` |
 | 6 | T04 Plan active | `T04_plan-active` |
 | 7 | T06 Plan cancelled | `T06_plan-cancelled` |
-| 8 | T08 Credits added (Rishi) | `T08_credits-granted` |
+| 8 | T08 Credits added (signed by Tejesh) | `T08_credits-granted` |
 | 9 | T09 API key created | `T09_api-key-created` |
 | 10 | T10 Deletion request received | `T10_deletion-request` |
 | 11 | T11 Message received | `T11_contact-received` |
@@ -84,7 +84,7 @@ It isn't strictly required, but without it:
 
 Set it up:
 1. Clerk Dashboard → pick the **Production** instance → **Configure → Webhooks → Add Endpoint**.
-2. Endpoint URL: `https://hydrilla-backend.vercel.app/api/webhooks/clerk`
+2. Endpoint URL: `https://hydrilla-ai-g1bm.vercel.app/api/webhooks/clerk`
 3. Subscribe to events: `user.created`, `user.updated`, `user.deleted`, `session.created`. Leave everything else unticked.
 4. Create it, then copy the **Signing Secret** (`whsec_…`).
 5. Put it in `CLERK_WEBHOOK_SECRET` in the backend's Vercel env (and in `.env.local` for local runs), then redeploy.

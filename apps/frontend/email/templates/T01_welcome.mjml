@@ -3,7 +3,7 @@ id: T01
 name: Welcome
 layout: personal
 kind: transactional
-sender: rishi
+sender: hi
 category: account
 topic: none
 trigger: account_created
@@ -14,7 +14,7 @@ footer_reason: You're receiving this because you created a Hydrilla account.
 optional: false
 -->
 <mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
-<mj-text>I'm Rishi, Creative Director at Hydrilla. Your account is ready, and you have {{ customer.credits_remaining | default: 100 }} credits to start with.</mj-text>
+<mj-text>I'm Tejesh Varma, Head of Growth at Hydrilla. Your account is ready, and you have {{ customer.credits_remaining | default: 100 }} credits to start with.</mj-text>
 <mj-text>The fastest way to see what Hydrilla does is to make one model:</mj-text>
 <mj-text>
   1. Describe an object, or upload an image.<br />
@@ -22,5 +22,5 @@ optional: false
   3. Download the GLB, or keep it in a Workspace.
 </mj-text>
 <mj-text><a href="https://hydrilla.ai/app/studio">Open Studio</a></mj-text>
-<mj-text>If something is unclear, reply to this email. It comes straight to me.</mj-text>
-<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>
+<mj-text>If something is unclear, reply to this email. A person on our team reads every reply.</mj-text>
+<mj-text>Tejesh Varma,<br />Head of Growth<br />Team Hydrilla AI</mj-text>

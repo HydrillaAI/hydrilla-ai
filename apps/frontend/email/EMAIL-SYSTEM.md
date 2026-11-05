@@ -2,7 +2,7 @@
 
 How Hydrilla's emails are built and sent, what is set up in Customer.io, where it stands, and the Gmail problem we hit during testing.
 
-Last updated: 25 Oct 2026. **Status: nothing is live yet.** Every automation is in draft, and the backend with the new email code is not deployed.
+Last updated: 5 Nov 2026. **Status: transactional emails are live. Every automation is still in draft.** See [EMAIL-REPORT.md](EMAIL-REPORT.md) for every email, when it sends and its format.
 
 Related docs in this folder:
 
@@ -17,8 +17,8 @@ Related docs in this folder:
 | Topic | Decision |
 |---|---|
 | Platform | Customer.io for all email. ZeptoMail is removed completely. |
-| Senders | Two only. `Hydrilla <hi@mail.hydrilla.ai>` sends anything about the account. `Rishi from Hydrilla <rishi@mail.hydrilla.ai>` sends whenever the team is talking to the person. Rishi is Creative Director. |
-| Replies | Replies go to the real mailboxes `hi@hydrilla.ai` and `rishi@hydrilla.ai`. |
+| Sender | One only. `Hydrilla <hi@mail.hydrilla.ai>` sends every email. Personal notes are signed by Tejesh Varma, Head of Growth, Team Hydrilla AI. |
+| Replies | Replies go to the real mailbox `hi@hydrilla.ai`. |
 | Sending domain | `mail.hydrilla.ai`, so that marketing reputation stays off the root domain where staff mail lives. Link tracking is on `email.mail.hydrilla.ai`. |
 | Volume | Minimal: 22 customer emails and 2 internal alerts, no step-by-step drips. See CATALOGUE.md. |
 | Weekly email | A personal recap (models made, credits, one tip, news), sent only to people who made a model that week. |
@@ -48,7 +48,7 @@ Weekly cron (Mon) ─► services/weeklyRecap.ts ─► event weekly_recap_ready
 | Path | What it is |
 |---|---|
 | `templates/*.mjml` | 24 emails, one file per email. The file name is the template ID and the Customer.io trigger name. |
-| `layouts/base.mjml`, `layouts/personal.mjml` | The branded layout (logo header, card, legal footer), and the near-plain-text layout used for Rishi's notes. |
+| `layouts/base.mjml`, `layouts/personal.mjml` | The branded layout (logo header, card, legal footer), and the near-plain-text layout used for Tejesh's notes. |
 | `scripts/build.mjs` | Builds `dist/*.html`, `*.txt` and `*.json` plus `manifest.json`. It also lints: subject 50 characters or fewer, no emoji, no exclamation marks, every Liquid variable has a fallback, `trigger.*` in transactional templates and `event.*` in campaign templates. |
 | `scripts/sync-customerio.mjs` | Pushes the built HTML, subject, preheader, sender and Reply-To into Customer.io. It creates missing transactional templates without sending anything. |
 | `parked/` | T05 plan changed, T07 refund, T13. Cut from the minimal set. |
@@ -78,8 +78,8 @@ Other assets: `public/logo-hydrilla/hydrilla-email-logo.png` is the email logo, 
 | `payments.ts` | Plan active and cancelled emails, sent once each. Checkout, payment-failed and payment-succeeded events. |
 | `jobSync.ts`, `threeD.ts` | Model ready and failed events. Every failure path refunds credits before the event is tracked. |
 | `credits.ts` | `credits_low` when the balance crosses 20% of the allowance, and `credits_exhausted` when a generation is blocked. |
-| `creditClaims.ts` | `POST /api/admin/credit-claims/:id/send`: Rishi emails a claim link. No email is sent when the link is claimed. |
-| `adminUsers.ts`, `user.ts` | Credits-added email (from Rishi), the API-key security notice, and `POST /api/user/email-profile` (time zone). |
+| `creditClaims.ts` | No email. The planned send route for claim links is not in the code, so `CL01_claim-link` is not sent by anything. |
+| `adminUsers.ts`, `user.ts` | Credits-added email (signed by Tejesh), the API-key security notice, and `POST /api/user/email-profile` (time zone). |
 | `middleware/auth.ts` | Fallback welcome email if the Clerk webhook isn't configured. |
 | Removed | `src/services/email.ts`, the `zeptomail` package and the `ZEPTOMAIL_*` env vars. |
 
@@ -90,7 +90,7 @@ Other assets: `public/logo-hydrilla/hydrilla-email-logo.png` is the email logo, 
   - Templates: all 24 with live or draft status and a "send me a test" button.
   - Deliveries: a log of every email sent.
   - Weekly recap: an editor for "This week at Hydrilla" and a preview of who gets Monday's recap.
-- **Claim links:** a **Send** button on each link, and an "Email it from Rishi" option when creating a restricted link.
+- **Claim links:** no email option yet, because the backend has no send route for it.
 - **User detail:** an Emails section listing what that person has received.
 
 ### Frontend (`hyd-f`)
@@ -103,14 +103,14 @@ Other assets: `public/logo-hydrilla/hydrilla-email-logo.png` is the email logo, 
 All of this is in workspace "Hydrilla AI" (218428, US region). Full ID tables are in CUSTOMERIO-SETUP.md.
 
 - **Sending domain:** `mail.hydrilla.ai` verified (MX, SPF, DKIM, DMARC). Link tracking on `email.mail.hydrilla.ai`. DNS is at Namecheap.
-- **Identities:** senders `hi@mail.hydrilla.ai` (4) and `rishi@mail.hydrilla.ai` (5); reply-to identities `hi@hydrilla.ai` (6) and `rishi@hydrilla.ai` (7).
+- **Identities:** sender `hi@mail.hydrilla.ai` (4); reply-to identity `hi@hydrilla.ai` (6).
 - **Subscription topics**, opt-out:
   1. Model alerts
   2. Credit alerts
   3. Weekly recap
   4. News and tips
 - **Transactional messages (2–12):**
-  - T01 Welcome and T08 Credits added, both from Rishi.
+  - T01 Welcome and T08 Credits added, both signed by Tejesh.
   - T04, T06, T09, T10, T11 and T12, from `hi@`.
   - INT01 and INT02, the internal alerts.
 - **Automations (8–18), all in draft:**
@@ -156,9 +156,9 @@ Side effect: the diagnostic send created a Customer.io profile for the test addr
 | Item | State |
 |---|---|
 | Automations and broadcast | Draft. They cannot send. |
-| Transactional messages | Set up, but never sent to a real user. The only send on record is the diagnostic one. |
-| Backend email code | Written and type-checked, **not committed and not deployed**. The live backend returns 404 for `/api/webhooks/clerk` and `/api/cron/weekly-recap`. |
-| Live backend | Still runs the old code, including ZeptoMail emails, until the new code is deployed. |
+| Transactional messages | Live. All sent from `hi@mail.hydrilla.ai`. |
+| Backend email code | Committed and deployed. |
+| Live backend | Runs the Customer.io code. ZeptoMail is gone from the code and from Vercel. |
 | Old Supabase `sync-customerio` function | Still syncs profiles with the first Track key. It sends no email. |
 
 ## 7. Go-live checklist
@@ -172,7 +172,7 @@ Side effect: the diagnostic send created a Customer.io profile for the test addr
 
    Remove the `ZEPTOMAIL_*` vars.
 3. **Clerk webhook:**
-   - Endpoint: `https://hydrilla-backend.vercel.app/api/webhooks/clerk`
+   - Endpoint: `https://hydrilla-ai-g1bm.vercel.app/api/webhooks/clerk`
    - Events: `user.created`, `user.updated`, `user.deleted`, `session.created`
    - Copy the signing secret into `CLERK_WEBHOOK_SECRET`.
 4. **Confirm the email logo is live** at `https://hydrilla.ai/logo-hydrilla/hydrilla-email-logo.png`. It 404s until the frontend is deployed.

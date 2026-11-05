@@ -1,6 +1,6 @@
 # Hydrilla email: editorial guide
 
-Every email passes three steps: **copywriter** drafts from a brief, **ghost editor** reviews against this checklist in a separate pass, **sign-off** approves. Rishi (Creative Director) signs off voice and brand. A founder confirms facts for billing, credits and legal content.
+Every email passes three steps: **copywriter** drafts from a brief, **ghost editor** reviews against this checklist in a separate pass, **sign-off** approves. Tejesh (Creative Director) signs off voice and brand. A founder confirms facts for billing, credits and legal content.
 
 ## Senders
 
@@ -11,18 +11,17 @@ Two senders only, so people always know who is writing.
 | Sender | From | Reply-to | Sends |
 |---|---|---|---|
 | Hydrilla | `Hydrilla <hi@mail.hydrilla.ai>` | `hi@hydrilla.ai` | Anything about your account: welcome receipt, billing, plan changes, model ready or failed, credits, security, form receipts |
-| Rishi | `Rishi from Hydrilla <rishi@mail.hydrilla.ai>` | `rishi@hydrilla.ai` | When the team talks to you: welcome note, onboarding, win-back, weekly recap, product news and releases |
 
-Rule of thumb: if the product is reporting on your account, it comes from Hydrilla. If we are speaking to you, it comes from Rishi.
+Every email comes from Hydrilla. If we are speaking to you as a person, the email is signed by Tejesh Varma, Head of Growth, Team Hydrilla AI.
 
-Only `hi@hydrilla.ai` and `rishi@hydrilla.ai` appear in email copy as contact addresses. Never `.co`.
+Only `hi@hydrilla.ai` appears in email copy as a contact address. Never `.co`.
 
 ## Voice
 
 - Plain, factual, specific. Same register as the website.
 - No hype, no emoji, no exclamation marks, no "revolutionary", "seamless", "unlock".
 - Say what happened, then what the person can do next.
-- Personal emails from Rishi read like a short note from a person: first person, no header banner, no more than 90 words.
+- Personal emails signed by Tejesh read like a short note from a person: first person, no header banner, no more than 90 words.
 
 ## Naming
 

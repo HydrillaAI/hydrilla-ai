@@ -6,7 +6,7 @@ import { availableCredits } from "./credits.js";
 /**
  * Weekly recap (W01). Once a week, for every person who finished at least one model in the
  * last 7 days, track `weekly_recap_ready` with their numbers. The Customer.io campaign on that
- * event waits until Monday 10:00 in the person's time zone and sends W01 from Rishi.
+ * event waits until Monday 10:00 in the person's time zone and sends W01, signed by Tejesh.
  * People with no models that week get nothing.
  */
 

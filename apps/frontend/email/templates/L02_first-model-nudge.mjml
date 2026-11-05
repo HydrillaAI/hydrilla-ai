@@ -3,7 +3,7 @@ id: L02
 name: First model nudge
 layout: personal
 kind: campaign
-sender: rishi
+sender: hi
 category: onboarding
 topic: news-and-tips
 trigger: event account_created; wait 2 days; send only if no generation_completed since
@@ -18,5 +18,5 @@ optional: true
 <mj-text>If you have a picture of the object, use image-to-3D. One clear image on a plain background works best.</mj-text>
 <mj-text>If you don't, use text-to-3D. Describe one object, its material and its style in a sentence.</mj-text>
 <mj-text><a href="https://hydrilla.ai/app/studio">Open Studio</a></mj-text>
-<mj-text>If something stopped you, reply and tell me. I read every reply.</mj-text>
-<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>
+<mj-text>If something stopped you, reply and tell us. We read every reply.</mj-text>
+<mj-text>Tejesh Varma,<br />Head of Growth<br />Team Hydrilla AI</mj-text>

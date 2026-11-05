@@ -388,7 +388,7 @@ export default function UserDetailPage() {
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                 />
                 <Label htmlFor="notifyEmail" className="text-xs text-muted-foreground cursor-pointer font-normal">
-                  Notify user by email about these credits via ZeptoMail
+                  Notify user by email about these credits
                 </Label>
               </div>
             ) : null}
