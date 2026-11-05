@@ -11,12 +11,11 @@
 5. At most 1 lifecycle email a day and 2 a week, not counting system mail and the weekly recap.
 6. Disengaged people are silently suppressed. There is no "should we keep emailing you" email.
 
-## Two senders
+## Sender
 
 | Sender | Used for |
 |---|---|
-| Hydrilla `hi@mail.hydrilla.ai`, replies to `hi@hydrilla.ai` | The product reporting on the account: jobs, plans, payments, credits, security, form receipts |
-| Rishi `rishi@mail.hydrilla.ai`, replies to `rishi@hydrilla.ai` | The team talking to the person: welcome, nudges, gifts, win-back, weekly recap, release news |
+| Hydrilla `hi@mail.hydrilla.ai`, replies to `hi@hydrilla.ai` | Every email. Personal notes are signed by Tejesh Varma, Head of Growth, Team Hydrilla AI. |
 
 ## Subscription topics
 
@@ -52,7 +51,7 @@
 | T11 | We've got your message | transactional | contact, support or feedback form | One receipt for all three. |
 | T12 | Thanks for your interest in Hydrilla for teams | transactional | enterprise form | Receipt with the demo link. A person follows up; there is no automated sales email. |
 
-## From Rishi (9)
+## Signed by Tejesh (9)
 
 | ID | Email | Kind | Trigger | What it does |
 |---|---|---|---|---|

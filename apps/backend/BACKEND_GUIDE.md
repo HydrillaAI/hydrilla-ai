@@ -65,7 +65,7 @@ backend/
 │   │   └── jobs.ts          # Database operations for jobs
 │   ├── services/
 │   │   ├── jobSync.ts      # Background job synchronization
-│   │   └── email.ts        # Email service (ZeptoMail)
+│   │   └── notifications.ts # Email events and sends (Customer.io)
 │   └── utils/
 │       └── s3Urls.ts        # S3 URL normalization utilities
 ├── api/
@@ -196,10 +196,10 @@ POLL_INTERVAL_MS=5000
 
 #### Email Configuration (Optional)
 ```env
-ZEPTOMAIL_API_URL=https://api.zeptomail.in/v1.1/email
-ZEPTOMAIL_TOKEN=Zoho-enczapikey YOUR_TOKEN
-ZEPTOMAIL_FROM_ADDRESS=noreply@hydrilla.co
-ZEPTOMAIL_FROM_NAME=Hydrilla
+CUSTOMERIO_SITE_ID=YOUR_SITE_ID
+CUSTOMERIO_TRACK_API_KEY=YOUR_TRACK_API_KEY
+CUSTOMERIO_APP_API_KEY=YOUR_APP_API_KEY
+CUSTOMERIO_REGION=us
 FRONTEND_URL=https://hydrilla.co
 ```
 

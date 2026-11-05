@@ -3,7 +3,7 @@ id: T08
 name: Credits added
 layout: personal
 kind: transactional
-sender: rishi
+sender: hi
 category: account
 topic: none
 trigger: credits_granted
@@ -22,4 +22,4 @@ data: name, amount, reason, balance
 <mj-text>Your balance is now {{ trigger.balance | default: 0 }} credits.</mj-text>
 <mj-raw>{% endif %}</mj-raw>
 <mj-text><a href="https://hydrilla.ai/app/studio">Open Studio</a></mj-text>
-<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>
+<mj-text>Tejesh Varma,<br />Head of Growth<br />Team Hydrilla AI</mj-text>

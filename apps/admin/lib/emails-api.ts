@@ -24,7 +24,7 @@ export type EmailTemplate = {
   id: string;
   name: string;
   kind: EmailKind;
-  sender: "hi" | "rishi";
+  sender: "hi";
   topic: string | null;
   trigger: string;
   purpose: string;

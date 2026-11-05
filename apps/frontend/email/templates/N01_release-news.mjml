@@ -3,7 +3,7 @@ id: N01
 name: Release news
 layout: base
 kind: broadcast
-sender: rishi
+sender: hi
 category: news
 topic: news-and-tips
 trigger: API-triggered broadcast, sent by hand for real releases, at most 2 a month
@@ -21,4 +21,4 @@ data: trigger.headline, trigger.summary, trigger.details_html, trigger.cta_label
 <mj-text>{{ trigger.details_html | default: "" }}</mj-text>
 <mj-raw>{% endif %}</mj-raw>
 <mj-button href="{{ trigger.cta_url | default: 'https://hydrilla.ai/changelog' }}">{{ trigger.cta_label | default: "See what's new" }}</mj-button>
-<mj-text css-class="muted" font-size="14px">Rishi, Creative Director</mj-text>
+<mj-text css-class="muted" font-size="14px">Tejesh Varma, Head of Growth, Team Hydrilla AI</mj-text>

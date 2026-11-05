@@ -24,11 +24,10 @@ const TEAM_INBOX = process.env.EMAIL_TEAM_INBOX || "hi@hydrilla.ai";
 const apply = process.argv.includes("--apply");
 const only = (process.argv.find((a) => a.startsWith("--only=")) || "").slice(7).split(",").filter(Boolean);
 
-// From addresses live on the sending subdomain; replies go to the real mailboxes. Both are
+// The From address lives on the sending subdomain; replies go to the real mailbox. Both are
 // sender identities in Customer.io, looked up by email.
 const SENDERS = {
   hi: { email: "hi@mail.hydrilla.ai", from: "Hydrilla <hi@mail.hydrilla.ai>", replyEmail: "hi@hydrilla.ai" },
-  rishi: { email: "rishi@mail.hydrilla.ai", from: "Rishi from Hydrilla <rishi@mail.hydrilla.ai>", replyEmail: "rishi@hydrilla.ai" },
 };
 
 if (!KEY) {
