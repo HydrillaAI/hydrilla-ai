@@ -16,8 +16,8 @@ data: user_id, user_email, error_message, reported_at
 -->
 <mj-text>A user hit the GPU offline error, so generation is likely down. Check the GPU instance in the admin app.</mj-text>
 <mj-text font-size="14px">
-  <strong>User:</strong> {{ trigger.user_email | default: "unknown" | escape }} ({{ trigger.user_id | default: "anonymous" | escape }})<br />
+  <strong>User:</strong> {{ trigger.user_email | default: "unknown" | replace: "<", "&lt;" | replace: ">", "&gt;" }} ({{ trigger.user_id | default: "anonymous" | replace: "<", "&lt;" | replace: ">", "&gt;" }})<br />
   <strong>Reported:</strong> {{ trigger.reported_at | default: "" }}
 </mj-text>
-<mj-text font-size="14px" container-background-color="#f1f5fb" padding="14px 16px">{{ trigger.error_message | default: "" | escape }}</mj-text>
+<mj-text font-size="14px" container-background-color="#f1f5fb" padding="14px 16px">{{ trigger.error_message | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" }}</mj-text>
 <mj-button href="https://admin.hydrilla.ai/gpu">Open GPU admin</mj-button>

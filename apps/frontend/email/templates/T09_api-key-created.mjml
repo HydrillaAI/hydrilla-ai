@@ -15,6 +15,6 @@ optional: false
 data: key_name, created_on
 -->
 <mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
-<mj-text>A new API key named "{{ trigger.key_name | default: "Untitled" | escape }}" was created on your account on {{ trigger.created_on | default: "today" }}.</mj-text>
+<mj-text>A new API key named "{{ trigger.key_name | default: "Untitled" | replace: "<", "&lt;" | replace: ">", "&gt;" }}" was created on your account on {{ trigger.created_on | default: "today" }}.</mj-text>
 <mj-text>If this was you, there is nothing to do. If it wasn't, delete the key now and write to us at <a href="mailto:hi@hydrilla.ai">hi@hydrilla.ai</a>.</mj-text>
 <mj-button href="https://hydrilla.ai/app/api-keys">Manage API keys</mj-button>

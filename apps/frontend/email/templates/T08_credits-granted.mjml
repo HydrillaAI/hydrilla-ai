@@ -17,7 +17,7 @@ facts: bonus credits carry over (docs/PAYMENTS.md); confirm before stating it
 data: name, amount, reason, balance
 -->
 <mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
-<mj-text>I've added {{ trigger.amount | default: "more" }} credits to your Hydrilla account{% if trigger.reason %}: {{ trigger.reason | default: "" | escape }}{% endif %}.</mj-text>
+<mj-text>I've added {{ trigger.amount | default: "more" }} credits to your Hydrilla account{% if trigger.reason %}: {{ trigger.reason | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" }}{% endif %}.</mj-text>
 <mj-raw>{% if trigger.balance %}</mj-raw>
 <mj-text>Your balance is now {{ trigger.balance | default: 0 }} credits.</mj-text>
 <mj-raw>{% endif %}</mj-raw>

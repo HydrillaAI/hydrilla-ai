@@ -16,11 +16,11 @@ data: kind, name, email, company, request_type, message, details
 -->
 <mj-text>A new <strong>{{ trigger.kind | default: "contact" }}</strong> message arrived. Replying to this email goes straight to the sender.</mj-text>
 <mj-text font-size="14px">
-  <strong>From:</strong> {{ trigger.name | default: "Unknown" | escape }} &lt;{{ trigger.email | default: "no email" | escape }}&gt;<br />
-  {% if trigger.company %}<strong>Company:</strong> {{ trigger.company | default: "" | escape }}<br />{% endif %}
-  {% if trigger.request_type %}<strong>Type:</strong> {{ trigger.request_type | default: "" | escape }}<br />{% endif %}
+  <strong>From:</strong> {{ trigger.name | default: "Unknown" | replace: "<", "&lt;" | replace: ">", "&gt;" }} &lt;{{ trigger.email | default: "no email" | replace: "<", "&lt;" | replace: ">", "&gt;" }}&gt;<br />
+  {% if trigger.company %}<strong>Company:</strong> {{ trigger.company | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" }}<br />{% endif %}
+  {% if trigger.request_type %}<strong>Type:</strong> {{ trigger.request_type | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" }}<br />{% endif %}
 </mj-text>
-<mj-text font-size="14px" container-background-color="#f1f5fb" padding="14px 16px">{{ trigger.message | default: "" | escape | newline_to_br }}</mj-text>
+<mj-text font-size="14px" container-background-color="#f1f5fb" padding="14px 16px">{{ trigger.message | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" | newline_to_br }}</mj-text>
 <mj-raw>{% if trigger.details %}</mj-raw>
-<mj-text css-class="muted" font-size="13px">{{ trigger.details | default: "" | escape | newline_to_br }}</mj-text>
+<mj-text css-class="muted" font-size="13px">{{ trigger.details | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" | newline_to_br }}</mj-text>
 <mj-raw>{% endif %}</mj-raw>
