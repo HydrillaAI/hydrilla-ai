@@ -30,8 +30,8 @@ Please use the names and marks exactly as shown here. Consistent naming helps re
 
 ## Brand marks
 
-Asset grid labels: Wordmark, light | Wordmark, dark | Symbol (show only the marks that already exist on the live /brand page)
-Alt text: Hydrilla wordmark and symbol shown on light and dark backgrounds, each with a download link.
+Asset grid labels: Hydrilla Wordmark (Dark) | Hydrilla Wordmark (Light) | Hydrilla Symbol | Hydrilla Lockup
+Alt text: Hydrilla wordmark, symbol, and lockup shown on light and dark backgrounds, each with a download link.
 
 **[Section 3: Naming and boilerplate]**
 
@@ -49,9 +49,9 @@ Copy buttons: Copy naming | Copy boilerplate
 
 | Name | Role |
 |---|---|
-| Tharak Nagaveti | Co-Founder |
-| Dharani Kumar | Co-Founder and CTO |
-| Tejesh Varma | Co-Founder and CGO |
+| Tharak Nagaveti | Co-founder & CEO |
+| Dharani Kumar | Co-founder & CTO |
+| Tejesh Varma | CGO |
 <!-- COPY:END -->
 
 ## CTAs

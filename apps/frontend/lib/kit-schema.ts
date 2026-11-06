@@ -144,9 +144,9 @@ const SECTION: Record<string, { name: string; path: string }> = {
 };
 
 const TEAM_ROLES: Record<string, string> = {
-  "Tharak Nagaveti": "Co-Founder",
-  "Dharani Kumar": "Co-Founder and CTO",
-  "Tejesh Varma": "Co-Founder and CGO",
+  "Tharak Nagaveti": "Co-founder & CEO",
+  "Dharani Kumar": "Co-founder & CTO",
+  "Tejesh Varma": "CGO",
   "Aditya Sontena": "Lead Developer",
   "Rishik Kalyan": "Creative Director",
   "Hem Charan": "Software Engineer",
@@ -293,7 +293,16 @@ export function getKitJsonLd(path: string) {
   };
   const nodes: object[] = [page, website, crumbs(path, name)];
 
-  if (path === "/about") {
+  if (path === "/about" || path === "/brand") {
+    const founders = TEAM_MEMBERS.slice(0, 3).map((member) => ({
+      "@type": "Person",
+      name: member.name,
+      jobTitle: TEAM_ROLES[member.name] || member.role,
+      image: member.image.startsWith("http") ? member.image : `https://hydrilla.ai${member.image}`,
+      url: member.connect || `https://hydrilla.ai/team#${member.id}`,
+      worksFor: { "@id": ORG },
+      ...(member.connect ? { sameAs: [member.connect] } : {}),
+    }));
     nodes.push({
       "@type": "Organization",
       "@id": ORG,
@@ -302,6 +311,8 @@ export function getKitJsonLd(path: string) {
       url: "https://hydrilla.ai",
       description: "Hydrilla AI is an AI 3D workspace for studio and artist pipelines.",
       disambiguatingDescription: "AI 3D software company that builds the Hydrilla workspace and BlueFox, Hydrilla's 3D model",
+      logo: "https://hydrilla.ai/hyd01-mark.png",
+      founder: founders,
       address: {
         "@type": "PostalAddress",
         addressCountry: "IN",
@@ -622,21 +633,57 @@ export function getKitJsonLd(path: string) {
     }
   }
   if (path === "/integrations") {
+    const items = [
+      {
+        path: "/integrations/blender",
+        name: "Hydrilla for Blender (AI 3D Add-on)",
+        description: "Generation in a Blender N-panel sidebar tab, Water Agent support, plus Studio sends over the local Bridge.",
+      },
+      {
+        path: "/integrations/unity",
+        name: "Hydrilla for Unity (AI 3D Editor Plugin)",
+        description: "Generation and GLB import inside the Unity Editor into Assets/Hydrilla.",
+      },
+      {
+        path: "/integrations/unreal",
+        name: "Hydrilla for Unreal Engine (AI 3D Python Plugin)",
+        description: "A Python editor plugin for generation and GLB import into Content/Hydrilla.",
+      },
+      {
+        path: "/integrations/godot",
+        name: "Hydrilla for Godot 4 (AI 3D Editor Dock)",
+        description: "A Godot 4 editor dock that generates and receives GLB models into res://hydrilla/.",
+      },
+      {
+        path: "/integrations/mcp",
+        name: "Hydrilla MCP Server (Model Context Protocol for 3D)",
+        description: "Local stdio MCP server for Cursor, Claude Code, and any MCP client.",
+      },
+      {
+        path: "/api",
+        name: "Hydrilla REST API",
+        description: "Text-to-3D and image-to-3D generation jobs from your own code.",
+      },
+    ];
     nodes.push({
       "@type": "ItemList",
-      itemListElement: [
-        "/integrations/blender",
-        "/integrations/unity",
-        "/integrations/unreal",
-        "/integrations/godot",
-        "/integrations/mcp",
-        "/api",
-      ].map((item, index) => ({
+      "@id": "https://hydrilla.ai/integrations#list",
+      name: "Hydrilla AI 3D Plugins and Integrations",
+      itemListElement: items.map((item, index) => ({
         "@type": "ListItem",
         position: index + 1,
-        url: `https://hydrilla.ai${item}`,
+        name: item.name,
+        description: item.description,
+        url: `https://hydrilla.ai${item.path}`,
       })),
     });
+    nodes.push(
+      howTo("https://hydrilla.ai/integrations#howto", "From Studio to your open scene with the local Bridge", [
+        "Start the local Bridge (127.0.0.1:7345) from the Hydrilla plugin inside Blender, Unity, Unreal Engine, or Godot 4.",
+        "Generate or select a 3D model in Hydrilla Studio in your browser.",
+        "Use Send to DCC in Studio so the mesh arrives directly in your open scene.",
+      ]),
+    );
   }
   if (path === "/solutions") {
     nodes.push({
@@ -689,7 +736,7 @@ export function getKitJsonLd(path: string) {
         "@type": "Person",
         name: member.name,
         jobTitle: TEAM_ROLES[member.name] || member.role,
-        image: `https://hydrilla.ai${member.image}`,
+        image: member.image.startsWith("http") ? member.image : `https://hydrilla.ai${member.image}`,
         url: `https://hydrilla.ai/team#${member.id}`,
         worksFor: { "@id": ORG },
         ...(member.connect ? { sameAs: [member.connect] } : {}),
@@ -732,6 +779,16 @@ export function getKitJsonLd(path: string) {
       url: `https://hydrilla.ai${path}`,
       ...(about ? { about: { "@type": "Thing", name: about.name, sameAs: about.sameAs } } : {}),
     });
+    if (path === "/compare/how-to-choose") {
+      nodes.push(
+        howTo("https://hydrilla.ai/compare/how-to-choose#howto", "Run a fair bake-off", [
+          "Write one brief with three assets taken from a real task.",
+          "Generate each asset in every tool with identical inputs.",
+          "Import the results into your scene, under your own lighting.",
+          "Score each criterion, then log the cleanup time per asset.",
+        ]),
+      );
+    }
   }
 
   return { "@context": "https://schema.org", "@graph": nodes };

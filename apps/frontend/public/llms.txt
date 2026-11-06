@@ -17,12 +17,12 @@ Last updated: 2026-10-24
 - [Water Agent](https://hydrilla.ai/water.md): the AI 3D agent for artists and studios; what it does, how it works, where it works, FAQ
 - [Text to 3D](https://hydrilla.ai/text-to-3d.md): prompt, then reference image, then 3D model
 - [Image to 3D](https://hydrilla.ai/image-to-3d.md): from an uploaded image to a 3D model
-- [Integrations](https://hydrilla.ai/integrations.md): Blender, Unity, Unreal, Godot, MCP, and the local Bridge
-- [Blender](https://hydrilla.ai/integrations/blender.md)
-- [Unity](https://hydrilla.ai/integrations/unity.md)
-- [Unreal Engine](https://hydrilla.ai/integrations/unreal.md)
-- [Godot 4](https://hydrilla.ai/integrations/godot.md)
-- [MCP server](https://hydrilla.ai/integrations/mcp.md): lets your own AI agent drive Hydrilla (Water Agent is the agent inside Hydrilla)
+- [Integrations](https://hydrilla.ai/integrations.md): AI 3D plugins for Blender, Unity, Unreal Engine, and Godot 4, the local Bridge (127.0.0.1:7345), MCP server, and REST API
+- [Blender](https://hydrilla.ai/integrations/blender.md): Blender AI 3D add-on (N-panel sidebar generation, Water Agent, and local Bridge)
+- [Unity](https://hydrilla.ai/integrations/unity.md): Unity AI 3D editor plugin (Window > Hydrilla > Generate 3D into Assets/Hydrilla, plus Bridge)
+- [Unreal Engine](https://hydrilla.ai/integrations/unreal.md): Unreal Engine AI 3D Python editor plugin (toolbar generation into Content/Hydrilla, plus Bridge)
+- [Godot 4](https://hydrilla.ai/integrations/godot.md): Godot 4 AI 3D editor dock (native glTF import into res://hydrilla/, plus Bridge)
+- [MCP server](https://hydrilla.ai/integrations/mcp.md): local stdio Model Context Protocol server for Cursor, Claude Code, and AI coding agents (Water Agent is the agent inside Hydrilla)
 - [REST API](https://hydrilla.ai/api.md): submit a job, poll its status, download the mesh and maps
 - [Pricing](https://hydrilla.ai/pricing.md): Free, Starter, Pro, Hourly, and Hourly Pro; credits per model; 14-day trial; Water Agent with no credits on every plan
 

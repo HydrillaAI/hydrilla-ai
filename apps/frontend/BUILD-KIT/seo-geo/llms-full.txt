@@ -26,12 +26,12 @@ Last updated: 2026-10-24
 - https://hydrilla.ai/water: Water Agent, the AI 3D agent for artists and studios
 - https://hydrilla.ai/features: what the Hydrilla workspace does, end to end
 - https://hydrilla.ai/bluefox: BlueFox, Hydrilla's 3D model
-- https://hydrilla.ai/integrations: plugins, the local Bridge, MCP, and REST
-- https://hydrilla.ai/integrations/blender: Blender add-on
-- https://hydrilla.ai/integrations/unity: Unity plugin
-- https://hydrilla.ai/integrations/unreal: Unreal Engine plugin
-- https://hydrilla.ai/integrations/godot: Godot 4 plugin
-- https://hydrilla.ai/integrations/mcp: MCP server for AI agents
+- https://hydrilla.ai/integrations: AI 3D plugins, the local Bridge (127.0.0.1:7345), MCP server, and REST API
+- https://hydrilla.ai/integrations/blender: Blender AI 3D add-on (N-panel sidebar generation, Water Agent, and local Bridge)
+- https://hydrilla.ai/integrations/unity: Unity AI 3D editor plugin (Window > Hydrilla > Generate 3D into Assets/Hydrilla, plus Bridge)
+- https://hydrilla.ai/integrations/unreal: Unreal Engine AI 3D Python editor plugin (toolbar generation into Content/Hydrilla, plus Bridge)
+- https://hydrilla.ai/integrations/godot: Godot 4 AI 3D editor dock (import into res://hydrilla/, plus Bridge)
+- https://hydrilla.ai/integrations/mcp: Local stdio MCP server for Cursor, Claude Code, and AI agents
 - https://hydrilla.ai/api: REST API
 - https://hydrilla.ai/pricing: plans, credits, and the trial
 - https://hydrilla.ai/solutions: industries overview
@@ -1177,9 +1177,9 @@ URL: https://hydrilla.ai/team
 
 The people at Hydrilla AI building BlueFox, Hydrilla's 3D model, and the AI 3D workspace. Each card links to that person's LinkedIn profile. [About Hydrilla](https://hydrilla.ai/about)
 
-- Tharak Nagaveti, Co-Founder
-- Dharani Kumar, Co-Founder and CTO
-- Tejesh Varma, Co-Founder and CGO
+- Tharak Nagaveti, Co-founder & CEO
+- Dharani Kumar, Co-founder & CTO
+- Tejesh Varma, CGO
 - Aditya Sontena, Lead Developer
 - Rishik Kalyan, Creative Director
 - Hem Charan, Software Engineer

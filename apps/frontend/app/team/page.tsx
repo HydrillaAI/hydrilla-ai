@@ -7,9 +7,9 @@ import { PickleCta } from "@/components/layout/PicklePage";
 import { TEAM_MEMBERS } from "@/lib/team";
 
 const KIT_ROLES: Record<string, string> = {
-  "Tharak Nagaveti": "Co-Founder",
-  "Dharani Kumar": "Co-Founder and CTO",
-  "Tejesh Varma": "Co-Founder and CGO",
+  "Tharak Nagaveti": "Co-founder & CEO",
+  "Dharani Kumar": "Co-founder & CTO",
+  "Tejesh Varma": "CGO",
   "Aditya Sontena": "Lead Developer",
   "Rishik Kalyan": "Creative Director",
   "Hem Charan": "Software Engineer",
