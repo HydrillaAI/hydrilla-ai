@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla vs Meshy",
   path: "/compare/meshy",
   absoluteTitle: true,
+  keywords: [
+    "Hydrilla vs Meshy",
+    "Meshy alternative",
+    "BlueFox vs Meshy",
+    "best 3D AI generator",
+    "best 3D AI generator in India",
+  ],
 });
 
 export default function CompareMeshyPage() {

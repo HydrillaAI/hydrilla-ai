@@ -28,9 +28,9 @@ The people at Hydrilla AI building BlueFox, Hydrilla's 3D model, and the AI 3D w
 
 **[Section 2: Grid (no heading)]**
 
-Person 1: Tharak Nagaveti, Co-Founder
-Person 2: Dharani Kumar, Co-Founder and CTO
-Person 3: Tejesh Varma, Co-Founder and CGO
+Person 1: Tharak Nagaveti, Co-founder & CEO
+Person 2: Dharani Kumar, Co-founder & CTO
+Person 3: Tejesh Varma, CGO
 Person 4: Aditya Sontena, Lead Developer
 Person 5: Rishik Kalyan, Creative Director
 Person 6: Hem Charan, Software Engineer

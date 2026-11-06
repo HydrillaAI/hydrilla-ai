@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla MCP server",
   path: "/integrations/mcp",
   absoluteTitle: true,
+  keywords: [
+    "MCP server 3D generation",
+    "Model Context Protocol 3D AI",
+    "Cursor 3D MCP plugin",
+    "Claude Code 3D MCP",
+    "best AI 3D plugin",
+  ],
 });
 
 const MCP_CONFIG = `{

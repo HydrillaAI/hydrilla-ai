@@ -44,6 +44,8 @@ All self-canonical, `index, follow`, with a `.md` mirror, unless stated. Page co
 | `/compare/meshy` | `compare-meshy.md` | Rename + rewrite | 0.6 monthly | yes |
 | `/compare/tripo` | `compare-tripo.md` | Rename + rewrite | 0.6 monthly | yes |
 | `/compare/hyper3d` | `compare-hyper3d.md` | **New** | 0.6 monthly | yes |
+| `/compare/trellis` | `compare-trellis.md` | **New** | 0.6 monthly | yes |
+| `/compare/sloyd` | `compare-sloyd.md` | **New** | 0.6 monthly | yes |
 | `/compare/how-to-choose` | `compare-how-to-choose.md` | **New** (replaces the "best" article) | 0.6 monthly | yes |
 | `/about` | `about.md` | Rewrite | 0.7 monthly | yes |
 | `/research` | `research.md` | Rewrite | 0.7 monthly | yes |

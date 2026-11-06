@@ -79,7 +79,12 @@ export const ENTITY_IDS = {
 } as const;
 
 export const FOUNDER_ROLES = new Set([
+  "Co-founder & CEO",
+  "Co-Founder & CEO",
   "Co-Founder",
+  "Co-founder & CTO",
   "Co-Founder & CTO",
+  "CGO",
+  "Co-founder & CGO",
   "Co-Founder & CGO",
 ]);

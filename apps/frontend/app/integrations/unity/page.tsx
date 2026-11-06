@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "Hydrilla for Unity",
   path: "/integrations/unity",
   absoluteTitle: true,
+  keywords: [
+    "Unity AI 3D plugin",
+    "best AI 3D plugin for Unity",
+    "best AI 3D plugin",
+    "Hydrilla Unity plugin",
+    "generate 3D in Unity Editor",
+  ],
 });
 
 export default function UnityIntegrationPage() {

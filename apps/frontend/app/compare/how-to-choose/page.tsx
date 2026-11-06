@@ -12,6 +12,13 @@ export const metadata = createPageMetadata({
   ogTitle: "How to choose an AI 3D generator",
   path: "/compare/how-to-choose",
   absoluteTitle: true,
+  keywords: [
+    "best 3D AI generator",
+    "best 3D AI generator in India",
+    "how to choose an AI 3D generator",
+    "AI 3D model generator evaluation",
+    "best AI 3D plugin",
+  ],
 });
 
 const CRITERIA = [

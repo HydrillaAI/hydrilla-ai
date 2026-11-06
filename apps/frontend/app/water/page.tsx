@@ -12,6 +12,15 @@ export const metadata = createPageMetadata({
   ogTitle: "Water Agent: the AI 3D agent for artists and studios",
   path: "/water",
   absoluteTitle: true,
+  keywords: [
+    "Water Agent",
+    "Hydrilla Water Agent",
+    "AI 3D agent",
+    "best AI 3D plugin",
+    "Blender AI 3D agent",
+    "Unity AI 3D agent",
+    "Unreal AI 3D agent",
+  ],
 });
 
 
