@@ -54,6 +54,10 @@ function CheckoutSuccessContent() {
   }, [isLoaded, isSignedIn, paymentId, subscriptionIdFromUrl]);
 
   async function runSyncThenCheck() {
+    // Once active, stop re-posting /sync. Polling used to hit activation (and T04) repeatedly.
+    if (activatedTracked.current) {
+      return;
+    }
     setSubscriptionStatus((prev) => (prev === "active" ? prev : "checking"));
     try {
       const token = await getToken();
