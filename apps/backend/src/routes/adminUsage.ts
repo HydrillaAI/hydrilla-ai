@@ -17,8 +17,11 @@ const RANGE_DAYS: Record<string, number | null> = {
 };
 
 function sinceFor(range: string): string | null {
-  const days = RANGE_DAYS[range] ?? RANGE_DAYS["30d"];
-  if (days === null) {
+  // `all` maps to null — do not use `??` here, or null falls through to 30d.
+  const days = Object.prototype.hasOwnProperty.call(RANGE_DAYS, range)
+    ? RANGE_DAYS[range]
+    : RANGE_DAYS["30d"];
+  if (days == null) {
     return null;
   }
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();

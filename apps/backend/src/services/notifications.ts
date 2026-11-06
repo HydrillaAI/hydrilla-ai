@@ -65,7 +65,7 @@ async function contactFor(userId: string): Promise<Contact> {
 async function sendToUser(
   userId: string,
   template: string,
-  sender: "hi" | "rishi",
+  sender: "hi",
   data: Record<string, unknown> = {}
 ): Promise<SendResult> {
   const contact = await contactFor(userId);
@@ -83,7 +83,7 @@ export type AccountUser = {
   createdAt?: number | string | null;
 };
 
-/** New sign-up: profile, the account_created event (starts onboarding), and Rishi's welcome. */
+/** New sign-up: profile, the account_created event (starts onboarding), and the welcome signed by Tejesh. */
 export function onAccountCreated(user: AccountUser): void {
   background("account_created", async () => {
     await identify(user.id, {
@@ -101,7 +101,7 @@ export function onAccountCreated(user: AccountUser): void {
         template: "T01_welcome",
         to: user.email,
         identifiers: { id: user.id },
-        sender: "rishi",
+        sender: "hi",
       });
     }
   });
@@ -268,7 +268,7 @@ export function onCreditsExhausted(userId: string, resetAt: string | null, plan:
   });
 }
 
-/** Admin added credits directly to an account. From Rishi. Awaited so the admin sees the result. */
+/** Admin added credits directly to an account. Signed by Tejesh. Awaited so the admin sees the result. */
 export async function sendCreditsGranted(
   userId: string,
   amount: number,
@@ -276,7 +276,7 @@ export async function sendCreditsGranted(
   balance: number | null
 ): Promise<SendResult> {
   try {
-    return await sendToUser(userId, "T08_credits-granted", "rishi", { amount, reason, balance });
+    return await sendToUser(userId, "T08_credits-granted", "hi", { amount, reason, balance });
   } catch (err: any) {
     return { ok: false, error: err?.message || "Send failed" };
   }

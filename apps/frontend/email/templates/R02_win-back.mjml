@@ -3,7 +3,7 @@ id: R02
 name: Win-back
 layout: personal
 kind: campaign
-sender: rishi
+sender: hi
 category: retention
 topic: news-and-tips
 trigger: segment last_seen_at more than 30 days ago; once per person
@@ -18,4 +18,4 @@ optional: true
 <mj-text>If you have a project coming up, everything is ready for you.</mj-text>
 <mj-text><a href="https://hydrilla.ai/app/studio">Open Studio</a></mj-text>
 <mj-text>If Hydrilla didn't fit what you needed, a one-line reply telling me why would help us a lot.</mj-text>
-<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>
+<mj-text>Tejesh Varma,<br />Head of Growth<br />Team Hydrilla AI</mj-text>

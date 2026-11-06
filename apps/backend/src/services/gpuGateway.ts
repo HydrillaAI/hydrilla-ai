@@ -250,3 +250,28 @@ export async function assertGpuReadyFor3d(): Promise<void> {
     "3D GPU is currently offline or restarting. Try again in a moment — no image was generated and no 3D credits were charged."
   );
 }
+
+/**
+ * Short reason code for a 3D job that never reached the GPU, stored in jobs.error_code.
+ * Checks error names as well as classes because threeD.ts has its own GpuSubmitHttpError.
+ */
+export function gpuFailureCode(err: unknown): string {
+  const name = err instanceof Error ? err.name : "";
+  const message = err instanceof Error ? err.message : "";
+  if (name === "GpuOfflineError") {
+    if (/warming up|not ready/i.test(message)) {
+      return "gpu_not_ready";
+    }
+    return "gpu_offline";
+  }
+  if (name === "GpuSubmitHttpError") {
+    if (/queue full/i.test(message)) {
+      return "gpu_queue_full";
+    }
+    return "gpu_submit_failed";
+  }
+  if (/fetch failed|timeout|ECONNREFUSED|ECONNRESET|socket hang up|other side closed|network|AbortError|Gateway/i.test(message)) {
+    return "gpu_offline";
+  }
+  return "generation_failed";
+}

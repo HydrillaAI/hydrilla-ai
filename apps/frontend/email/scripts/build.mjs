@@ -30,7 +30,7 @@ function parseTemplate(raw, file) {
   for (const key of ["id", "name", "layout", "kind", "sender", "topic", "trigger", "subject", "preheader", "footer_reason", "optional"]) {
     if (!(key in meta)) throw new Error(`${file}: metadata "${key}" is required`);
   }
-  if (!["hi", "rishi"].includes(meta.sender)) throw new Error(`${file}: sender must be "hi" or "rishi"`);
+  if (meta.sender !== "hi") throw new Error(`${file}: sender must be "hi"`);
   if (!["transactional", "campaign", "broadcast"].includes(meta.kind)) {
     throw new Error(`${file}: kind must be transactional, campaign or broadcast`);
   }
@@ -54,6 +54,7 @@ function lint(meta, body, file) {
   for (const w of BANNED) if (text.toLowerCase().includes(w)) issues.push(`banned word "${w}"`);
   for (const [, expr] of text.matchAll(/\{\{([^}]*(?:customer|trigger|event)\.[^}]*)\}\}/g)) {
     if (!expr.includes("default")) issues.push(`Liquid variable without fallback: {{${expr.trim()}}}`);
+    if (/\|\s*escape\b/.test(expr)) issues.push(`Customer.io's escape filter percent-encodes text, so spaces show as %20. Replace < and > instead: {{${expr.trim()}}}`);
   }
   return issues.map((i) => `${file}: ${i}`);
 }

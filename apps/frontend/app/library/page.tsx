@@ -235,8 +235,9 @@ export default function LibraryPage() {
   );
   const images = useMemo(
     () =>
+      // A failed 3D job keeps its input photo; it is not an image result.
       jobs.filter(
-        (job) => (job.previewImageUrl || job.imageUrl) && !job.resultGlbUrl
+        (job) => job.status !== "FAIL" && (job.previewImageUrl || job.imageUrl) && !job.resultGlbUrl
       ),
     [jobs]
   );

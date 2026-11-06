@@ -1,4 +1,6 @@
+import { randomUUID } from "crypto";
 import { supabase } from "../db.js";
+import { getWorkspaceForUser } from "./workspaces.js";
 import { GenerateType, JobRecord, JobStatus } from "../types.js";
 import { logger } from "../logger.js";
 import { normalizeGlbUrl, normalizePreviewUrl, unwrapImageProxyUrl } from "../utils/s3Urls.js";
@@ -20,6 +22,8 @@ export async function createJob(params: {
   llmProvider?: string | null;  // Image jobs: "openai" | "gemini"
   llmModel?: string | null;
   source?: "web" | "api";
+  errorCode?: string | null;
+  errorMessage?: string | null;
 }) {
   const {
     id,
@@ -38,6 +42,8 @@ export async function createJob(params: {
     llmProvider = null,
     llmModel = null,
     source = "web",
+    errorCode = null,
+    errorMessage = null,
   } = params;
 
   try {
@@ -62,6 +68,8 @@ export async function createJob(params: {
       ...(previewImageUrl ? { preview_image_url: previewImageUrl } : {}),
       ...(llmProvider ? { llm_provider: llmProvider } : {}),
       ...(llmModel ? { llm_model: llmModel } : {}),
+      ...(errorCode ? { error_code: errorCode } : {}),
+      ...(errorMessage ? { error_message: errorMessage } : {}),
     };
 
     let { error } = await supabase.from("jobs").insert(insertPayload);
@@ -81,6 +89,60 @@ export async function createJob(params: {
   } catch (err: any) {
     logger.error(err, "Failed to create job in database");
     throw new Error(`Database error: ${err.message}`);
+  }
+}
+
+/** The workspace id if it exists, is not deleted and belongs to the user; otherwise null. */
+async function ownedWorkspaceId(workspaceId: string | null | undefined, userId: string): Promise<string | null> {
+  if (!workspaceId) {
+    return null;
+  }
+  try {
+    const workspace = await getWorkspaceForUser(workspaceId, userId);
+    return workspace ? workspace.id : null;
+  } catch {
+    // Unknown or malformed id: keep the failed row, just without the workspace link.
+    return null;
+  }
+}
+
+/**
+ * Save a 3D job that failed before the GPU accepted it (GPU offline, warming up,
+ * queue full, submission rejected), so it shows in the jobs table with its reason
+ * and, when a workspace is given, as a failed card in that workspace's 3D library.
+ * The row is FAIL with zero credits because the charge was never taken or was
+ * already refunded. Never throws: a logging failure must not change the response.
+ */
+export async function recordFailedJob(params: {
+  userId: string;
+  generateType: GenerateType;
+  errorCode: string;
+  errorMessage: string;
+  prompt?: string | null;
+  imageUrl?: string | null;
+  workspaceId?: string | null;
+  source?: "web" | "api";
+}): Promise<void> {
+  const imageUrl = params.imageUrl && /^https?:\/\//i.test(params.imageUrl) ? params.imageUrl : null;
+  try {
+    const workspaceId = await ownedWorkspaceId(params.workspaceId, params.userId);
+    await createJob({
+      id: `fail_${randomUUID()}`,
+      userId: params.userId,
+      workspaceId,
+      prompt: params.prompt ?? null,
+      imageUrl,
+      sourceImages: imageUrl ? [imageUrl] : null,
+      previewImageUrl: imageUrl,
+      generateType: params.generateType,
+      status: "FAIL",
+      creditsUsed: 0,
+      source: params.source ?? "web",
+      errorCode: params.errorCode,
+      errorMessage: params.errorMessage.slice(0, 2000),
+    });
+  } catch (err) {
+    logger.warn({ err, userId: params.userId, errorCode: params.errorCode }, "Failed to record failed job");
   }
 }
 

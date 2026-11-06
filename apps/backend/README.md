@@ -18,7 +18,7 @@ Lives at `hydrilla/backend` (sibling of `frontend/` and `admin/`).
 
 ## Tech stack
 
-Node.js · Express · TypeScript · Supabase (PostgreSQL) · Clerk · AWS S3 · ZeptoMail · Vercel (`api/index.ts`)
+Node.js · Express · TypeScript · Supabase (PostgreSQL) · Clerk · AWS S3 · Customer.io · Vercel (`api/index.ts`)
 
 ## Project structure
 

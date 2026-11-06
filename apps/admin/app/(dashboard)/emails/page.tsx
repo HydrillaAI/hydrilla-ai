@@ -170,7 +170,7 @@ export default function EmailsPage() {
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Customer.io</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Emails</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Every email Hydrilla sends, from hi@ and Rishi, read live from Customer.io.
+            Every email Hydrilla sends, from hi@, read live from Customer.io.
           </p>
         </div>
         <div className="flex gap-2">
@@ -319,7 +319,7 @@ export default function EmailsPage() {
                       {t.topic ? ` · topic ${t.topic}` : t.internal ? " · internal" : " · always sent"}
                     </p>
                   </TableCell>
-                  <TableCell className="text-sm">{t.sender === "rishi" ? "Rishi" : "hi@"}</TableCell>
+                  <TableCell className="text-sm">hi@</TableCell>
                   <TableCell className="text-sm capitalize">{t.kind}</TableCell>
                   <TableCell>
                     <StatusBadge status={t.status} />
@@ -407,7 +407,7 @@ export default function EmailsPage() {
             <CardHeader>
               <CardTitle>This week at Hydrilla</CardTitle>
               <CardDescription>
-                Up to two items shown in Monday&apos;s recap from Rishi. Leave empty to hide the block.
+                Up to two items shown in Monday&apos;s recap signed by Tejesh. Leave empty to hide the block.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">

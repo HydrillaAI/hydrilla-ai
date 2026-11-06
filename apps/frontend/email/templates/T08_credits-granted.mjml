@@ -3,7 +3,7 @@ id: T08
 name: Credits added
 layout: personal
 kind: transactional
-sender: rishi
+sender: hi
 category: account
 topic: none
 trigger: credits_granted
@@ -17,9 +17,9 @@ facts: bonus credits carry over (docs/PAYMENTS.md); confirm before stating it
 data: name, amount, reason, balance
 -->
 <mj-text>Hi {{ customer.first_name | default: "there" }},</mj-text>
-<mj-text>I've added {{ trigger.amount | default: "more" }} credits to your Hydrilla account{% if trigger.reason %}: {{ trigger.reason | default: "" | escape }}{% endif %}.</mj-text>
+<mj-text>I've added {{ trigger.amount | default: "more" }} credits to your Hydrilla account{% if trigger.reason %}: {{ trigger.reason | default: "" | replace: "<", "&lt;" | replace: ">", "&gt;" }}{% endif %}.</mj-text>
 <mj-raw>{% if trigger.balance %}</mj-raw>
 <mj-text>Your balance is now {{ trigger.balance | default: 0 }} credits.</mj-text>
 <mj-raw>{% endif %}</mj-raw>
 <mj-text><a href="https://hydrilla.ai/app/studio">Open Studio</a></mj-text>
-<mj-text>Rishi<br />Creative Director, Hydrilla</mj-text>
+<mj-text>Tejesh Varma,<br />Head of Growth<br />Team Hydrilla AI</mj-text>
