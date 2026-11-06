@@ -1075,6 +1075,31 @@ paymentsRouter.post("/webhook/dodo", async (req: Request, res: Response) => {
 // WEBHOOK HANDLERS
 // ============================================================================
 
+/**
+ * T04 must go out once per subscription. Checkout /sync (polled every 2s),
+ * subscription.active, and payment.succeeded can all hit handleSubscriptionActive
+ * at once; claim via webhook_events.webhook_id uniqueness so only one caller sends.
+ */
+async function claimPlanActiveEmail(subscriptionId: string, userId: string, plan: string): Promise<boolean> {
+  if (!subscriptionId) {
+    return false;
+  }
+  const { error } = await supabase.from("webhook_events").insert({
+    webhook_id: `t04-plan-active:${subscriptionId}`,
+    event_type: "email.T04_plan-active",
+    payload: { user_id: userId, plan, claimed_at: new Date().toISOString() },
+  });
+  if (error?.code === "23505") {
+    logger.info({ subscriptionId, userId }, "T04 already claimed for subscription; skipping duplicate");
+    return false;
+  }
+  if (error) {
+    logger.warn({ err: error.message, subscriptionId }, "T04 claim insert failed; allowing send to avoid dropping email");
+    return true;
+  }
+  return true;
+}
+
 /** subscription.active - New subscription activated, grant credits */
 async function handleSubscriptionActive(data: any, webhookId: string) {
   try {
@@ -1127,12 +1152,15 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
 
     const cancelScheduled = data.cancel_at_next_billing_date === true || previousMeta.cancel_at_next_billing_date === true;
 
-    const trialDays = Number(data.trial_period_days ?? 0);
+    const trialDays = Number(data.trial_period_days ?? previousMeta.trial_period_days ?? 0);
     const trialAmount = data.trial_amount != null ? Number(data.trial_amount) : 0;
-    const isTrial = Boolean(trialDays > 0 && trialAmount === 0);
-    const trialEndsAt = isTrial ? (data.next_billing_date || currentPeriodEnd || null) : null;
-    // Both subscription.active and the payment.succeeded fallback land here; announce each plan once.
-    const alreadyAnnounced = previousMeta.announced_plan === (plan || "unknown") && previousMeta.announced_trial === isTrial;
+    const metaSaysTrial =
+      data.metadata?.is_trial === "true" ||
+      data.metadata?.is_trial === true ||
+      previousMeta.is_trial === true ||
+      previousMeta.is_trial === "true";
+    const isTrial = Boolean((trialDays > 0 && trialAmount === 0) || metaSaysTrial);
+    const trialEndsAt = isTrial ? (data.next_billing_date || currentPeriodEnd || previousMeta.trial_ends_at || null) : null;
 
     // --- Upsert user_subscriptions (no email column on live table) ---
     logger.info({ subscriptionId, email, plan, userId, isTrial, trialDays }, "Upserting user_subscriptions...");
@@ -1157,10 +1185,11 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
         cancel_at_next_billing_date: cancelScheduled,
         next_billing_date: data.next_billing_date || previousMeta.next_billing_date || currentPeriodEnd || null,
         is_trial: isTrial,
-        trial_period_days: trialDays,
+        trial_period_days: trialDays || (isTrial ? 14 : 0),
         trial_ends_at: trialEndsAt,
         announced_plan: plan || "unknown",
         announced_trial: isTrial,
+        announced_subscription_id: subscriptionId,
       },
       updated_at: new Date().toISOString(),
     });
@@ -1199,7 +1228,7 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
       is_trial: isTrial,
     });
     void flushPostHog();
-    if (plan && !subErr && !alreadyAnnounced) {
+    if (plan && !subErr && (await claimPlanActiveEmail(subscriptionId, userId, plan))) {
       onPlanActive({
         userId,
         email,
@@ -1805,6 +1834,10 @@ async function handlePaymentSucceeded(data: any, webhookId: string) {
           const customerEmail: string =
             sub.customer?.email || sub.customer_email || email;
 
+          const subMeta = (sub.metadata || data.metadata || {}) as Record<string, unknown>;
+          const trialDays =
+            Number(sub.trial_period_days ?? 0) ||
+            (subMeta.is_trial === "true" || subMeta.is_trial === true ? 14 : 0);
           const subData = {
             subscription_id: sub.id || sub.subscription_id || subscriptionId,
             product_id: sub.product_id || productId,
@@ -1812,10 +1845,13 @@ async function handlePaymentSucceeded(data: any, webhookId: string) {
             customer: sub.customer || { email: customerEmail },
             email: customerEmail,
             currency: sub.currency || currency,
-            current_period_start: sub.current_period_start,
-            current_period_end: sub.current_period_end,
+            current_period_start: sub.current_period_start || sub.previous_billing_date,
+            current_period_end: sub.current_period_end || sub.next_billing_date,
+            next_billing_date: sub.next_billing_date,
             recurring_pre_tax_amount: sub.recurring_pre_tax_amount ?? amountCents,
-            metadata: sub.metadata || data.metadata || {},
+            trial_period_days: trialDays,
+            trial_amount: sub.trial_amount ?? 0,
+            metadata: subMeta,
             _callerUserId: resolvedUserId || data.metadata?.user_id || null,
           };
 
