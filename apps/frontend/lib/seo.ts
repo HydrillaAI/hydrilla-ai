@@ -64,6 +64,7 @@ export const PUBLIC_ROUTES: Array<{
   { path: "/", changeFrequency: "weekly", priority: 1.0 },
   { path: "/features", changeFrequency: "weekly", priority: 0.9 },
   { path: "/bluefox", changeFrequency: "monthly", priority: 0.9 },
+  { path: "/world-models", changeFrequency: "monthly", priority: 0.9 },
   { path: "/water", changeFrequency: "monthly", priority: 0.9 },
   { path: "/text-to-3d", changeFrequency: "monthly", priority: 0.9 },
   { path: "/image-to-3d", changeFrequency: "monthly", priority: 0.9 },
