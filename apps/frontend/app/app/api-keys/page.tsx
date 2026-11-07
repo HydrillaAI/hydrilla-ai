@@ -24,6 +24,7 @@ import {
   fetchDeveloperKeyDetails,
   createDeveloperApiKey,
   revokeDeveloperApiKey,
+  revealDeveloperApiKey,
   type DeveloperApiKeyMeta,
   type DeveloperApiKeyDetails,
 } from "@/lib/api";
@@ -72,7 +73,10 @@ export default function ApiKeysPage() {
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const newlyCreatedKeyRef = useRef<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
-  const [copiedPrefix, setCopiedPrefix] = useState(false);
+  const [copiedDetailsKey, setCopiedDetailsKey] = useState(false);
+  const [revealingKey, setRevealingKey] = useState(false);
+  const [revealedDetailsKey, setRevealedDetailsKey] = useState<string | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
 
   // Single key deep dive modal state
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
@@ -129,8 +133,14 @@ export default function ApiKeysPage() {
     if (!selectedKeyId) {
       setKeyDetails(null);
       setDetailsError(null);
+      setRevealedDetailsKey(null);
+      setRevealError(null);
+      setCopiedDetailsKey(false);
       return;
     }
+    setRevealedDetailsKey(null);
+    setRevealError(null);
+    setCopiedDetailsKey(false);
     void loadKeyDetails(selectedKeyId);
   }, [selectedKeyId]);
 
@@ -201,20 +211,38 @@ export default function ApiKeysPage() {
     }, 2500);
   };
 
-  const copyKeyPrefix = async (prefix: string) => {
-    const label = prefix.trim();
-    if (!label) {
+  const handleCopyDetailsKey = async () => {
+    if (!selectedKeyId || revealingKey) {
       return;
     }
-    const copied = await writeClipboard(label);
-    if (!copied) {
-      setError("Could not copy the key label. Select it and copy manually.");
-      return;
+    setRevealingKey(true);
+    setRevealError(null);
+    try {
+      const tokenGetter = async () => {
+        return (await getToken()) ?? null;
+      };
+      const existing = revealedDetailsKey;
+      const fullKey =
+        existing && !existing.includes("...")
+          ? existing
+          : (await revealDeveloperApiKey(selectedKeyId, tokenGetter)).apiKey;
+      setRevealedDetailsKey(fullKey);
+      const copied = await writeClipboard(fullKey);
+      if (!copied) {
+        setRevealError("Could not copy the API key. Select it and copy manually.");
+        return;
+      }
+      setCopiedDetailsKey(true);
+      window.setTimeout(() => {
+        setCopiedDetailsKey(false);
+      }, 2500);
+    } catch (err: unknown) {
+      setRevealError(
+        err instanceof Error ? err.message : "Failed to load the API key",
+      );
+    } finally {
+      setRevealingKey(false);
     }
-    setCopiedPrefix(true);
-    window.setTimeout(() => {
-      setCopiedPrefix(false);
-    }, 2500);
   };
 
   const displayKeyPlaceholder = newlyCreatedKey || "hyd_live_your_api_key_here";
@@ -597,31 +625,60 @@ console.log("Task queued:", task.id);`,
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
                     <code className="text-xs font-mono text-neutral-500">
                       {keyDetails?.key.keyPrefix || "Loading..."}
                     </code>
-                    {keyDetails && (
-                      <button
+                    {keyDetails?.key.status === "active" && (
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={revealingKey || keyDetails.key.canReveal === false}
                         onClick={() => {
-                          void copyKeyPrefix(keyDetails.key.keyPrefix);
+                          void handleCopyDetailsKey();
                         }}
-                        className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-700"
-                        title="Copy masked key label"
-                        aria-label="Copy masked key label"
+                        className="h-7 gap-1.5 px-2.5 text-[11px]"
+                        title={
+                          keyDetails.key.canReveal === false
+                            ? "This key cannot be recovered. Create a new key."
+                            : "Copy full API key"
+                        }
                       >
-                        {copiedPrefix ? (
+                        {revealingKey ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : copiedDetailsKey ? (
                           <Check className="h-3 w-3 text-emerald-600" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
-                      </button>
+                        {revealingKey
+                          ? "Loading…"
+                          : copiedDetailsKey
+                            ? "Copied"
+                            : "Copy key"}
+                      </Button>
                     )}
                   </div>
+                  {revealedDetailsKey && (
+                    <Input
+                      readOnly
+                      value={revealedDetailsKey}
+                      onFocus={(e) => {
+                        e.currentTarget.select();
+                      }}
+                      aria-label="Full API key"
+                      className="mt-2 h-9 rounded-xl bg-neutral-50 px-3 font-mono text-[12px] text-neutral-900"
+                    />
+                  )}
                   <p className="mt-0.5 text-[11px] text-neutral-400">
-                    Masked label only — the full secret cannot be shown again.
+                    {keyDetails?.key.canReveal === false
+                      ? "This older key cannot be recovered. Create a new key and copy it once."
+                      : "Copy key loads the full secret so you can paste it into your tools."}
                   </p>
+                  {revealError && (
+                    <p className="mt-1 text-[12px] font-medium text-red-600">{revealError}</p>
+                  )}
                 </div>
               </div>
               <button

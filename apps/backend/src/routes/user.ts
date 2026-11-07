@@ -14,6 +14,7 @@ import {
   generateDeveloperApiKey,
   getDeveloperKeyDetails,
   listDeveloperKeysForUser,
+  revealDeveloperApiKey,
   revokeDeveloperApiKey,
 } from "../repository/developerApiKeys.js";
 import { resolveWaterApiKey } from "../repository/platformApiKeys.js";
@@ -334,6 +335,43 @@ userRouter.post("/developer-keys", requireAuth, async (req, res) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to generate developer key";
     logger.error({ err }, "POST /api/user/developer-keys failed");
+    res.status(500).json({ error: message });
+  }
+});
+
+userRouter.post("/developer-keys/:id/reveal", requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId!;
+    const keyId = req.params.id;
+    if (!keyId) {
+      res.status(400).json({ error: "Key ID required" });
+      return;
+    }
+
+    await syncUserToDatabase(userId);
+    const revealed = await revealDeveloperApiKey(userId, keyId);
+    if (!revealed.ok) {
+      if (revealed.reason === "not_found") {
+        res.status(404).json({ error: "Developer API key not found" });
+        return;
+      }
+      if (revealed.reason === "revoked") {
+        res.status(400).json({ error: "This key has been revoked" });
+        return;
+      }
+      res.status(409).json({
+        error: "This key cannot be recovered. Create a new key and copy it once.",
+      });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      apiKey: revealed.apiKey,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to reveal developer key";
+    logger.error({ err }, "POST /api/user/developer-keys/:id/reveal failed");
     res.status(500).json({ error: message });
   }
 });

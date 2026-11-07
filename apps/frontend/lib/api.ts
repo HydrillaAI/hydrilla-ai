@@ -2641,6 +2641,8 @@ export type DeveloperApiKeyMeta = {
   createdAt: string;
   totalCreditsUsed?: number;
   totalRequests?: number;
+  /** True when the server can email the full secret (encrypted copy stored). */
+  canReveal?: boolean;
 };
 
 export type DeveloperApiKeyUsageRecord = {
@@ -2746,6 +2748,34 @@ export async function createDeveloperApiKey(
     apiKey,
     meta: (body as { meta: DeveloperApiKeyMeta }).meta,
   };
+}
+
+export async function revealDeveloperApiKey(
+  keyId: string,
+  getToken?: () => Promise<string | null>,
+): Promise<{ apiKey: string }> {
+  const res = await fetch(
+    `${backendBase}/api/user/developer-keys/${encodeURIComponent(keyId)}/reveal`,
+    {
+      method: "POST",
+      headers: await authHeaders(getToken),
+    },
+  );
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      (body as { error?: string }).error ||
+        "Failed to load the API key",
+    );
+  }
+  const apiKey =
+    typeof (body as { apiKey?: unknown }).apiKey === "string"
+      ? (body as { apiKey: string }).apiKey.trim()
+      : "";
+  if (!isFullDeveloperApiKey(apiKey)) {
+    throw new Error("Server did not return a full API key.");
+  }
+  return { apiKey };
 }
 
 export async function revokeDeveloperApiKey(
