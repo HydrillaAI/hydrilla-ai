@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import {
@@ -31,34 +31,6 @@ import { Button } from "@/components/ui/button";
 import { CodeBlock } from "@/components/app/CodeBlock";
 import { Input } from "@/components/ui/input";
 
-async function writeClipboard(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fall through to the textarea fallback below.
-  }
-
-  try {
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.setAttribute("readonly", "");
-    area.style.position = "fixed";
-    area.style.left = "-9999px";
-    area.style.top = "0";
-    document.body.appendChild(area);
-    area.select();
-    area.setSelectionRange(0, text.length);
-    const ok = document.execCommand("copy");
-    document.body.removeChild(area);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 export default function ApiKeysPage() {
   const { getToken, isSignedIn, isLoaded } = useAuth();
   const [keys, setKeys] = useState<DeveloperApiKeyMeta[]>([]);
@@ -70,7 +42,6 @@ export default function ApiKeysPage() {
   const [newKeyName, setNewKeyName] = useState("");
   const [creatingSubmitting, setCreatingSubmitting] = useState(false);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
-  const newlyCreatedKeyRef = useRef<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
 
   // Single key deep dive modal state
@@ -145,18 +116,9 @@ export default function ApiKeysPage() {
         return (await getToken()) ?? null;
       };
       const res = await createDeveloperApiKey(newKeyName.trim(), tokenGetter);
-      const fullKey = res.apiKey.trim();
-      newlyCreatedKeyRef.current = fullKey;
-      setNewlyCreatedKey(fullKey);
+      setNewlyCreatedKey(res.apiKey);
       setNewKeyName("");
       setIsCreating(false);
-      const copied = await writeClipboard(fullKey);
-      setCopiedKey(copied);
-      if (copied) {
-        window.setTimeout(() => {
-          setCopiedKey(false);
-        }, 2500);
-      }
       void loadKeys();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create API key");
@@ -183,19 +145,10 @@ export default function ApiKeysPage() {
     }
   };
 
-  const copySecretKey = async () => {
-    const fullKey = newlyCreatedKeyRef.current || newlyCreatedKey;
-    if (!fullKey || fullKey.includes("...")) {
-      setError("Full API key is not available to copy. Create a new key.");
-      return;
-    }
-    const copied = await writeClipboard(fullKey);
-    if (!copied) {
-      setError("Could not copy the API key. Select it and copy manually.");
-      return;
-    }
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
     setCopiedKey(true);
-    window.setTimeout(() => {
+    setTimeout(() => {
       setCopiedKey(false);
     }, 2500);
   };
@@ -293,28 +246,15 @@ console.log("Task queued:", task.id);`,
               Copy your new secret key now
             </div>
             <p className="mt-1.5 text-[13px] leading-relaxed text-emerald-800/80 dark:text-emerald-300/80">
-              This full key is shown once. The truncated value in the list below is only a label — it will not work as an API key.
+              Store it somewhere safe. For security, you won&apos;t be able to see it again.
             </p>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Input
-                readOnly
-                value={newlyCreatedKey}
-                onFocus={(e) => {
-                  e.currentTarget.select();
-                }}
-                aria-label="New API key"
-                className="h-11 min-w-0 flex-1 rounded-2xl bg-white px-4 font-mono text-[13px] text-neutral-900"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  void copySecretKey();
-                }}
-                className="h-11 shrink-0 gap-1.5 px-5"
-              >
+              <code className="min-w-0 flex-1 select-all break-all rounded-2xl bg-white px-4 py-3 font-mono text-[13px] text-neutral-900">
+                {newlyCreatedKey}
+              </code>
+              <Button variant="outline" onClick={() => copyToClipboard(newlyCreatedKey)} className="h-11 shrink-0 gap-1.5 px-5">
                 {copiedKey ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-                {copiedKey ? "Copied full key" : "Copy full key"}
+                {copiedKey ? "Copied" : "Copy key"}
               </Button>
             </div>
           </div>
@@ -411,7 +351,7 @@ console.log("Task queued:", task.id);`,
                       <tr key={k.id} className="group">
                         <td className={TD}>
                           <p className="truncate font-semibold text-neutral-900">{k.name}</p>
-                          <p className="mt-0.5 truncate font-mono text-[12px] text-neutral-400" title="Masked label — not the full API key">
+                          <p className="mt-0.5 truncate font-mono text-[12px] text-neutral-400">
                             {k.keyPrefix} · created {fmtDate(k.createdAt)}
                           </p>
                         </td>
@@ -580,13 +520,22 @@ console.log("Task queued:", task.id);`,
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5">
                     <code className="text-xs font-mono text-neutral-500">
                       {keyDetails?.key.keyPrefix || "Loading..."}
                     </code>
-                    <p className="mt-0.5 text-[11px] text-neutral-400">
-                      Masked label only — the full secret cannot be shown again.
-                    </p>
+                    {keyDetails && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          copyToClipboard(keyDetails.key.keyPrefix);
+                        }}
+                        className="text-neutral-400 hover:text-neutral-700 text-xs inline-flex items-center gap-1"
+                        title="Copy prefix"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
