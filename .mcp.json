@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hydrilla": {
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/apps/frontend/plugins/mcp/dist/index.js"
+      ],
+      "envFile": "${workspaceFolder}/apps/frontend/plugins/mcp/mcp.env"
+    }
+  }
+}

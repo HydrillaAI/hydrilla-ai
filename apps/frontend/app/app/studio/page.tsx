@@ -16,7 +16,7 @@ import {
   bootstrapHeroWorkspace,
   peekPendingHeroPrompt,
 } from "../../../lib/pendingHeroPrompt";
-import { track } from "../../../lib/analytics";
+import { track, trackWorkspaceEntry } from "../../../lib/analytics";
 import { MessageSquare, FolderOpen, Plus, Search, RotateCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { WorkspaceFolderCard } from "@/components/app/WorkspaceFolderCard";
@@ -30,7 +30,7 @@ function getGreeting() {
 
 export default function StudioPage() {
   const router = useRouter();
-  const { getToken, isSignedIn, isLoaded } = useAuth();
+  const { getToken, isSignedIn, isLoaded, userId } = useAuth();
   const { user } = useUser();
   const SHOW_QUICK_START_CHAT = false;
   const userName = user?.firstName || user?.fullName || user?.username || "";
@@ -88,6 +88,7 @@ export default function StudioPage() {
           return;
         }
         setCurrentWorkspaceId(result.workspaceId);
+        trackWorkspaceEntry(userId ?? null, result.workspaceId);
         router.replace(`/workspace/${result.workspaceId}`);
       } catch (err: unknown) {
         console.error("Failed to bootstrap hero workspace:", err);
@@ -141,6 +142,7 @@ export default function StudioPage() {
       const tokenGetter = async () => await getToken();
       const ws = await createWorkspaceApi(name, tokenGetter);
       track("workspace_created", { source: "studio" });
+      trackWorkspaceEntry(userId ?? null, ws.id);
       setShowNewModal(false);
       setNewName("");
       setCurrentWorkspaceId(ws.id);
@@ -159,6 +161,7 @@ export default function StudioPage() {
 
   const handleOpenWorkspace = (workspaceId: string) => {
     track("workspace_opened", { source: "studio" });
+    trackWorkspaceEntry(userId ?? null, workspaceId);
     setCurrentWorkspaceId(workspaceId);
     router.push(`/workspace/${workspaceId}`);
   };

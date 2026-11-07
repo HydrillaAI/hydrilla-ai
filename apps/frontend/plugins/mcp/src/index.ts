@@ -1,10 +1,29 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { PostHog, instrument } from "@posthog/mcp";
 import { z } from "zod";
 
 const API_KEY = (process.env.HYDRILLA_API_KEY || process.env.HYDRILLA_API_TOKEN || "").trim();
-const API_BASE = (process.env.HYDRILLA_API_BASE || "https://hydrilla-backend.vercel.app").replace(/\/$/, "");
+const API_BASE = (process.env.HYDRILLA_API_BASE || "https://api.hydrilla.co").replace(/\/$/, "");
+
+/** Project token from env only — never hardcode secrets. */
+function getPostHogProjectToken(): string | undefined {
+  return (
+    process.env.POSTHOG_PROJECT_TOKEN ||
+    process.env.POSTHOG_API_KEY ||
+    process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN ||
+    process.env.NEXT_PUBLIC_POSTHOG_KEY
+  );
+}
+
+function getPostHogHost(): string {
+  return (
+    process.env.POSTHOG_HOST ||
+    process.env.NEXT_PUBLIC_POSTHOG_HOST ||
+    "https://us.i.posthog.com"
+  );
+}
 
 async function api<T>(
   path: string,
@@ -48,6 +67,48 @@ async function waitForTask(taskId: string) {
 const server = new McpServer({
   name: "hydrilla",
   version: "1.0.0",
+});
+
+const posthogToken = getPostHogProjectToken();
+const posthog = posthogToken
+  ? new PostHog(posthogToken, {
+      host: getPostHogHost(),
+      // Stdio processes exit quickly; flush aggressively so tool-call events land.
+      flushAt: 1,
+      flushInterval: 0,
+    })
+  : null;
+
+if (posthog) {
+  instrument(server, posthog, {
+    // Stdio must not write analytics warnings to stdout (corrupts MCP framing).
+    logger: (message) => {
+      process.stderr.write(`[posthog-mcp] ${message}\n`);
+    },
+  });
+}
+
+const shutdownPostHog = async (): Promise<void> => {
+  if (!posthog) {
+    return;
+  }
+  try {
+    await posthog.shutdown();
+  } catch {
+    /* analytics must never break the MCP process */
+  }
+};
+
+process.once("SIGTERM", () => {
+  void shutdownPostHog().finally(() => {
+    process.exit(0);
+  });
+});
+
+process.once("SIGINT", () => {
+  void shutdownPostHog().finally(() => {
+    process.exit(0);
+  });
 });
 
 server.tool(
@@ -128,3 +189,7 @@ server.tool(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+process.once("beforeExit", () => {
+  void shutdownPostHog();
+});
