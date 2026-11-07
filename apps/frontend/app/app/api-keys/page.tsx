@@ -72,6 +72,7 @@ export default function ApiKeysPage() {
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const newlyCreatedKeyRef = useRef<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedPrefix, setCopiedPrefix] = useState(false);
 
   // Single key deep dive modal state
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
@@ -197,6 +198,22 @@ export default function ApiKeysPage() {
     setCopiedKey(true);
     window.setTimeout(() => {
       setCopiedKey(false);
+    }, 2500);
+  };
+
+  const copyKeyPrefix = async (prefix: string) => {
+    const label = prefix.trim();
+    if (!label) {
+      return;
+    }
+    const copied = await writeClipboard(label);
+    if (!copied) {
+      setError("Could not copy the key label. Select it and copy manually.");
+      return;
+    }
+    setCopiedPrefix(true);
+    window.setTimeout(() => {
+      setCopiedPrefix(false);
     }, 2500);
   };
 
@@ -580,14 +597,31 @@ console.log("Task queued:", task.id);`,
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5">
+                  <div className="mt-0.5 flex items-center gap-2">
                     <code className="text-xs font-mono text-neutral-500">
                       {keyDetails?.key.keyPrefix || "Loading..."}
                     </code>
-                    <p className="mt-0.5 text-[11px] text-neutral-400">
-                      Masked label only — the full secret cannot be shown again.
-                    </p>
+                    {keyDetails && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void copyKeyPrefix(keyDetails.key.keyPrefix);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-700"
+                        title="Copy masked key label"
+                        aria-label="Copy masked key label"
+                      >
+                        {copiedPrefix ? (
+                          <Check className="h-3 w-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </button>
+                    )}
                   </div>
+                  <p className="mt-0.5 text-[11px] text-neutral-400">
+                    Masked label only — the full secret cannot be shown again.
+                  </p>
                 </div>
               </div>
               <button
