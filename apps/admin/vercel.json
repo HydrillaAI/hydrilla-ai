@@ -2,5 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "pnpm install --filter hydrilla-admin...",
-  "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- ."
+  "ignoreCommand": "if [ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git rev-parse --verify --quiet \"${VERCEL_GIT_PREVIOUS_SHA}^{commit}\" >/dev/null 2>&1; then BASE=\"$VERCEL_GIT_PREVIOUS_SHA\"; elif git rev-parse --verify --quiet \"HEAD^\" >/dev/null 2>&1; then BASE=\"HEAD^\"; else exit 1; fi; git diff --quiet \"$BASE\" HEAD -- .; rc=$?; [ $rc -gt 1 ] && exit 1 || exit $rc"
 }
