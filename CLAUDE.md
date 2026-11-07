@@ -26,3 +26,29 @@ Add or change a rule in either file; it is the same text. Do not replace the sym
   that branch, and open a PR into `main`.
 - If you are already on `main` with uncommitted changes, move them to a new
   branch before committing.
+- Before every push of that branch (and before opening or updating its PR),
+  sync with the latest `main` and fix problems locally:
+  1. Fetch the remote, then pull the latest `main`.
+  2. Merge that `main` into the working branch (rebase only when the branch
+     history is still local and unpushed).
+  3. Check for unresolved conflicts, leftover conflict markers, a merge that
+     left files incorrect or half-applied, and a branch that is still behind
+     `main`.
+  4. Fix the merge until the working tree is clean and the branch contains
+     the latest `main`.
+  5. Review the branch diff against that `main` (`git diff main...HEAD`, plus
+     any uncommitted work that will be pushed). Fix what the review finds:
+     - **Standards.** The change follows this repo's documented coding
+       standards. In TypeScript and JavaScript, use `const` (no `let`) and
+       put every `if` body in braces on its own line. No ticket ids, branch
+       names, or PR numbers in source comments. No `.env*`, `gcp-key.json`,
+       `uploads/`, keys, or tokens in the diff.
+     - **Spec.** The change does what was asked. Missing, partial, or wrong
+       behavior is fixed. Unrelated behavior is removed.
+     - **Correctness.** No conflict markers, half-applied files, or dead code
+       left by the merge. Typecheck, and run the tests that cover the apps
+       the diff touches. Fix failures.
+  6. Push only after the sync and the code review both pass.
+- If the merge or the review cannot be fixed cleanly, stop and report what
+  failed. Do not push a branch that is behind `main`, still has conflicts, or
+  still fails the review.
