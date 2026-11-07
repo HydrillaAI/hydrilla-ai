@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Enterprise: AI 3D for Studio Pipelines | Hydrilla AI",
+  title: "Enterprise AI 3D Generator for Studios | Hydrilla AI",
   description:
-    "Team seats, API concurrency, custom plans, and pipeline support for studios generating 3D with BlueFox at volume. Book a demo.",
-  ogTitle: "Hydrilla for studios and enterprise teams",
+    "Hydrilla Enterprise gives studios an AI 3D workspace and API: team seats, API concurrency, custom credit plans, and pipeline support. Book a demo.",
+  ogTitle: "Hydrilla for Enterprise: AI 3D across your whole studio",
   path: "/enterprise",
   absoluteTitle: true,
 });

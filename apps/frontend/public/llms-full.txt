@@ -2,7 +2,7 @@
 
 Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D models from text or an image with BlueFox, Hydrilla's 3D model, check them in the browser, and work with Water Agent, the AI 3D agent for artists and studios.
 
-Last updated: 2026-10-24
+Last updated: 2026-11-07
 
 ## Names
 - Hydrilla AI is the product and company (serving studios and artists worldwide including the United States, India, Japan, China, and France); Hawan Research Labs is its research lab. https://hydrilla.ai/about
@@ -637,41 +637,146 @@ Show the product in 3D, and keep the spec sheet as the source of truth.
 
 URL: https://hydrilla.ai/enterprise
 
-## Bring AI 3D to your whole studio
+## Hydrilla for Enterprise
 
-Hydrilla AI for whole studios: BlueFox, Hydrilla's 3D model, and Water Agent across your team, in one shared workspace.
+Production 3D assets at enterprise scale, across your whole studio.
 
-### What Enterprise adds for your studio
+Hydrilla Enterprise brings BlueFox, Hydrilla's 3D model, and Water Agent to your team in one shared workspace and through the API, with seats, API concurrency, custom plans, and pipeline support.
 
-Enterprise adds seats, API concurrency, custom plans, and pipeline support.
+- 4 export formats: GLB, FBX, OBJ, and USDZ
+- 4 engine and DCC plugins: Blender, Unity, Unreal, and Godot
+- 1 shared workspace: generations, reviews, and approved versions
+- 0 customer data used for training, on any plan
 
-#### Seats
-Art, lookdev, and pipeline staff work together in one shared workspace.
+### From a prompt or an image to an asset in your pipeline
+
+Brief it, review it in the browser, and move it into the tools your team already uses.
+
+#### Brief the asset
+Type a prompt or upload a reference image. For a whole set, brief Water Agent as you would brief your team: the look, the pieces, the scene.
+
+#### Generate and review
+BlueFox returns a mesh in parts, UV-unwrapped, with PBR maps attached. Orbit it, select parts, and check materials under light, right in the browser.
+
+#### Export into your pipeline
+Download GLB, FBX, OBJ, or USDZ, or send the model over the local Bridge into Blender, Unity, Unreal, or Godot.
+
+### Hydrilla across your organization
+
+Each part of Enterprise is shaped around how your studio works rather than a fixed tier.
+
+#### Seats in a shared workspace
+Art, lookdev, and pipeline staff work together in one shared workspace, so generations, reviews, and approved versions live in the same place.
+
 #### API concurrency
-Jobs from your own backend, sized to your volume.
-#### Custom plans
-Credit pools and queue priority set around your monthly volume.
-#### Pipeline support
-Help connecting the Bridge and plugins to your pipeline.
+Jobs from your own backend, sized to your volume, for asset libraries, build steps, and internal tools.
 
-### How this differs from Pro
+#### Custom credit pools
+Custom plans with credit pools set around your monthly volume, instead of individual allowances.
+
+#### Queue priority
+Priority is part of your plan, set around the monthly volume your pipeline needs.
+
+#### Pipeline support
+Help connecting the Bridge and plugins to your pipeline, so artists get generation inside the tools they already use.
+
+#### Water Agent for the team
+The AI 3D agent works alongside artists from brief to finished assets, in the Hydrilla app and inside their tools. It costs no credits.
+
+### Two ways to use Hydrilla: the workspace and the API
+
+Use either one, or both. Artists work in Studio and their own tools, while engineers run the same generation from your backend.
+
+#### Workspace
+
+For artists and art teams, in the browser and inside their tools.
+
+- Text to 3D and image to 3D with BlueFox
+- Water Agent, at no credit cost
+- Review in the browser: orbit, select parts, check materials
+- Plugins for Blender, Unity, Unreal, and Godot
+
+#### API
+
+For pipeline engineers building generation into your own systems.
+
+- REST API with keys you keep server-side
+- Submit a job, then poll its status
+- A mesh in parts, with UVs and texture maps
+- Concurrency sized to your volume on Enterprise
+
+### How studio teams use Hydrilla
+
+Five ways teams put BlueFox to work, each with its fit, limits, and tools.
+
+- [Game development](https://hydrilla.ai/solutions/games): level dressing and prop sets for your game engine.
+- [Film and animation](https://hydrilla.ai/solutions/film): set pieces and props for previs, layout, and background dressing.
+- [Architecture and interiors](https://hydrilla.ai/solutions/architecture): furniture and fixtures that dress rooms for presentations and reviews.
+- [AR, VR, and XR](https://hydrilla.ai/solutions/xr): objects for headsets and spatial apps, checked against a frame budget.
+- [Product visualization](https://hydrilla.ai/solutions/product): product photos turned into 3D for web viewers, campaigns, and AR.
+
+### How Enterprise differs from Pro
+
+Pro is built for individuals and small teams who buy online. Enterprise is for studios that need an agreement around their volume and their tools.
 
 | | Pro | Enterprise |
 |---|---|---|
 | How you buy | Self-serve and monthly, on [pricing](https://hydrilla.ai/pricing) | An agreement shaped around your studio |
-| Plans | Monthly credits on a set plan | Custom plans and credit pools |
+| Built for | Individuals and small teams | Whole studios, with seats in a shared workspace |
+| Credits | 3,000 monthly credits on a set plan | Custom plans and credit pools |
+| API | REST API access | API concurrency sized to your volume |
+| Pipeline | Plugins and docs | Help connecting the Bridge and plugins |
+| Water Agent | Included, at no credit cost | Included, at no credit cost |
+| Export formats | GLB, FBX, OBJ, and USDZ | GLB, FBX, OBJ, and USDZ |
+| Training on your data | Never | Never |
 
-### Answers for procurement
+### Security, data, and IP
 
-**How is our data handled?**
-Your data isn't used to train our models, on any plan. Generated assets are kept to your own workspace, and the [security page](https://hydrilla.ai/security) explains both.
+Work made in a 3D workspace is often unreleased. The [security page](https://hydrilla.ai/security) sets out how it's handled; the [Privacy Policy](https://hydrilla.ai/privacy) and [Terms](https://hydrilla.ai/terms) are the binding documents.
+
+#### Your data doesn't train our models
+That holds on every plan, including your prompts, the reference images you upload, and the models you generate.
+
+#### You own your output
+As between you and Hydrilla AI, and to the extent the law allows, you own what the service generates for you and may use it commercially. [Read the exact wording](https://hydrilla.ai/terms#ownership).
+
+#### Your work stays scoped to you
+Sign-in runs through Clerk, generated meshes stay scoped to your workspace, and files sent over the local Bridge travel on your machine to the tool you have open.
+
+Running a vendor review? Send your questionnaire to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm.
+
+### Enterprise questions, answered
+
+**What's the difference between Pro and Enterprise?**
+Pro is a self-serve monthly plan for individuals and small teams: $12 a month for 3,000 credits, with REST API access. Enterprise is an agreement shaped around your studio, with seats in a shared workspace, API concurrency sized to your volume, custom credit pools, queue priority, and help connecting your pipeline. [See self-serve plans](https://hydrilla.ai/pricing).
+
+**What drives Enterprise pricing?**
+Enterprise is quoted, not listed. The price follows your seats, API concurrency, monthly generation volume, and queue priority. Tell us those numbers, and we'll come back with a plan around them.
+
+**How do credits work on Enterprise?**
+Instead of individual allowances, your studio gets a credit pool set around its monthly volume. On public plans, a model at default quality costs 45 credits from text and 30 from an uploaded image, and Water Agent costs no credits. Your agreement sets the terms of your pool.
+
+**What happens to our assets if we don't renew?**
+Files you've already exported stay in your own pipeline. For work still in the workspace, export what you want to keep before your account closes: under the [Terms](https://hydrilla.ai/terms), content is deleted as described in the [Privacy Policy](https://hydrilla.ai/privacy) when an account closes.
+
+**Can we sign our own agreement?**
+Enterprise runs on an agreement shaped around your studio. Send your legal team's requirements or your own paper with your inquiry, and we'll tell you in writing what we can agree to.
+
+**Who owns what we generate, and do you train on our data?**
+You keep all rights in what you upload. As between you and Hydrilla AI, and to the extent the law allows, you own the output generated for you and may use it commercially. The [ownership section of the Terms](https://hydrilla.ai/terms#ownership) has the exact wording. We don't use your prompts, reference images, or generated models to train our models, on any plan. [How we handle data](https://hydrilla.ai/security).
+
+**Will Hydrilla fit the pipeline we already run?**
+Hydrilla exports GLB, FBX, OBJ, and USDZ on every plan. [Plugins](https://hydrilla.ai/integrations) for Blender, Unity, Unreal, and Godot connect through a local Bridge, the [REST API](https://hydrilla.ai/api) runs jobs from your own backend, and an [MCP server](https://hydrilla.ai/integrations/mcp) serves AI agents. Enterprise adds help connecting these to your pipeline.
+
+**Can we start on Pro and move up later?**
+Yes. You can evaluate on any self-serve plan first. When you get in touch, tell us what you run today, and we'll plan Enterprise around it.
 
 **Can we send a security questionnaire?**
 Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm.
 
-### How to start
+### Get Hydrilla Enterprise
 
-Tell us your studio size, engine, and expected monthly volume, and whether you already generate on Pro.
+Tell us your studio size, engine, and expected monthly volume, and whether you already generate on Pro. The more we know about your pipeline, the more useful the first conversation will be.
 
 ---
 

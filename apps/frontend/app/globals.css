@@ -4369,3 +4369,138 @@ input.range-minimal::-moz-range-track {
   color: var(--nav-active-fg);
   opacity: 0.92;
 }
+
+/* Enterprise page: large type, hairlines, and full-bleed media. Forced light like other marketing pages. */
+.ent-page {
+  overflow-x: clip;
+  background: #ffffff;
+  color: #000000;
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ent-page :is(a, button, summary):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.ent-container {
+  width: 100%;
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 48px);
+}
+
+.ent-section {
+  margin-top: clamp(88px, 11vw, 160px);
+  scroll-margin-top: 128px;
+}
+
+.ent-title {
+  font-size: clamp(3.5rem, 1.6rem + 8.6vw, 9rem);
+  font-weight: 500;
+  line-height: 0.94;
+  letter-spacing: -0.05em;
+  text-wrap: balance;
+}
+
+.ent-h2 {
+  font-size: clamp(2.25rem, 1.5rem + 3.2vw, 4.5rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.ent-h3 {
+  font-size: clamp(1.25rem, 1.15rem + 0.45vw, 1.5rem);
+  font-weight: 510;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.ent-lede {
+  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  line-height: 1.45;
+  letter-spacing: -0.015em;
+  color: rgb(0 0 0 / 0.68);
+}
+
+.ent-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.ent-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.ent-pill-light {
+  display: inline-flex;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  border-radius: 90px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 17px;
+  font-weight: 510;
+  letter-spacing: -0.34px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.ent-pill-light:hover {
+  background: #e5e5e7;
+}
+
+.ent-pill-light:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@keyframes ent-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.12em);
+  }
+}
+
+@keyframes ent-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+
+/* Media starts inset with rounded corners and opens to the full viewport width on scroll. */
+@keyframes ent-bleed {
+  from {
+    transform: scale(0.94);
+    border-radius: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ent-title {
+    animation: ent-title-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* No JS: browsers without scroll timelines simply show everything in place. */
+  @supports (animation-timeline: view()) {
+    .ent-reveal {
+      animation: ent-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+
+    .ent-hero-media {
+      animation: ent-bleed linear both;
+      animation-timeline: view();
+      animation-range: entry 35% cover 42%;
+    }
+  }
+}

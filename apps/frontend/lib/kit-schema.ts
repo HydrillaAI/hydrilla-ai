@@ -1,3 +1,4 @@
+import { ENTERPRISE_FAQ, faqPlainText } from "@/lib/enterprise-faq";
 import { TEAM_MEMBERS } from "@/lib/team";
 
 const ORG = "https://hydrilla.ai/#organization";
@@ -75,7 +76,7 @@ const NAMES: Record<string, string> = {
   "/solutions/architecture": "AI 3D Furniture and Interiors for Archviz",
   "/solutions/xr": "AI 3D Assets for AR, VR, and Spatial Apps",
   "/solutions/product": "AI 3D Product Models for E-commerce",
-  "/enterprise": "Enterprise: AI 3D for Studio Pipelines",
+  "/enterprise": "Enterprise AI 3D Generator for Studios",
   "/docs": "Docs: Get Started with Hydrilla AI 3D",
   "/faq": "Hydrilla FAQ: Licensing, Accounts, and Support",
   "/blog": "Hydrilla Blog: Guides for AI 3D Workflows",
@@ -427,10 +428,10 @@ export function getKitJsonLd(path: string) {
       url: "https://cal.com/hydrilla",
     });
     nodes.push(
-      faq("https://hydrilla.ai/enterprise#faq", [
-        ["How is our data handled?", "Your data isn't used to train our models, on any plan. Generated assets are kept to your own workspace, and the security page explains both."],
-        ["Can we send a security questionnaire?", "Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm."],
-      ]),
+      faq(
+        "https://hydrilla.ai/enterprise#faq",
+        ENTERPRISE_FAQ.map(({ q, a }): [string, string] => [q, faqPlainText(a)]),
+      ),
     );
   }
   if (path === "/faq") {
