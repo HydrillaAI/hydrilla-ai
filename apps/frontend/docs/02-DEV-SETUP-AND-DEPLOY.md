@@ -83,7 +83,7 @@ Each app is its own Vercel project with its own `vercel.json`.
 | admin | `apps/admin/vercel.json` | `pnpm install --filter hydrilla-admin...` | |
 | docs | `apps/docs/vercel.json` | `pnpm install --filter hydrilla-docs...` | |
 
-- **Every** `vercel.json` has `ignoreCommand: git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- .`, so a project skips the build when its folder did not change.
+- **Every** `vercel.json` has an `ignoreCommand` that checks if its folder changed since `$VERCEL_GIT_PREVIOUS_SHA` (falling back to `HEAD^` when previous commits are outside shallow clone depth), skipping the build when unchanged.
 - There is **no CI**: no `.github/` folder and no Dockerfiles. Vercel's build is the only automated check.
 - `main` is protected. Changes go in through PRs from `<type>/<name>` branches (root `CLAUDE.md`).
 
