@@ -105,7 +105,15 @@ import {
   patchWaterScene,
 } from "../../lib/api";
 import { setCurrentWorkspaceId, getCurrentWorkspaceId, clearCurrentWorkspaceId, cn } from "../../lib/utils";
-import { track, isPaywallError } from "../../lib/analytics";
+import {
+  track,
+  isPaywallError,
+  trackWorkspaceEntry,
+  trackGenerationStarted,
+  trackGenerationOutcome,
+  trackExportDownload,
+  trackCreditsViewed,
+} from "../../lib/analytics";
 import { GEN_MSG, threeDQueueMessage, threeDStageMessage } from "../../lib/generationMessages";
 import {
   consumeWorkspaceBootstrap,
@@ -273,7 +281,7 @@ export default function WorkspacePageWrapper() {
 }
 
 function WorkspacePage() {
-  const { isSignedIn, getToken, isLoaded } = useAuth();
+  const { isSignedIn, getToken, isLoaded, userId } = useAuth();
   const slotStatus = useSlotStatus(getToken, !!isSignedIn);
   const router = useRouter();
   const pathname = usePathname();
@@ -731,9 +739,13 @@ function WorkspacePage() {
       if (res.ok) {
         const data = await res.json();
         const c = data.credits || {};
-        setCreditsUsed(c.used ?? 0);
-        setCreditsTotal(c.total ?? 0);
-        setCreditsBonus(typeof c.bonus === "number" ? c.bonus : 0);
+        const used = c.used ?? 0;
+        const total = c.total ?? 0;
+        const bonus = typeof c.bonus === "number" ? c.bonus : 0;
+        setCreditsUsed(used);
+        setCreditsTotal(total);
+        setCreditsBonus(bonus);
+        trackCreditsViewed(Math.max(0, total - used) + Math.max(0, bonus));
       }
     } catch {
       // ignore
@@ -1200,8 +1212,9 @@ function WorkspacePage() {
   useEffect(() => {
     if (isSignedIn && workspaceId) {
       refreshCredits();
+      trackWorkspaceEntry(userId ?? null, workspaceId);
     }
-  }, [isSignedIn, workspaceId, refreshCredits]);
+  }, [isSignedIn, workspaceId, refreshCredits, userId]);
 
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1611,6 +1624,10 @@ function WorkspacePage() {
           track("3d_generation_completed", {
             model: selectedModel,
           });
+          trackGenerationOutcome("generation_succeeded", currentGenerating.jobId, {
+            model: selectedModel,
+            kind: "3d",
+          });
           const glbUrl = getGlbUrl(status);
           setCurrentGenerating(null);
           setLoading(false);
@@ -1651,6 +1668,11 @@ function WorkspacePage() {
             stage: "processing",
             reason: "job_failed",
           });
+          trackGenerationOutcome("generation_failed", currentGenerating.jobId, {
+            stage: "processing",
+            reason: "job_failed",
+            kind: "3d",
+          });
           const rawError = status.error || "Generation failed";
           const userFacing = toUserFacingGpuError(rawError);
           setCurrentGenerating(null);
@@ -1675,6 +1697,10 @@ function WorkspacePage() {
             stage: "processing",
             reason: "cancelled",
           });
+          trackGenerationOutcome("generation_cancelled", currentGenerating.jobId, {
+            stage: "processing",
+            kind: "3d",
+          });
           setCurrentGenerating(null);
           setLoading(false);
           refreshCredits();
@@ -1698,6 +1724,11 @@ function WorkspacePage() {
           track("3d_generation_failed", {
             stage: "polling",
             reason: isGpuUnavailable ? "gpu_unavailable" : "connection_lost",
+          });
+          trackGenerationOutcome("generation_failed", currentGenerating.jobId, {
+            stage: "polling",
+            reason: isGpuUnavailable ? "gpu_unavailable" : "connection_lost",
+            kind: "3d",
           });
           setCurrentGenerating(null);
           setLoading(false);
@@ -1901,6 +1932,11 @@ function WorkspacePage() {
         provider,
         mode: referenceImageUrl ? "image_to_code" : "text_to_code",
       });
+      trackGenerationStarted("water", {
+        model: selectedModel,
+        provider,
+        mode: referenceImageUrl ? "image_to_code" : "text_to_code",
+      });
       // Legacy event name kept for historical PostHog charts
       track("code_sculpt_started", {
         model: selectedModel,
@@ -2038,6 +2074,8 @@ function WorkspacePage() {
                   )
                 );
                 refreshLibrary();
+                refreshCredits();
+                trackGenerationOutcome("generation_succeeded", result.job_id, { kind: "water" });
                 setLoading(false);
                 return;
               }
@@ -2055,6 +2093,10 @@ function WorkspacePage() {
                 setLibrary3DAssets((prev) =>
                   prev.map((j) => (j.id === result.job_id ? { ...j, status: "FAIL" as const } : j))
                 );
+                trackGenerationOutcome("generation_failed", result.job_id, {
+                  kind: "water",
+                  reason: "job_failed",
+                });
                 setLoading(false);
                 return;
               }
@@ -2205,6 +2247,7 @@ function WorkspacePage() {
         has_local_file: !!localFile,
         has_preview_id: !!previewId,
       });
+      trackGenerationStarted("image_to_3d", { model: selectedModel });
       const tokenGetter = async () => await getToken();
       setLeftLibraryTab("3d"); // Switch to 3D tab so result will show in 3D section below search
       markMobileGenerationStart();
@@ -2255,6 +2298,11 @@ function WorkspacePage() {
         track("3d_generation_failed", {
           stage: "queue_info",
           reason: msg?.includes("GPU is currently offline") ? "gpu_offline" : "queue_error",
+        });
+        trackGenerationOutcome("generation_failed", null, {
+          stage: "queue_info",
+          reason: msg?.includes("GPU is currently offline") ? "gpu_offline" : "queue_error",
+          kind: "3d",
         });
         return null;
       });
@@ -2310,6 +2358,11 @@ function WorkspacePage() {
         track("3d_generation_failed", {
           stage: "submit",
           reason: isPaywallError(msg) ? "insufficient_credits" : "submit_error",
+        });
+        trackGenerationOutcome("generation_failed", null, {
+          stage: "submit",
+          reason: isPaywallError(msg) ? "insufficient_credits" : "submit_error",
+          kind: "3d",
         });
         const userFacing = toUserFacingGpuError(msg);
         await waitMobileGpuOfflineMinimum(msg, userFacing);
@@ -2377,6 +2430,7 @@ function WorkspacePage() {
         quality: imageOptions.quality,
         aspect: imageOptions.aspect,
       });
+      trackGenerationStarted("text_to_image", { provider: imageOptions.provider });
       setGeneratingPreview(true);
       markMobileGenerationStart();
       setCenterView({ type: "generating", progress: 0, message: GEN_MSG.imageFromText });
@@ -2549,6 +2603,7 @@ function WorkspacePage() {
         provider: imageOptions.provider,
         quality: imageOptions.quality,
       });
+      trackGenerationStarted("image_edit", { provider: imageOptions.provider });
 
       const pendingEditId = addPendingJob({
         generateType: "EditImage",
@@ -2706,6 +2761,7 @@ function WorkspacePage() {
         resolution: effectiveResolution,
         provider: imageOptions.provider,
       });
+      trackGenerationStarted("edit_to_3d", { model: selectedModel });
       setGeneratingPreview(true);
       markMobileGenerationStart();
       setCenterView({ type: "generating", progress: 0, message: GEN_MSG.modifying3d });
@@ -2895,6 +2951,9 @@ function WorkspacePage() {
         model: selectedModel,
         resolution: effectiveResolution,
         provider: imageOptions.provider,
+      });
+      trackGenerationStarted(isModelSection ? "text_to_3d" : "edit_text_to_3d", {
+        model: selectedModel,
       });
       setGeneratingPreview(true);
       markMobileGenerationStart();
@@ -3594,6 +3653,7 @@ function WorkspacePage() {
   const handleExportViewer = useCallback(() => {
     if (centerView.type === "3d") {
       track("model_downloaded", { format: "glb" });
+      trackExportDownload({ format: "glb", engine: "cloud" });
       void downloadGlbWithAuth(
         centerView.glbUrl,
         `hydrilla-${centerView.jobId || "model"}.glb`,
@@ -3605,7 +3665,10 @@ function WorkspacePage() {
       return;
     }
     void waterViewerRef.current?.exportFormat("glb").then((result) => {
-      if (result?.ok) track("model_downloaded", { format: "glb", engine: "water" });
+      if (result?.ok) {
+        track("model_downloaded", { format: "glb", engine: "water" });
+        trackExportDownload({ format: "glb", engine: "water" });
+      }
     });
   }, [centerView, getToken]);
 
@@ -3617,6 +3680,7 @@ function WorkspacePage() {
     try {
       waterPollGenRef.current += 1;
       await cancelJob(jobId, () => getToken());
+      trackGenerationOutcome("generation_cancelled", jobId, { kind: "user" });
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
@@ -4433,7 +4497,10 @@ function WorkspacePage() {
                     if (scene) setWaterScene(scene);
                   }).catch(() => undefined);
                 }}
-                onDownloaded={(format) => track("model_downloaded", { format, engine: "water" })}
+                onDownloaded={(format) => {
+                  track("model_downloaded", { format, engine: "water" });
+                  trackExportDownload({ format, engine: "water" });
+                }}
                 onThumbnail={(dataUrl) => {
                   const jobId = centerView.type === "code" ? centerView.jobId : null;
                   if (!jobId) return;

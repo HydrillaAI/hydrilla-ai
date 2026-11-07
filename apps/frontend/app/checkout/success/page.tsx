@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { track } from "@/lib/analytics";
+import { track, trackPaymentFailed, trackPaymentSucceeded } from "@/lib/analytics";
 import { PickleActions } from "@/components/layout/PicklePage";
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
@@ -33,6 +33,23 @@ function CheckoutSuccessContent() {
   const paymentId = searchParams.get("payment_id");
   const subscriptionIdFromUrl = searchParams.get("subscription_id");
   const statusFromUrl = searchParams.get("status"); // "active" when Dodo confirms
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) {
+      return;
+    }
+    const failed = statusFromUrl === "failed" || statusFromUrl === "canceled" || statusFromUrl === "cancelled";
+    if (failed) {
+      trackPaymentFailed("checkout", statusFromUrl || "failed");
+      return;
+    }
+    if (statusFromUrl === "active" || paymentId || subscriptionIdFromUrl) {
+      trackPaymentSucceeded(subscriptionIdFromUrl || paymentId || "checkout_success", {
+        source: "checkout_return_url",
+        status: statusFromUrl,
+      });
+    }
+  }, [isLoaded, isSignedIn, statusFromUrl, paymentId, subscriptionIdFromUrl]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -108,6 +125,11 @@ function CheckoutSuccessContent() {
         if (next === "active" && !activatedTracked.current) {
           activatedTracked.current = true;
           track("subscription_activated", {
+            source: "checkout_success",
+            has_subscription_id: !!subscriptionIdFromUrl,
+            has_payment_id: !!paymentId,
+          });
+          trackPaymentSucceeded(subscriptionIdFromUrl || paymentId || "checkout_success", {
             source: "checkout_success",
             has_subscription_id: !!subscriptionIdFromUrl,
             has_payment_id: !!paymentId,

@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 import Hero from "../components/sections/Hero";
 import HomeBelowFold from "../components/sections/HomeBelowFold";
+import { LandingVisit } from "@/components/LandingVisit";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SmoothScroll } from "@/components/ui/SmoothScroll";
 import { HOME_TITLE, createPageMetadata, getHomepageJsonLd } from "@/lib/seo";
@@ -38,6 +39,7 @@ export const revalidate = 3600;
 export default function Home() {
   return (
     <>
+      <LandingVisit />
       <JsonLd data={getHomepageJsonLd()} />
       <SmoothScroll />
       <Hero />

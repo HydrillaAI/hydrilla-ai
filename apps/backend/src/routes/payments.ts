@@ -312,6 +312,11 @@ paymentsRouter.post("/create-checkout", requireAuth, async (req: Request, res: R
       session_id: session.session_id,
       trial: applyTrial,
     });
+    captureServerEvent(userId, "checkout_started", {
+      plan: paidPlan,
+      session_id: session.session_id,
+      trial: applyTrial,
+    });
     void flushPostHog();
     onCheckoutStarted(userId, paidPlan);
 
@@ -1100,6 +1105,22 @@ async function claimPlanActiveEmail(subscriptionId: string, userId: string, plan
   return true;
 }
 
+/** One analytics event per subscription, even when webhook, sync, and payment fallback all run. */
+async function claimAnalyticsOnce(key: string): Promise<boolean> {
+  const { error } = await supabase.from("webhook_events").insert({
+    webhook_id: key,
+    event_type: "analytics.once",
+    payload: { claimed_at: new Date().toISOString() },
+  });
+  if (error?.code === "23505") {
+    return false;
+  }
+  if (error) {
+    return true;
+  }
+  return true;
+}
+
 /** subscription.active - New subscription activated, grant credits */
 async function handleSubscriptionActive(data: any, webhookId: string) {
   try {
@@ -1221,13 +1242,21 @@ async function handleSubscriptionActive(data: any, webhookId: string) {
 
     logger.info({ subscriptionId, email, plan, credits, isTrial }, "✅ Subscription active + credits granted");
 
-    captureServerEvent(userId, "subscription_activated", {
-      plan: plan || "unknown",
-      credits,
-      source: "dodo_webhook",
-      is_trial: isTrial,
-    });
-    void flushPostHog();
+    if (await claimAnalyticsOnce(`analytics:payment_succeeded:${subscriptionId || webhookId}`)) {
+      captureServerEvent(userId, "subscription_activated", {
+        plan: plan || "unknown",
+        credits,
+        source: "dodo_webhook",
+        is_trial: isTrial,
+      });
+      captureServerEvent(userId, "payment_succeeded", {
+        plan: plan || "unknown",
+        credits,
+        source: "dodo_webhook",
+        is_trial: isTrial,
+      });
+      void flushPostHog();
+    }
     if (plan && !subErr && (await claimPlanActiveEmail(subscriptionId, userId, plan))) {
       onPlanActive({
         userId,
