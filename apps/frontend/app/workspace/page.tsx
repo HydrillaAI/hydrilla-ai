@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { useTheme } from "next-themes";
 import { Plus } from "lucide-react";
 import { CreateEnginePicker } from "../../components/CreateEnginePicker";
@@ -28,6 +28,7 @@ import { InspectorPanel } from "../../components/workspace/inspector/InspectorPa
 import { LibraryPanel } from "../../components/workspace/library/LibraryPanel";
 import { LibraryRail } from "../../components/workspace/library/LibraryRail";
 import { LibraryOptionsBar } from "../../components/workspace/library/LibraryOptionsBar";
+import { SnakeCard } from "../../components/workspace/SnakeGame";
 import { LIBRARY_BAR } from "../../lib/library-bar";
 import { COMPOSER_SIZE } from "../../lib/composer-size";
 import { useSlotStatus } from "../../hooks/useSlotStatus";
@@ -274,6 +275,7 @@ export default function WorkspacePageWrapper() {
 
 function WorkspacePage() {
   const { isSignedIn, getToken, isLoaded } = useAuth();
+  const { user } = useUser();
   const slotStatus = useSlotStatus(getToken, !!isSignedIn);
   const router = useRouter();
   const pathname = usePathname();
@@ -1611,6 +1613,7 @@ function WorkspacePage() {
           track("3d_generation_completed", {
             model: selectedModel,
           });
+          setSnakeCompletion(true);
           const glbUrl = getGlbUrl(status);
           setCurrentGenerating(null);
           setLoading(false);
@@ -1643,6 +1646,7 @@ function WorkspacePage() {
           };
           loadJobInfo(completed3DJob);
         } else if (status.status === "failed") {
+          setSnakeCompletion(false);
           if (progressIntervalRef.current) {
             clearInterval(progressIntervalRef.current);
             progressIntervalRef.current = null;
@@ -1911,6 +1915,7 @@ function WorkspacePage() {
       setError(null);
       setLeftLibraryTab("3d");
       markMobileGenerationStart();
+      const generationStartedAt = Date.now();
       setLoading(true);
       setCodeFactoryCode(null);
       setCodeSculptPass("assessment");
@@ -1926,6 +1931,13 @@ function WorkspacePage() {
         imageUrl: referenceImageUrl,
         parentJobId: parentId,
         parentJobIds: parentId ? [parentId] : [],
+      });
+      setCurrentGenerating({
+        jobId: pendingId,
+        status: "generating",
+        progress: 8,
+        estimatedTotalSeconds: 120,
+        startTime: generationStartedAt,
       });
       promptHistory.record(description, "water");
       clearComposerDraft();
@@ -1962,7 +1974,7 @@ function WorkspacePage() {
           status: "generating",
           progress: 20,
           estimatedTotalSeconds: 120,
-          startTime: Date.now(),
+          startTime: generationStartedAt,
         });
         loadJobInfo({
           id: result.job_id,
@@ -1999,6 +2011,7 @@ function WorkspacePage() {
               if (pollGen !== waterPollGenRef.current) return;
 
               if (job.status === "DONE" && job.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(job.factoryCode);
                 setCodeSculptPass(job.sculptPass || "done");
                 if (job.scene) setWaterScene(job.scene);
@@ -2205,6 +2218,7 @@ function WorkspacePage() {
         has_local_file: !!localFile,
         has_preview_id: !!previewId,
       });
+      const generationStartedAt = Date.now();
       const tokenGetter = async () => await getToken();
       setLeftLibraryTab("3d"); // Switch to 3D tab so result will show in 3D section below search
       markMobileGenerationStart();
@@ -2220,6 +2234,13 @@ function WorkspacePage() {
         prompt: targetPrompt,
         parentJobId: previewId ?? null,
         parentJobIds: previewId ? [previewId] : [],
+      });
+      setCurrentGenerating({
+        jobId: pendingId,
+        status: "generating",
+        progress: 0,
+        estimatedTotalSeconds: 840,
+        startTime: generationStartedAt,
       });
       loadJobInfo({
         id: pendingId,
@@ -2249,6 +2270,7 @@ function WorkspacePage() {
         }
         await waitMobileGpuOfflineMinimum(msg, userFacing);
         mobileGenStartedAtRef.current = null;
+        setCurrentGenerating(null);
         setCenterView({ type: "error", message: userFacing, refunded: true });
         removePendingJob(pendingId);
         setLoading(false);
@@ -2280,7 +2302,7 @@ function WorkspacePage() {
           status: "generating",
           progress: 0,
           estimatedTotalSeconds: estimatedTotal,
-          startTime: Date.now(),
+          startTime: generationStartedAt,
           queueInfo: queueInfo || undefined,
         });
         loadJobInfo({
@@ -2314,6 +2336,7 @@ function WorkspacePage() {
         const userFacing = toUserFacingGpuError(msg);
         await waitMobileGpuOfflineMinimum(msg, userFacing);
         mobileGenStartedAtRef.current = null;
+        setCurrentGenerating(null);
         setCenterView({ type: "error", message: userFacing, refunded: !isPaywallError(msg) });
         removePendingJob(pendingId);
         refreshCredits();
@@ -3238,6 +3261,7 @@ function WorkspacePage() {
               const cs = await fetchWaterJob(job.id, tokenGetter);
               if (pollGen !== waterPollGenRef.current) return;
               if (cs.status === "DONE" && cs.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(cs.factoryCode);
                 setCodeSculptPass(cs.sculptPass);
                 setCurrentGenerating(null);
@@ -3383,6 +3407,13 @@ function WorkspacePage() {
 
     if (job.id.startsWith("pending-")) {
       setLeftLibraryTab("3d");
+      setCurrentGenerating({
+        jobId: job.id,
+        status: "generating",
+        progress: 10,
+        estimatedTotalSeconds: 840,
+        startTime: Number.isFinite(Date.parse(job.createdAt)) ? Date.parse(job.createdAt) : Date.now(),
+      });
       setCenterView({
         type: "generating",
         progress: 10,
@@ -3566,6 +3597,46 @@ function WorkspacePage() {
   };
 
   const isGenerating = loading || generatingPreview || (currentGenerating?.status === "generating");
+  const snakeGenerationStart =
+    currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
+  const [snakeVisible, setSnakeVisible] = useState(false);
+  const [snakeCompletion, setSnakeCompletion] = useState(false);
+  const snakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The game follows only the real 3D generation state. A new start time gives
+  // every generation a fresh two-second grace period, while progress updates
+  // for the same job do not restart the timer.
+  useEffect(() => {
+    if (snakeTimerRef.current) {
+      clearTimeout(snakeTimerRef.current);
+      snakeTimerRef.current = null;
+    }
+    setSnakeVisible(false);
+
+    if (currentGenerating?.status !== "generating" || snakeGenerationStart === null) {
+      return;
+    }
+    setSnakeCompletion(false);
+
+    const remaining = Math.max(0, 2_000 - (Date.now() - snakeGenerationStart));
+    if (remaining === 0) {
+      setSnakeVisible(true);
+      return;
+    }
+
+    snakeTimerRef.current = setTimeout(() => {
+      snakeTimerRef.current = null;
+      setSnakeVisible(true);
+    }, remaining);
+
+    return () => {
+      if (snakeTimerRef.current) {
+        clearTimeout(snakeTimerRef.current);
+        snakeTimerRef.current = null;
+      }
+    };
+  }, [currentGenerating?.status, snakeGenerationStart]);
+
   const waterEditParentId = resolveWaterEditParentId();
   const waterEditParentJob =
     (waterEditParentId && library3DAssets.find((j) => j.id === waterEditParentId)) ||
@@ -4334,6 +4405,21 @@ function WorkspacePage() {
               </div>
             </div>
           ) : null}
+          {(snakeVisible || snakeCompletion) && !fullView ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute right-5 top-24 z-20 sm:right-32 sm:top-24",
+              )}
+            >
+              <div className="pointer-events-auto">
+                <SnakeCard
+                  userKey={user?.id ?? null}
+                  generationComplete={snakeCompletion}
+                  onViewGeneratedModel={() => setSnakeCompletion(false)}
+                />
+              </div>
+            </div>
+          ) : null}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {(centerView.type === "3d" || centerView.type === "code") && !accountFloat && (
             <ViewerToolbar
@@ -4370,7 +4456,11 @@ function WorkspacePage() {
               progress={generatingProgress}
               water={showWaterPassRail ? { tier: waterQualityTier, pass: codeSculptPass } : null}
               queueInfo={currentGenerating?.status === "generating" ? currentGenerating.queueInfo ?? null : null}
-              onCancel={currentGenerating?.jobId ? () => void handleCancelGeneration() : null}
+              onCancel={
+                currentGenerating?.jobId && !currentGenerating.jobId.startsWith("pending-")
+                  ? () => void handleCancelGeneration()
+                  : null
+              }
             />
           )}
 
