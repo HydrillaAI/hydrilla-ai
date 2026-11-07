@@ -5,6 +5,7 @@ import { JobStatus } from "../types.js";
 import { normalizeGlbUrl, normalizePreviewUrl } from "../utils/s3Urls.js";
 import { refundCredit } from "./credits.js";
 import { onGenerationCompleted, onGenerationFailed } from "./notifications.js";
+import { recoverOrphanMeshIfPresent } from "./orphanMeshRecovery.js";
 
 /** Starts the "generation failed" email in Customer.io. Credits were refunded just before this. */
 function reportFailed(dbJob: { userId: string | null; generateType?: unknown; createdAt?: unknown }, jobId: string, refunded: number) {
@@ -30,6 +31,52 @@ const CIRCUIT_BREAKER_RESET_TIME = 60000; // Try again after 60 seconds
 const CIRCUIT_BREAKER_SUCCESS_RESET = 1; // Close circuit after 1 successful call
 const MAX_JOB_AGE_MS = 20 * 60 * 1000; // 20 minutes timeout cap (allows 15+ min high-poly generations)
 const HARD_ABORT_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes absolute hard cap even if gateway still reports pending
+
+/**
+ * Before timing out a stuck job, recover it if mesh.glb already landed on S3.
+ * Prevents false GENERATION_TIMEOUT when GPU finished but status sync never ran.
+ */
+async function failTimedOutJobOrRecover(
+  dbJob: {
+    id: string;
+    userId: string | null;
+    status: string;
+    resultGlbUrl?: string | null;
+    previewImageUrl?: string | null;
+    generateType?: unknown;
+    prompt?: string | null;
+    createdAt?: string | Date;
+    creditsUsed?: number | null;
+  },
+  context: string
+): Promise<"recovered" | "failed"> {
+  const recoveredUrl = await recoverOrphanMeshIfPresent(dbJob);
+  if (recoveredUrl) {
+    logger.info(
+      { jobId: dbJob.id, context, glbUrl: recoveredUrl },
+      "Skipped timeout refund; orphan mesh recovered"
+    );
+    return "recovered";
+  }
+
+  const refundAmount = Boolean(dbJob.userId) && (dbJob.creditsUsed ?? 0) > 0 ? dbJob.creditsUsed! : 0;
+  const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
+  await updateJobStatus(dbJob.id, {
+    status: "FAIL",
+    errorCode: "GENERATION_TIMEOUT",
+    errorMessage: timeoutMessage,
+    creditsUsed: refundAmount > 0 ? 0 : undefined,
+  });
+  if (refundAmount > 0 && dbJob.userId) {
+    await refundCredit(dbJob.userId, refundAmount);
+    logger.info(
+      { jobId: dbJob.id, userId: dbJob.userId, amount: refundAmount, context },
+      "Refunded credits for timed-out job"
+    );
+  }
+  reportFailed(dbJob, dbJob.id, refundAmount);
+  return "failed";
+}
 
 /**
  * Check if API is available (circuit breaker closed)
@@ -138,22 +185,10 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
 
     const jobAgeMs = Date.now() - new Date(dbJob.createdAt).getTime();
     if ((dbJob.status === "WAIT" || dbJob.status === "RUN") && jobAgeMs >= HARD_ABORT_MAX_AGE_MS) {
-      const refundAmount = Boolean(dbJob.userId) && (dbJob.creditsUsed ?? 0) > 0 ? dbJob.creditsUsed : 0;
-      const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
-      await updateJobStatus(jobId, {
-        status: "FAIL",
-        errorCode: "GENERATION_TIMEOUT",
-        errorMessage: timeoutMessage,
-        creditsUsed: refundAmount > 0 ? 0 : undefined,
-      });
-      if (refundAmount > 0 && dbJob.userId) {
-        await refundCredit(dbJob.userId, refundAmount);
-        logger.info(
-          { jobId, userId: dbJob.userId, amount: refundAmount, jobAgeMs },
-          "Refunded credits for job exceeding hard abort limit"
-        );
-      }
-      reportFailed(dbJob, jobId, refundAmount);
+      await failTimedOutJobOrRecover(
+        { ...dbJob, id: jobId },
+        "hard_abort"
+      );
       return true;
     }
     
@@ -193,8 +228,14 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
           }
           // Job is WAIT/RUN but not on API (e.g. GPU server restarted). Mark failed only after 90s or MAX_JOB_AGE_MS.
           if ((dbJob.status === "WAIT" || dbJob.status === "RUN") && (jobAgeMs >= 90_000 || jobAgeMs >= MAX_JOB_AGE_MS)) {
+            const recoveredUrl = await recoverOrphanMeshIfPresent({ ...dbJob, id: jobId });
+            if (recoveredUrl) {
+              logger.info({ jobId, glbUrl: recoveredUrl }, "Recovered orphan mesh for GPU-missing job");
+              return true;
+            }
             const shouldRefund = Boolean(dbJob.userId) && (dbJob.creditsUsed ?? 0) > 0;
-            const restartErrorMessage = "Job not found on GPU (server may have restarted). Your credits have been automatically refunded.";
+            const restartErrorMessage =
+              "Job not found on GPU (server may have restarted). Your credits have been automatically refunded.";
             await updateJobStatus(jobId, {
               status: "FAIL",
               errorCode: null,
@@ -202,13 +243,13 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
               creditsUsed: shouldRefund ? 0 : undefined,
             });
             if (shouldRefund && dbJob.userId) {
-              await refundCredit(dbJob.userId, dbJob.creditsUsed);
+              await refundCredit(dbJob.userId, dbJob.creditsUsed!);
               logger.info(
                 { jobId, userId: dbJob.userId, amount: dbJob.creditsUsed },
                 "Refunded credits for lost job after GPU restart"
               );
             }
-            reportFailed(dbJob, jobId, shouldRefund ? dbJob.creditsUsed : 0);
+            reportFailed(dbJob, jobId, shouldRefund ? dbJob.creditsUsed! : 0);
             logger.info({ jobId }, "Job not on API, marked failed to stop repeated sync");
           }
           return true; // Handled; don't count as sync failure
@@ -219,18 +260,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
           logger.debug({ jobId, status: response.status }, "External API temporarily unavailable");
           // If gateway is unavailable and job has exceeded MAX_JOB_AGE_MS, timeout and refund
           if ((dbJob.status === "WAIT" || dbJob.status === "RUN") && jobAgeMs >= MAX_JOB_AGE_MS) {
-            const refundAmount = Boolean(dbJob.userId) && (dbJob.creditsUsed ?? 0) > 0 ? dbJob.creditsUsed : 0;
-            const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
-            await updateJobStatus(jobId, {
-              status: "FAIL",
-              errorCode: "GENERATION_TIMEOUT",
-              errorMessage: timeoutMessage,
-              creditsUsed: refundAmount > 0 ? 0 : undefined,
-            });
-            if (refundAmount > 0 && dbJob.userId) {
-              await refundCredit(dbJob.userId, refundAmount);
-            }
-            reportFailed(dbJob, jobId, refundAmount);
+            await failTimedOutJobOrRecover({ ...dbJob, id: jobId }, "gateway_unavailable");
           }
           return false;
         }
@@ -248,18 +278,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
         }
         // If timed out and job is past MAX_JOB_AGE_MS, fail and refund
         if ((dbJob.status === "WAIT" || dbJob.status === "RUN") && jobAgeMs >= MAX_JOB_AGE_MS) {
-          const refundAmount = Boolean(dbJob.userId) && (dbJob.creditsUsed ?? 0) > 0 ? dbJob.creditsUsed : 0;
-          const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
-          await updateJobStatus(jobId, {
-            status: "FAIL",
-            errorCode: "GENERATION_TIMEOUT",
-            errorMessage: timeoutMessage,
-            creditsUsed: refundAmount > 0 ? 0 : undefined,
-          });
-          if (refundAmount > 0 && dbJob.userId) {
-            await refundCredit(dbJob.userId, refundAmount);
-          }
-          reportFailed(dbJob, jobId, refundAmount);
+          await failTimedOutJobOrRecover({ ...dbJob, id: jobId }, "status_fetch_abort");
         }
         return false;
       }
@@ -267,18 +286,7 @@ export async function syncJobFromApi(jobId: string): Promise<boolean> {
       if (fetchErr.message?.includes("fetch") || fetchErr.message?.includes("network") || fetchErr.message?.includes("ECONNREFUSED")) {
         recordApiFailure();
         if ((dbJob.status === "WAIT" || dbJob.status === "RUN") && jobAgeMs >= MAX_JOB_AGE_MS) {
-          const refundAmount = Boolean(dbJob.userId) && (dbJob.creditsUsed ?? 0) > 0 ? dbJob.creditsUsed : 0;
-          const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
-          await updateJobStatus(jobId, {
-            status: "FAIL",
-            errorCode: "GENERATION_TIMEOUT",
-            errorMessage: timeoutMessage,
-            creditsUsed: refundAmount > 0 ? 0 : undefined,
-          });
-          if (refundAmount > 0 && dbJob.userId) {
-            await refundCredit(dbJob.userId, refundAmount);
-          }
-          reportFailed(dbJob, jobId, refundAmount);
+          await failTimedOutJobOrRecover({ ...dbJob, id: jobId }, "status_fetch_network");
         }
       }
       throw fetchErr;
@@ -403,21 +411,7 @@ export async function syncAllJobs(): Promise<{ synced: number; failed: number }>
         jobs.map(async (job) => {
           const age = now - new Date(job.createdAt).getTime();
           if (age >= MAX_JOB_AGE_MS && (job.status === "WAIT" || job.status === "RUN")) {
-            const refundAmount = Boolean(job.userId) && (job.creditsUsed ?? 0) > 0 ? job.creditsUsed : 0;
-            const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
-            await updateJobStatus(job.id, {
-              status: "FAIL",
-              errorCode: "GENERATION_TIMEOUT",
-              errorMessage: timeoutMessage,
-              creditsUsed: refundAmount > 0 ? 0 : undefined,
-            });
-            if (refundAmount > 0 && job.userId) {
-              await refundCredit(job.userId, refundAmount);
-              logger.info(
-                { jobId: job.id, userId: job.userId, amount: refundAmount },
-                "Refunded credits for timed-out job while API offline"
-              );
-            }
+            await failTimedOutJobOrRecover(job, "circuit_breaker_offline");
           }
         })
       );

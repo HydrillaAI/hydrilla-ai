@@ -32,6 +32,7 @@ import { recordDeveloperApiKeyUsage } from "../../repository/developerApiKeys.js
 import { recordImageUsage, type ImageUsageRecord } from "../../repository/imageUsage.js";
 import { uploadBufferToS3 } from "../../lib/s3Upload.js";
 import { normalizeGlbUrl } from "../../utils/s3Urls.js";
+import { recoverOrphanMeshIfPresent } from "../../services/orphanMeshRecovery.js";
 import { logger } from "../../logger.js";
 
 export const developerV1Router = Router();
@@ -530,23 +531,32 @@ async function handleGetTask(req: Request, res: Response) {
 
   // 20-minute timeout check:
   // If task has been running/waiting for >= 20 minutes, expire it and refund automatically.
+  // Recover first when mesh.glb already exists on S3 (status sync miss).
   const ageMs = Date.now() - new Date(job.createdAt).getTime();
   const isTimedOut = (job.status === "WAIT" || job.status === "RUN") && ageMs >= 20 * 60 * 1000;
   if (isTimedOut) {
-    const refundAmount = job.creditsUsed > 0 ? job.creditsUsed : CREDITS_3D;
-    const timeoutMsg = "Generation timed out. Credits have been automatically refunded.";
-    await updateJobStatus(taskId, {
-      status: "FAIL",
-      errorCode: "GENERATION_TIMEOUT",
-      errorMessage: timeoutMsg,
-      creditsUsed: 0,
-    });
-    if (refundAmount > 0) {
-      await refundCredit(userId, refundAmount);
+    const recoveredUrl = await recoverOrphanMeshIfPresent(job);
+    if (recoveredUrl) {
+      job.status = "DONE";
+      job.resultGlbUrl = recoveredUrl;
+      job.errorCode = null;
+      job.errorMessage = null;
+    } else {
+      const refundAmount = job.creditsUsed > 0 ? job.creditsUsed : CREDITS_3D;
+      const timeoutMsg = "Generation timed out. Credits have been automatically refunded.";
+      await updateJobStatus(taskId, {
+        status: "FAIL",
+        errorCode: "GENERATION_TIMEOUT",
+        errorMessage: timeoutMsg,
+        creditsUsed: 0,
+      });
+      if (refundAmount > 0) {
+        await refundCredit(userId, refundAmount);
+      }
+      job.status = "FAIL";
+      job.errorMessage = timeoutMsg;
+      job.creditsUsed = 0;
     }
-    job.status = "FAIL";
-    job.errorMessage = timeoutMsg;
-    job.creditsUsed = 0;
   }
 
   // If still in progress, check live GPU status
