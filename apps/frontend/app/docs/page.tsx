@@ -135,7 +135,8 @@ export default function DocsPage() {
             <h2 className="pickle-h2">Water Agent</h2>
             <div className="pickle-text">
               <p>
-                Open Water Agent in the Hydrilla app, or through the Hydrilla plugin inside Blender, Unity, Unreal, or Godot. Describe your brief, review the plan, and revise piece by piece until the set is right.{" "}
+                Open Water Agent in the{" "}
+                <Link href="/workspace">Hydrilla workspace</Link>. Describe your brief, review the plan, build through quality passes, preview the Three.js factory, and refine until the asset is right. Water uses your LLM key and spends no Hydrilla credits.{" "}
                 <Link href="/water">What Water Agent does</Link>
               </p>
             </div>
