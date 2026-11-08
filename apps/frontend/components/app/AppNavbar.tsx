@@ -2,6 +2,7 @@
 
 import { Bell, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { ModeToggle } from "@/components/mode-toggle";
 import { UserButtonWithHelp } from "@/components/support/UserButtonWithHelp";
 import { useAppLayout } from "../../context/AppLayoutContext";
 import { requestNotificationPermission } from "@/lib/browserNotifications";
@@ -42,6 +43,7 @@ export function AppNavbar() {
       </div>
 
       <div className="flex items-center gap-1">
+        <ModeToggle className="h-10 w-10 sm:h-9 sm:w-9 rounded-full border-transparent bg-transparent shadow-none text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" />
         <button
           type="button"
           onClick={() => {

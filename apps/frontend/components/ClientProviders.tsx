@@ -16,8 +16,7 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     <ThemeProvider
       attribute="class"
       defaultTheme="light"
-      forcedTheme="light"
-      enableSystem={false}
+      enableSystem
       disableTransitionOnChange
     >
       <TopLoadingBar />

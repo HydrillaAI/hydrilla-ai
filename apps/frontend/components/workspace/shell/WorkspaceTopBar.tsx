@@ -4,6 +4,7 @@ import { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, Coins, FolderOpen, HelpCircle, PanelLeft, Plus, User } from "lucide-react";
+import { ModeToggle } from "@/components/mode-toggle";
 import { UserButtonWithHelp } from "@/components/support/UserButtonWithHelp";
 import { useSupport } from "@/context/SupportContext";
 import {
@@ -145,6 +146,9 @@ export const WorkspaceAccountBar = memo(function WorkspaceAccountBar({ creditsRe
       >
         <HelpCircle className="h-4 w-4" strokeWidth={1.85} />
       </button>
+      <div className="hidden sm:block">
+        <ModeToggle />
+      </div>
       <div className="flex h-8 w-8 items-center justify-center [&_.cl-userButtonBox]:!flex [&_.cl-userButtonTrigger]:!rounded-full">
         {clientMounted ? (
           <UserButtonWithHelp afterSignOutUrl="/" />

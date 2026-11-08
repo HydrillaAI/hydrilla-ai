@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
+import { ModeToggle } from "@/components/mode-toggle";
 import { ProductSwitch } from "@/components/app/ProductSwitch";
 import { useCommunity } from "./CommunityProvider";
 import { UserAvatar } from "./UserAvatar";
 
 /**
- * Slim top bar for community pages (matches the light-only product chrome).
+ * Slim, theme-aware top bar for community pages (the marketing navbar is light-only).
  * Mirrors the Studio header (AppNavbar): same height and side padding, and the Studio/Community switch sits in the
  * same spot, directly left of the avatar, so it doesn't jump when you move between the two.
  * Logo goes to the Studio when signed in, the homepage otherwise.
@@ -53,6 +54,7 @@ export function CommunityHeader() {
             <Plus className="h-4 w-4" strokeWidth={2.4} />
             <span className="hidden sm:inline">New post</span>
           </button>
+          <ModeToggle className="hidden h-9 w-9 rounded-full border-transparent bg-transparent text-neutral-500 shadow-none hover:bg-neutral-100 hover:text-neutral-900 sm:inline-flex" />
           <ProductSwitch active="community" className="mx-1.5 sm:mx-2" />
           {isSignedIn ? (
             <div className="flex h-9 w-9 shrink-0 items-center justify-center">
