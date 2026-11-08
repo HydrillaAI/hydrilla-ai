@@ -28,6 +28,7 @@ import { InspectorPanel } from "../../components/workspace/inspector/InspectorPa
 import { LibraryPanel } from "../../components/workspace/library/LibraryPanel";
 import { LibraryRail } from "../../components/workspace/library/LibraryRail";
 import { LibraryOptionsBar } from "../../components/workspace/library/LibraryOptionsBar";
+import { SnakeCard } from "../../components/workspace/SnakeGame";
 import { LIBRARY_BAR } from "../../lib/library-bar";
 import { COMPOSER_SIZE } from "../../lib/composer-size";
 import { useSlotStatus } from "../../hooks/useSlotStatus";
@@ -1613,6 +1614,7 @@ function WorkspacePage() {
         }
 
         if (status.status === "completed") {
+          setSnakeCompletion(true);
           // Belt-and-suspenders: Water DONE must never open the GLB viewer (404).
           if (isWaterJobId(currentGenerating.jobId)) {
             return;
@@ -2035,6 +2037,7 @@ function WorkspacePage() {
               if (pollGen !== waterPollGenRef.current) return;
 
               if (job.status === "DONE" && job.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(job.factoryCode);
                 setCodeSculptPass(job.sculptPass || "done");
                 if (job.scene) setWaterScene(job.scene);
@@ -3297,6 +3300,7 @@ function WorkspacePage() {
               const cs = await fetchWaterJob(job.id, tokenGetter);
               if (pollGen !== waterPollGenRef.current) return;
               if (cs.status === "DONE" && cs.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(cs.factoryCode);
                 setCodeSculptPass(cs.sculptPass);
                 setCurrentGenerating(null);
@@ -3625,6 +3629,35 @@ function WorkspacePage() {
   };
 
   const isGenerating = loading || generatingPreview || (currentGenerating?.status === "generating");
+  const snakeGenerationStart = currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
+  const [snakeVisible, setSnakeVisible] = useState(false);
+  const [snakeCompletion, setSnakeCompletion] = useState(false);
+  const snakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (snakeTimerRef.current) {
+      clearTimeout(snakeTimerRef.current);
+      snakeTimerRef.current = null;
+    }
+    setSnakeVisible(false);
+    if (currentGenerating?.status !== "generating" || snakeGenerationStart === null) return;
+    setSnakeCompletion(false);
+    const remaining = Math.max(0, 2_000 - (Date.now() - snakeGenerationStart));
+    if (remaining === 0) {
+      setSnakeVisible(true);
+      return;
+    }
+    snakeTimerRef.current = setTimeout(() => {
+      snakeTimerRef.current = null;
+      setSnakeVisible(true);
+    }, remaining);
+    return () => {
+      if (snakeTimerRef.current) {
+        clearTimeout(snakeTimerRef.current);
+        snakeTimerRef.current = null;
+      }
+    };
+  }, [currentGenerating?.status, snakeGenerationStart]);
   const waterEditParentId = resolveWaterEditParentId();
   const waterEditParentJob =
     (waterEditParentId && library3DAssets.find((j) => j.id === waterEditParentId)) ||
@@ -4399,6 +4432,17 @@ function WorkspacePage() {
             </div>
           ) : null}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {(snakeVisible || snakeCompletion) && !fullView ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center sm:inset-x-auto sm:bottom-auto sm:right-3 sm:top-[clamp(5rem,calc(50%_-_20rem),11rem)] sm:block">
+              <div className="pointer-events-auto">
+                <SnakeCard
+                  userKey={userId ?? null}
+                  generationComplete={snakeCompletion}
+                  onViewGeneratedModel={() => setSnakeCompletion(false)}
+                />
+              </div>
+            </div>
+          ) : null}
           {(centerView.type === "3d" || centerView.type === "code") && !accountFloat && (
             <ViewerToolbar
               kind={centerView.type}
