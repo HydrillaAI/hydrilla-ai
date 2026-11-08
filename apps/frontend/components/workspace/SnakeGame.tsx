@@ -6,14 +6,12 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
-import { Play, RotateCcw } from "lucide-react";
+import { Gamepad2, Pause, Play, RotateCcw, Sparkles, X } from "lucide-react";
+import { ThinkingOrb } from "thinking-orbs";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-
-type SnakeProps = {
-  readonly userKey?: string | null;
-  readonly className?: string;
-};
 
 type Point = {
   readonly x: number;
@@ -22,19 +20,62 @@ type Point = {
 
 type Direction = "up" | "down" | "left" | "right";
 
+type Phase = "idle" | "running" | "paused" | "over" | "won";
+
 type Palette = {
-  readonly canvas: string;
   readonly boardBg: string;
   readonly grid: string;
   readonly snakeHead: string;
-  readonly snakeBody: string;
   readonly snakeNeck: string;
+  readonly snakeBody: string;
   readonly food: string;
   readonly foodGlow: string;
-  readonly ink: string;
 };
 
+/** Per-round state. Mutated by the game loop so a tick never re-renders React. */
+type Game = {
+  snake: Point[];
+  food: Point | null;
+  direction: Direction;
+  queue: Direction[];
+  elapsedMs: number;
+  score: number;
+};
+
+/** Screens that get the full-screen game instead of the floating card. */
+export const SNAKE_PHONE_QUERY = "(max-width: 767px), (max-height: 32rem)";
+
+const GRID_SIZE = 16;
+const SLOWEST_STEP_MS = 180;
+const FASTEST_STEP_MS = 85;
+const STEP_MS_SAVED_PER_POINT = 2.2;
+/** Longest frame the loop will count, so a stalled phone never jumps the snake. */
+const MAX_FRAME_MS = 80;
+const MAX_QUEUED_TURNS = 2;
+const SWIPE_THRESHOLD_PX = 18;
+/** Phones report 3x, but the extra canvas memory buys nothing at this cell size. */
+const MAX_PIXEL_RATIO = 2;
 const HIGH_SCORE_PREFIX = "hydrilla:snake:highscore:";
+
+const LIGHT_PALETTE: Palette = {
+  boardBg: "#f4f7fb",
+  grid: "rgba(180, 202, 228, 0.4)",
+  snakeHead: "#0a0a0b",
+  snakeNeck: "#3b82f6",
+  snakeBody: "#7eb1e3",
+  food: "#3b82f6",
+  foodGlow: "rgba(59, 130, 246, 0.28)",
+};
+
+const DARK_PALETTE: Palette = {
+  boardBg: "#0c0c0e",
+  grid: "rgba(255, 255, 255, 0.06)",
+  snakeHead: "#ffffff",
+  snakeNeck: "#60a5fa",
+  snakeBody: "#7eb1e3",
+  food: "#60a5fa",
+  foodGlow: "rgba(96, 165, 250, 0.35)",
+};
 
 const VECTORS: Record<Direction, Point> = {
   up: { x: 0, y: -1 },
@@ -43,616 +84,540 @@ const VECTORS: Record<Direction, Point> = {
   right: { x: 1, y: 0 },
 };
 
-const ARROW_KEY_DIRECTIONS: Record<string, Direction> = {
+const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up",
   ArrowDown: "down",
   ArrowLeft: "left",
   ArrowRight: "right",
+  w: "up",
+  W: "up",
+  s: "down",
+  S: "down",
+  a: "left",
+  A: "left",
+  d: "right",
+  D: "right",
 };
 
 const scoreKey = (userKey?: string | null): string => {
   return `${HIGH_SCORE_PREFIX}${userKey || "anonymous"}`;
 };
 
+const readPalette = (): Palette => {
+  return document.documentElement.classList.contains("dark") ? DARK_PALETTE : LIGHT_PALETTE;
+};
+
 const isOpposite = (a: Direction, b: Direction): boolean => {
-  if (a === "up" && b === "down") {
-    return true;
-  }
-  if (a === "down" && b === "up") {
-    return true;
-  }
-  if (a === "left" && b === "right") {
-    return true;
-  }
-  if (a === "right" && b === "left") {
-    return true;
-  }
-  return false;
+  return VECTORS[a].x === -VECTORS[b].x && VECTORS[a].y === -VECTORS[b].y;
 };
 
-const getThemePalette = (): Palette => {
-  if (typeof document === "undefined") {
-    return {
-      canvas: "#ffffff",
-      boardBg: "#f4f7fb",
-      grid: "rgba(180, 202, 228, 0.4)",
-      snakeHead: "#0a0a0b",
-      snakeNeck: "#3b82f6",
-      snakeBody: "#7eb1e3",
-      food: "#ef4444",
-      foodGlow: "rgba(239, 68, 68, 0.32)",
-      ink: "#0a0a0b",
-    };
-  }
-
-  const isDark = document.documentElement.classList.contains("dark");
-  if (isDark) {
-    return {
-      canvas: "#141417",
-      boardBg: "#0c0c0e",
-      grid: "rgba(255, 255, 255, 0.06)",
-      snakeHead: "#ffffff",
-      snakeNeck: "#60a5fa",
-      snakeBody: "#7eb1e3",
-      food: "#ef4444",
-      foodGlow: "rgba(239, 68, 68, 0.38)",
-      ink: "#fafafa",
-    };
-  }
-
-  return {
-    canvas: "#ffffff",
-    boardBg: "#f4f7fb",
-    grid: "rgba(180, 202, 228, 0.4)",
-    snakeHead: "#0a0a0b",
-    snakeNeck: "#3b82f6",
-    snakeBody: "#7eb1e3",
-    food: "#ef4444",
-    foodGlow: "rgba(239, 68, 68, 0.32)",
-    ink: "#0a0a0b",
-  };
+const isSamePoint = (a: Point, b: Point | null): boolean => {
+  return b !== null && a.x === b.x && a.y === b.y;
 };
 
-const makeInitialSnake = (gridSize: number): Point[] => {
-  const center = Math.floor(gridSize / 2);
-  return [
+const placeFood = (snake: readonly Point[]): Point | null => {
+  const occupied = new Set(snake.map((part) => part.y * GRID_SIZE + part.x));
+  const free = Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => index).filter(
+    (index) => !occupied.has(index)
+  );
+  const picked = free[Math.floor(Math.random() * free.length)];
+  if (picked === undefined) {
+    return null;
+  }
+  return { x: picked % GRID_SIZE, y: Math.floor(picked / GRID_SIZE) };
+};
+
+const createGame = (): Game => {
+  const center = Math.floor(GRID_SIZE / 2);
+  const snake = [
     { x: center, y: center },
     { x: center - 1, y: center },
     { x: center - 2, y: center },
   ];
+  return { snake, food: placeFood(snake), direction: "right", queue: [], elapsedMs: 0, score: 0 };
 };
 
-const generateFood = (gridSize: number, snakeBody: readonly Point[]): Point => {
-  const availableSlots: Point[] = [];
-  Array.from({ length: gridSize }).forEach((_, y) => {
-    Array.from({ length: gridSize }).forEach((_, x) => {
-      const isOccupied = snakeBody.some((segment) => {
-        return segment.x === x && segment.y === y;
-      });
-      if (!isOccupied) {
-        availableSlots.push({ x, y });
-      }
-    });
-  });
-
-  if (availableSlots.length === 0) {
-    return { x: 0, y: 0 };
+/** Moves the snake one cell. Edges wrap around, so only the snake's own body ends a round. */
+const stepGame = (game: Game): Extract<Phase, "running" | "over" | "won"> => {
+  const [nextDirection, ...remainingTurns] = game.queue;
+  if (nextDirection) {
+    game.direction = nextDirection;
+    game.queue = remainingTurns;
   }
 
-  const randomIndex = Math.floor(Math.random() * availableSlots.length);
-  return availableSlots[randomIndex];
-};
-
-const getEyeOffsets = (
-  direction: Direction,
-  cell: number
-): { eye1: Point; eye2: Point } => {
-  const lateral = cell * 0.22;
-  const center = cell * 0.5;
-  const forward = cell * 0.24;
-
-  if (direction === "right") {
-    return {
-      eye1: { x: center + forward, y: center - lateral },
-      eye2: { x: center + forward, y: center + lateral },
-    };
-  }
-  if (direction === "left") {
-    return {
-      eye1: { x: center - forward, y: center - lateral },
-      eye2: { x: center - forward, y: center + lateral },
-    };
-  }
-  if (direction === "up") {
-    return {
-      eye1: { x: center - lateral, y: center - forward },
-      eye2: { x: center + lateral, y: center - forward },
-    };
+  const head = game.snake[0];
+  if (!head) {
+    return "over";
   }
 
-  return {
-    eye1: { x: center - lateral, y: center + forward },
-    eye2: { x: center + lateral, y: center + forward },
+  const vector = VECTORS[game.direction];
+  const newHead: Point = {
+    x: (head.x + vector.x + GRID_SIZE) % GRID_SIZE,
+    y: (head.y + vector.y + GRID_SIZE) % GRID_SIZE,
   };
+  const ateFood = isSamePoint(newHead, game.food);
+  // The tail moves out of its cell this step unless the snake is growing.
+  const body = ateFood ? game.snake : game.snake.slice(0, -1);
+  if (body.some((part) => isSamePoint(newHead, part))) {
+    return "over";
+  }
+
+  game.snake = [newHead, ...body];
+  if (!ateFood) {
+    return "running";
+  }
+
+  game.score += 1;
+  game.food = placeFood(game.snake);
+  return game.food === null ? "won" : "running";
 };
 
-function renderBoard(
+const fillCircle = (
   context: CanvasRenderingContext2D,
-  width: number,
-  gridSize: number,
-  snake: readonly Point[],
-  food: Point,
-  direction: Direction,
-  colors: Palette
-): void {
-  const cell = width / gridSize;
-  context.clearRect(0, 0, width, width);
+  x: number,
+  y: number,
+  radius: number,
+  color: string
+): void => {
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fill();
+};
 
-  // Background arena
+const drawGrid = (context: CanvasRenderingContext2D, size: number, colors: Palette): void => {
+  const cell = size / GRID_SIZE;
   context.fillStyle = colors.boardBg;
-  context.fillRect(0, 0, width, width);
+  context.fillRect(0, 0, size, size);
 
-  // Soft grid lines
   context.strokeStyle = colors.grid;
   context.lineWidth = 1;
-  Array.from({ length: gridSize - 1 }).forEach((_, index) => {
+  context.beginPath();
+  Array.from({ length: GRID_SIZE - 1 }).forEach((_, index) => {
     const position = Math.round((index + 1) * cell) + 0.5;
-
-    context.beginPath();
     context.moveTo(position, 0);
-    context.lineTo(position, width);
-    context.stroke();
-
-    context.beginPath();
+    context.lineTo(position, size);
     context.moveTo(0, position);
-    context.lineTo(width, position);
-    context.stroke();
+    context.lineTo(size, position);
   });
+  context.stroke();
+};
 
-  // Food: bright, vivid ruby red dot with luminous halo and reflection
-  const foodX = food.x * cell + cell / 2;
-  const foodY = food.y * cell + cell / 2;
-  const foodRadius = Math.max(3.8, cell * 0.32);
+const drawFood = (
+  context: CanvasRenderingContext2D,
+  food: Point,
+  cell: number,
+  colors: Palette
+): void => {
+  const x = food.x * cell + cell / 2;
+  const y = food.y * cell + cell / 2;
+  const radius = Math.max(3.8, cell * 0.32);
+  fillCircle(context, x, y, radius + 4, colors.foodGlow);
+  fillCircle(context, x, y, radius, colors.food);
+  fillCircle(context, x - radius * 0.28, y - radius * 0.28, radius * 0.28, "rgba(255, 255, 255, 0.75)");
+};
 
-  context.save();
-  // Outer soft pulse glow
-  context.fillStyle = colors.foodGlow;
-  context.beginPath();
-  context.arc(foodX, foodY, foodRadius + 4.5, 0, Math.PI * 2);
-  context.fill();
+const drawEyes = (
+  context: CanvasRenderingContext2D,
+  head: Point,
+  direction: Direction,
+  cell: number
+): void => {
+  const vector = VECTORS[direction];
+  const centerX = (head.x + 0.5) * cell + vector.x * cell * 0.24;
+  const centerY = (head.y + 0.5) * cell + vector.y * cell * 0.24;
+  const lateral = cell * 0.22;
+  const eyeRadius = Math.max(2.1, cell * 0.13);
+  const pupilRadius = Math.max(1.1, eyeRadius * 0.55);
 
-  // Core red dot
-  context.fillStyle = colors.food;
-  context.beginPath();
-  context.arc(foodX, foodY, foodRadius, 0, Math.PI * 2);
-  context.fill();
+  [-1, 1].forEach((side) => {
+    const x = centerX + vector.y * lateral * side;
+    const y = centerY + vector.x * lateral * side;
+    fillCircle(context, x, y, eyeRadius, "#ffffff");
+    fillCircle(context, x, y, pupilRadius, "#002664");
+  });
+};
 
-  // Cute little green leaf sprout on the food
-  context.fillStyle = "#22c55e";
-  context.beginPath();
-  context.ellipse(
-    foodX + foodRadius * 0.35,
-    foodY - foodRadius * 0.82,
-    foodRadius * 0.38,
-    foodRadius * 0.22,
-    Math.PI / 4,
-    0,
-    Math.PI * 2
-  );
-  context.fill();
+const drawSnake = (
+  context: CanvasRenderingContext2D,
+  game: Game,
+  cell: number,
+  colors: Palette
+): void => {
+  const padding = Math.max(1.5, cell * 0.1);
+  const partSize = Math.max(1, cell - padding * 2);
 
-  // Specular gleam highlight
-  context.fillStyle = "rgba(255, 255, 255, 0.85)";
-  context.beginPath();
-  context.arc(
-    foodX - foodRadius * 0.3,
-    foodY - foodRadius * 0.3,
-    foodRadius * 0.32,
-    0,
-    Math.PI * 2
-  );
-  context.fill();
-  context.restore();
-
-  // Snake body and head
-  snake.forEach((part, index) => {
-    const isHead = index === 0;
-    const isNeck = index === 1;
-    const padding = Math.max(1.5, cell * 0.1);
-    const partX = part.x * cell + padding;
-    const partY = part.y * cell + padding;
-    const partSize = Math.max(1, cell - padding * 2);
-    const cornerRadius = isHead
-      ? Math.max(4, cell * 0.38)
-      : Math.max(2.5, cell * 0.26);
-
-    const fillColor = isHead
-      ? colors.snakeHead
-      : isNeck
-        ? colors.snakeNeck
-        : colors.snakeBody;
-
-    context.fillStyle = fillColor;
+  game.snake.forEach((part, index) => {
+    const partColors = [colors.snakeHead, colors.snakeNeck];
+    context.fillStyle = partColors[index] ?? colors.snakeBody;
     context.beginPath();
+    // Canvas roundRect is missing before iOS 16.
     if (typeof context.roundRect === "function") {
-      context.roundRect(partX, partY, partSize, partSize, cornerRadius);
+      const radius = index === 0 ? Math.max(4, cell * 0.38) : Math.max(2.5, cell * 0.26);
+      context.roundRect(part.x * cell + padding, part.y * cell + padding, partSize, partSize, radius);
     } else {
-      context.rect(partX, partY, partSize, partSize);
+      context.rect(part.x * cell + padding, part.y * cell + padding, partSize, partSize);
     }
     context.fill();
-
-    // Direction-aware eyes on the head
-    if (isHead) {
-      const offsets = getEyeOffsets(direction, cell);
-      const eyeRadius = Math.max(2.1, cell * 0.13);
-      const pupilRadius = Math.max(1.1, eyeRadius * 0.55);
-      const catchlightRadius = Math.max(0.6, eyeRadius * 0.28);
-
-      context.save();
-      // Eye 1
-      context.fillStyle = "#ffffff";
-      context.beginPath();
-      context.arc(
-        part.x * cell + offsets.eye1.x,
-        part.y * cell + offsets.eye1.y,
-        eyeRadius,
-        0,
-        Math.PI * 2
-      );
-      context.fill();
-
-      context.fillStyle = "#002664";
-      context.beginPath();
-      context.arc(
-        part.x * cell + offsets.eye1.x,
-        part.y * cell + offsets.eye1.y,
-        pupilRadius,
-        0,
-        Math.PI * 2
-      );
-      context.fill();
-
-      context.fillStyle = "#ffffff";
-      context.beginPath();
-      context.arc(
-        part.x * cell + offsets.eye1.x - pupilRadius * 0.35,
-        part.y * cell + offsets.eye1.y - pupilRadius * 0.35,
-        catchlightRadius,
-        0,
-        Math.PI * 2
-      );
-      context.fill();
-
-      // Eye 2
-      context.fillStyle = "#ffffff";
-      context.beginPath();
-      context.arc(
-        part.x * cell + offsets.eye2.x,
-        part.y * cell + offsets.eye2.y,
-        eyeRadius,
-        0,
-        Math.PI * 2
-      );
-      context.fill();
-
-      context.fillStyle = "#002664";
-      context.beginPath();
-      context.arc(
-        part.x * cell + offsets.eye2.x,
-        part.y * cell + offsets.eye2.y,
-        pupilRadius,
-        0,
-        Math.PI * 2
-      );
-      context.fill();
-
-      context.fillStyle = "#ffffff";
-      context.beginPath();
-      context.arc(
-        part.x * cell + offsets.eye2.x - pupilRadius * 0.35,
-        part.y * cell + offsets.eye2.y - pupilRadius * 0.35,
-        catchlightRadius,
-        0,
-        Math.PI * 2
-      );
-      context.fill();
-
-      context.restore();
-    }
   });
+
+  const head = game.snake[0];
+  if (head) {
+    drawEyes(context, head, game.direction, cell);
+  }
+};
+
+const drawBoard = (
+  context: CanvasRenderingContext2D,
+  size: number,
+  game: Game,
+  colors: Palette
+): void => {
+  const cell = size / GRID_SIZE;
+  drawGrid(context, size, colors);
+  if (game.food) {
+    drawFood(context, game.food, cell, colors);
+  }
+  drawSnake(context, game, cell, colors);
+};
+
+function Stat({ label, value }: { readonly label: string; readonly value: number }) {
+  return (
+    <div className="min-w-0 flex-1 rounded-2xl border border-neutral-200/70 bg-[var(--hyd-50)] px-3 py-1.5 dark:border-white/[0.06] dark:bg-white/[0.03]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+        {label}
+      </div>
+      <div className="text-lg font-semibold leading-6 tabular-nums tracking-tight text-neutral-950 dark:text-white">
+        {value}
+      </div>
+    </div>
+  );
 }
 
-export function SnakeCard({ userKey, className }: SnakeProps) {
-  const cardRef = useRef<HTMLElement | null>(null);
+function IconButton({
+  label,
+  onClick,
+  disabled,
+  className,
+  children,
+}: {
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+  readonly className?: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "grid size-11 shrink-0 place-items-center rounded-full border border-neutral-200/80 bg-white text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-neutral-300 dark:hover:bg-white/[0.08]",
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function OverlayButton({
+  onClick,
+  children,
+}: {
+  readonly onClick?: () => void;
+  readonly children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-neutral-950 px-6 text-sm font-medium tracking-tight text-white transition hover:bg-neutral-900 active:scale-[0.98] dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100"
+    >
+      {children}
+    </button>
+  );
+}
+
+function BoardOverlay({
+  title,
+  detail,
+  passThrough,
+  children,
+}: {
+  readonly title: string;
+  readonly detail?: ReactNode;
+  readonly passThrough?: boolean;
+  readonly children?: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "absolute inset-0 flex flex-col items-center justify-center bg-white/85 p-4 text-center motion-safe:animate-[studioFade_200ms_ease-out] dark:bg-[#141417]/85",
+        passThrough && "pointer-events-none"
+      )}
+    >
+      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
+        {title}
+      </span>
+      {detail ? (
+        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{detail}</p>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+/** Touch and keyboard wording, chosen in CSS so it is right on the first paint. */
+function InputHint({ touch, keyboard }: { readonly touch: string; readonly keyboard: string }) {
+  return (
+    <>
+      <span className="hidden pointer-coarse:inline">{touch}</span>
+      <span className="pointer-coarse:hidden">{keyboard}</span>
+    </>
+  );
+}
+
+/** Sits above the composer on phones after the full-screen game is minimized. */
+export function SnakeResumePill({ onClick }: { readonly onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="studio-float pointer-events-auto mx-auto mb-2 flex h-11 items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-4 text-sm font-medium text-neutral-900 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.28)] active:scale-[0.98] dark:border-white/[0.08] dark:bg-[#141417] dark:text-neutral-100"
+    >
+      <Gamepad2 className="size-4 text-[var(--hyd-400)]" aria-hidden />
+      Back to Snake
+    </button>
+  );
+}
+
+type SnakeCardProps = {
+  readonly userKey?: string | null;
+  readonly className?: string;
+  readonly generationComplete?: boolean;
+  /** Fills the canvas and shows generation status, instead of floating as a card. */
+  readonly fullScreen?: boolean;
+  /** Hides the full-screen game while keeping the round in memory. */
+  readonly minimized?: boolean;
+  /** Generation status for the full-screen phone layout, which replaces the canvas loader there. */
+  readonly statusMessage?: string;
+  readonly progress?: number;
+  readonly onCancel?: (() => void) | null;
+  readonly onMinimize?: () => void;
+  readonly onViewGeneratedModel?: () => void;
+};
+
+export function SnakeCard({
+  userKey,
+  className,
+  generationComplete = false,
+  fullScreen = false,
+  minimized = false,
+  statusMessage,
+  progress = 0,
+  onCancel,
+  onMinimize,
+  onViewGeneratedModel,
+}: SnakeCardProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const boardSizeRef = useRef(0);
+  const paletteRef = useRef<Palette>(LIGHT_PALETTE);
+  const phaseRef = useRef<Phase>("idle");
+  const bestRef = useRef(0);
+  const swipeRef = useRef<(Point & { readonly turned: boolean }) | null>(null);
 
-  const animationFrameRef = useRef<number | null>(null);
-  const lastTimestampRef = useRef<number>(0);
-  const accumulatorRef = useRef<number>(0);
+  const [game] = useState(createGame);
+  const [phase, setPhaseState] = useState<Phase>("idle");
+  const [score, setScore] = useState(0);
+  const [best, setBest] = useState(0);
 
-  const gridSizeRef = useRef<number>(16);
-  const snakeRef = useRef<Point[]>([]);
-  const foodRef = useRef<Point>({ x: 0, y: 0 });
-  const directionRef = useRef<Direction>("right");
-  const inputQueueRef = useRef<Direction[]>([]);
-  const paletteRef = useRef<Palette>(getThemePalette());
+  const setPhase = useCallback((next: Phase): void => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  }, []);
 
-  const swipeStartRef = useRef<Point | null>(null);
+  const draw = useCallback((): void => {
+    const context = canvasRef.current?.getContext("2d", { alpha: false });
+    if (context && boardSizeRef.current > 0) {
+      drawBoard(context, boardSizeRef.current, game, paletteRef.current);
+    }
+  }, [game]);
 
-  const [score, setScore] = useState<number>(0);
-  const [highScore, setHighScore] = useState<number>(0);
-  const [hasStarted, setHasStarted] = useState<boolean>(false);
-  const [running, setRunning] = useState<boolean>(false);
-  const [gameOver, setGameOver] = useState<boolean>(false);
-  const [isTouchDevice, setIsTouchDevice] = useState<boolean>(false);
+  const pause = useCallback((): void => {
+    if (phaseRef.current === "running") {
+      setPhase("paused");
+    }
+  }, [setPhase]);
 
-  const scoreRef = useRef<number>(0);
-  scoreRef.current = score;
-  const runningRef = useRef<boolean>(false);
-  runningRef.current = running;
-  const gameOverRef = useRef<boolean>(false);
-  gameOverRef.current = gameOver;
+  const togglePause = useCallback((): void => {
+    if (generationComplete) {
+      return;
+    }
+    if (phaseRef.current === "running") {
+      setPhase("paused");
+    } else if (phaseRef.current === "paused") {
+      setPhase("running");
+    }
+  }, [generationComplete, setPhase]);
 
-  const saveHighScore = useCallback(
-    (nextScore: number): void => {
-      setHighScore((currentBest) => {
-        if (nextScore <= currentBest) {
-          return currentBest;
-        }
-        try {
-          window.localStorage.setItem(scoreKey(userKey), String(nextScore));
-        } catch {
-          // LocalStorage fallback
-        }
-        return nextScore;
-      });
+  const startRound = (): void => {
+    Object.assign(game, createGame());
+    setScore(0);
+    setPhase("running");
+    draw();
+  };
+
+  const steer = useCallback(
+    (next: Direction): void => {
+      if (phaseRef.current !== "running") {
+        return;
+      }
+      const latest = game.queue.at(-1) ?? game.direction;
+      if (game.queue.length < MAX_QUEUED_TURNS && next !== latest && !isOpposite(latest, next)) {
+        game.queue.push(next);
+      }
     },
-    [userKey]
+    [game]
   );
 
-  const redrawCanvas = useCallback((): void => {
+  useEffect(() => {
+    try {
+      const stored = Number.parseInt(window.localStorage.getItem(scoreKey(userKey)) ?? "0", 10);
+      bestRef.current = Number.isFinite(stored) ? stored : 0;
+    } catch {
+      // Private browsing can block storage; the best score then lasts for this session.
+      bestRef.current = 0;
+    }
+    setBest(bestRef.current);
+  }, [userKey]);
+
+  // Sizing the backing store clears the canvas, so it only happens when the board really resizes.
+  useEffect(() => {
     const canvas = canvasRef.current;
     const surface = surfaceRef.current;
     if (!canvas || !surface) {
       return;
     }
 
-    const clientWidth = Math.max(1, Math.floor(surface.clientWidth));
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-
-    canvas.width = Math.round(clientWidth * dpr);
-    canvas.height = Math.round(clientWidth * dpr);
-    canvas.style.width = `${clientWidth}px`;
-    canvas.style.height = `${clientWidth}px`;
-
-    const context = canvas.getContext("2d");
-    if (!context) {
-      return;
-    }
-
-    context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    renderBoard(
-      context,
-      clientWidth,
-      gridSizeRef.current,
-      snakeRef.current,
-      foodRef.current,
-      directionRef.current,
-      paletteRef.current
-    );
-  }, []);
-
-  const resetGameState = useCallback((): void => {
-    snakeRef.current = makeInitialSnake(gridSizeRef.current);
-    foodRef.current = generateFood(gridSizeRef.current, snakeRef.current);
-    directionRef.current = "right";
-    inputQueueRef.current = [];
-    accumulatorRef.current = 0;
-    setScore(0);
-    setGameOver(false);
-  }, []);
-
-  const handleStartGame = useCallback((): void => {
-    resetGameState();
-    setHasStarted(true);
-    setRunning(true);
-    redrawCanvas();
-    requestAnimationFrame(() => {
-      cardRef.current?.focus();
-    });
-  }, [redrawCanvas, resetGameState]);
-
-  const togglePause = useCallback((): void => {
-    if (!hasStarted || gameOverRef.current) {
-      return;
-    }
-    setRunning((prev) => {
-      return !prev;
-    });
-    requestAnimationFrame(() => {
-      cardRef.current?.focus();
-    });
-  }, [hasStarted]);
-
-  const queueDirection = useCallback((nextDirection: Direction): void => {
-    if (!runningRef.current || gameOverRef.current) {
-      return;
-    }
-
-    const queue = inputQueueRef.current;
-    const latestDirection =
-      queue.length > 0 ? queue[queue.length - 1] : directionRef.current;
-
-    if (
-      queue.length < 2 &&
-      !isOpposite(latestDirection, nextDirection) &&
-      latestDirection !== nextDirection
-    ) {
-      inputQueueRef.current = [...queue, nextDirection];
-    }
-  }, []);
-
-  // Initialize scores, responsive board size, and touch detection
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const isMobile = window.matchMedia("(max-width: 639px)").matches;
-    gridSizeRef.current = isMobile ? 14 : 16;
-    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
-
-    try {
-      const stored = Number.parseInt(
-        window.localStorage.getItem(scoreKey(userKey)) || "0",
-        10
-      );
-      setHighScore(Number.isFinite(stored) ? stored : 0);
-    } catch {
-      setHighScore(0);
-    }
-
-    resetGameState();
-    paletteRef.current = getThemePalette();
-    redrawCanvas();
-  }, [redrawCanvas, resetGameState, userKey]);
-
-  // Main game tick and observer loop
-  useEffect(() => {
-    const handleThemeChange = (): void => {
-      paletteRef.current = getThemePalette();
-      redrawCanvas();
-    };
-
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => {
-            redrawCanvas();
-          })
-        : null;
-
-    if (surfaceRef.current && resizeObserver) {
-      resizeObserver.observe(surfaceRef.current);
-    }
-
-    const themeObserver = new MutationObserver(() => {
-      handleThemeChange();
-    });
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "style"],
-    });
-
-    const stepTick = (time: number): void => {
-      const delta = lastTimestampRef.current
-        ? Math.min(80, time - lastTimestampRef.current)
-        : 0;
-      lastTimestampRef.current = time;
-
-      if (runningRef.current && !gameOverRef.current) {
-        accumulatorRef.current += delta;
-        const currentSpeed = Math.max(85, 180 - scoreRef.current * 2.2);
-
-        while (accumulatorRef.current >= currentSpeed) {
-          accumulatorRef.current -= currentSpeed;
-
-          if (inputQueueRef.current.length > 0) {
-            const nextDir = inputQueueRef.current[0];
-            inputQueueRef.current = inputQueueRef.current.slice(1);
-            directionRef.current = nextDir;
-          }
-
-          const currentSnake = snakeRef.current;
-          const vector = VECTORS[directionRef.current];
-          const head = currentSnake[0];
-          const size = gridSizeRef.current;
-
-          // Wrap-around edges
-          const wrappedX = (head.x + vector.x + size) % size;
-          const wrappedY = (head.y + vector.y + size) % size;
-          const newHead: Point = { x: wrappedX, y: wrappedY };
-
-          // Self-collision only
-          const selfCollision = currentSnake.some((segment, segmentIndex) => {
-            return (
-              segmentIndex > 0 &&
-              segment.x === newHead.x &&
-              segment.y === newHead.y
-            );
-          });
-
-          if (selfCollision) {
-            setRunning(false);
-            setGameOver(true);
-            saveHighScore(scoreRef.current);
-            break;
-          }
-
-          const updatedSnake = [newHead, ...currentSnake];
-          if (
-            newHead.x === foodRef.current.x &&
-            newHead.y === foodRef.current.y
-          ) {
-            const updatedScore = scoreRef.current + 1;
-            setScore(updatedScore);
-            saveHighScore(updatedScore);
-            foodRef.current = generateFood(size, updatedSnake);
-          } else {
-            updatedSnake.pop();
-          }
-
-          snakeRef.current = updatedSnake;
-        }
-
-        redrawCanvas();
+    const observer = new ResizeObserver(([entry]) => {
+      const size = Math.floor(entry?.contentRect.width ?? 0);
+      if (size === 0 || size === boardSizeRef.current) {
+        return;
       }
-
-      animationFrameRef.current = requestAnimationFrame(stepTick);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(stepTick);
-
+      const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+      canvas.width = Math.round(size * ratio);
+      canvas.height = Math.round(size * ratio);
+      canvas.getContext("2d", { alpha: false })?.setTransform(ratio, 0, 0, ratio, 0, 0);
+      boardSizeRef.current = size;
+      draw();
+    });
+    observer.observe(surface);
     return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
-      themeObserver.disconnect();
+      observer.disconnect();
     };
-  }, [redrawCanvas, saveHighScore]);
+  }, [draw]);
 
-  // Arrow keys for steering + Spacebar to pause / unpause
   useEffect(() => {
+    const applyTheme = (): void => {
+      paletteRef.current = readPalette();
+      draw();
+    };
+    applyTheme();
+
+    const observer = new MutationObserver(applyTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => {
+      observer.disconnect();
+    };
+  }, [draw]);
+
+  // Runs only during play: an idle or paused board costs no frames while the model generates.
+  useEffect(() => {
+    if (phase !== "running") {
+      return;
+    }
+
+    const loop = { frame: 0, last: performance.now() };
+    const tick = (now: number): void => {
+      game.elapsedMs += Math.min(MAX_FRAME_MS, now - loop.last);
+      loop.last = now;
+
+      const stepMs = Math.max(FASTEST_STEP_MS, SLOWEST_STEP_MS - game.score * STEP_MS_SAVED_PER_POINT);
+      if (game.elapsedMs >= stepMs) {
+        game.elapsedMs -= stepMs;
+        const outcome = stepGame(game);
+        draw();
+        setScore(game.score);
+        if (game.score > bestRef.current) {
+          bestRef.current = game.score;
+          setBest(game.score);
+          try {
+            window.localStorage.setItem(scoreKey(userKey), String(game.score));
+          } catch {
+            // Private browsing can block storage; the best score then lasts for this session.
+          }
+        }
+        if (outcome !== "running") {
+          setPhase(outcome);
+          return;
+        }
+      }
+      loop.frame = requestAnimationFrame(tick);
+    };
+
+    loop.frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(loop.frame);
+    };
+  }, [draw, game, phase, setPhase, userKey]);
+
+  useEffect(() => {
+    if (generationComplete) {
+      pause();
+    }
+  }, [generationComplete, pause]);
+
+  // Switching apps must not leave the snake running into itself.
+  useEffect(() => {
+    const pauseWhenHidden = (): void => {
+      if (document.hidden) {
+        pause();
+      }
+    };
+    document.addEventListener("visibilitychange", pauseWhenHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", pauseWhenHidden);
+    };
+  }, [pause]);
+
+  useEffect(() => {
+    if (generationComplete || minimized) {
+      return;
+    }
+
     const handleKeyDown = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.isContentEditable ||
-          /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
-      ) {
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) {
+        return;
+      }
+      if (phaseRef.current !== "running" && phaseRef.current !== "paused") {
         return;
       }
 
-      // Spacebar toggles pause
-      if (event.code === "Space" || event.key === " ") {
+      if (event.code === "Space") {
         event.preventDefault();
         togglePause();
         return;
       }
 
-      // Arrow keys only
-      const arrowDirection = ARROW_KEY_DIRECTIONS[event.key];
-      if (!arrowDirection) {
-        return;
-      }
-
-      event.preventDefault();
-
-      if (runningRef.current && !gameOverRef.current) {
-        queueDirection(arrowDirection);
+      const direction = KEY_DIRECTIONS[event.key];
+      if (direction) {
+        event.preventDefault();
+        steer(direction);
       }
     };
 
@@ -660,141 +625,190 @@ export function SnakeCard({ userKey, className }: SnakeProps) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [queueDirection, togglePause]);
+  }, [generationComplete, minimized, steer, togglePause]);
 
-  // Mobile touch gestures: swipe on canvas to steer, tap to pause/resume
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    cardRef.current?.focus();
-    if (event.pointerType === "touch") {
-      swipeStartRef.current = { x: event.clientX, y: event.clientY };
+    if (event.pointerType !== "mouse") {
+      swipeRef.current = { x: event.clientX, y: event.clientY, turned: false };
     }
   };
 
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    const start = swipeStartRef.current;
-    swipeStartRef.current = null;
-    if (!start) {
+  // Turns as soon as the finger has travelled far enough, and keeps tracking so one drag can turn twice.
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const swipe = swipeRef.current;
+    if (!swipe) {
       return;
     }
 
-    const deltaX = event.clientX - start.x;
-    const deltaY = event.clientY - start.y;
-    const absX = Math.abs(deltaX);
-    const absY = Math.abs(deltaY);
-
-    if (Math.max(absX, absY) < 16) {
-      togglePause();
+    const deltaX = event.clientX - swipe.x;
+    const deltaY = event.clientY - swipe.y;
+    if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < SWIPE_THRESHOLD_PX) {
       return;
     }
 
-    if (absX > absY) {
-      queueDirection(deltaX > 0 ? "right" : "left");
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      steer(deltaX > 0 ? "right" : "left");
     } else {
-      queueDirection(deltaY > 0 ? "down" : "up");
+      steer(deltaY > 0 ? "down" : "up");
     }
+    swipeRef.current = { x: event.clientX, y: event.clientY, turned: true };
+  };
+
+  const handlePointerUp = (): void => {
+    if (swipeRef.current && !swipeRef.current.turned) {
+      togglePause();
+    }
+    swipeRef.current = null;
   };
 
   const handlePointerCancel = (): void => {
-    swipeStartRef.current = null;
+    swipeRef.current = null;
   };
+
+  const handleMinimize = (): void => {
+    pause();
+    onMinimize?.();
+  };
+
+  const canPause = !generationComplete && (phase === "running" || phase === "paused");
+  const playAgain = (
+    <OverlayButton onClick={startRound}>
+      <RotateCcw className="size-4" aria-hidden />
+      Play again
+    </OverlayButton>
+  );
+  const phaseOverlays: Record<Phase, ReactNode> = {
+    idle: (
+      <BoardOverlay
+        title="Play while you wait"
+        detail={<InputHint touch="Swipe to steer" keyboard="Arrow keys or WASD" />}
+      >
+        <OverlayButton onClick={startRound}>
+          <Play className="size-4 fill-current" aria-hidden />
+          Start
+        </OverlayButton>
+      </BoardOverlay>
+    ),
+    running: null,
+    paused: (
+      <BoardOverlay
+        title="Paused"
+        detail={<InputHint touch="Tap to resume" keyboard="Space to resume" />}
+        passThrough
+      />
+    ),
+    over: (
+      <BoardOverlay title="Game over" detail={`Score ${score} · Best ${best}`}>
+        {playAgain}
+      </BoardOverlay>
+    ),
+    won: (
+      <BoardOverlay title="Board cleared" detail={`Perfect · ${score}`}>
+        {playAgain}
+      </BoardOverlay>
+    ),
+  };
+  const overlay = generationComplete ? (
+    <BoardOverlay title="Generation ready" detail="Your model is ready.">
+      <OverlayButton onClick={onViewGeneratedModel}>
+        <Sparkles className="size-4" aria-hidden />
+        View model
+      </OverlayButton>
+    </BoardOverlay>
+  ) : (
+    phaseOverlays[phase]
+  );
 
   return (
     <section
-      ref={cardRef}
-      tabIndex={0}
+      aria-label="Snake game"
       className={cn(
-        "studio-float w-[min(340px,calc(100vw-2rem))] sm:w-[350px] overflow-hidden rounded-[26px] sm:rounded-[28px] border border-neutral-200/80 bg-white/95 p-3.5 sm:p-4 text-neutral-900 shadow-[0_16px_48px_-12px_rgba(1,14,36,0.12),0_2px_8px_rgba(1,14,36,0.04)] backdrop-blur-xl outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-white/[0.08] dark:bg-[#141417]/95 dark:text-neutral-100 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_56px_-24px_rgba(0,0,0,0.85)]",
+        "studio-float flex flex-col gap-3 overflow-hidden text-neutral-900 dark:text-neutral-100",
+        fullScreen
+          ? // Short landscape phones: the board takes the height and the controls move beside it.
+            "h-full w-full bg-white px-3 pt-16 pb-[max(0.75rem,env(safe-area-inset-bottom))] motion-safe:animate-[studioSheet_300ms_ease-out] dark:bg-[#141417] [@media(max-height:32rem)]:flex-row [@media(max-height:32rem)]:items-center"
+          : "w-72 rounded-3xl border border-neutral-200/80 bg-white/95 p-3 shadow-[0_16px_48px_-12px_rgba(1,14,36,0.12),0_2px_8px_rgba(1,14,36,0.04)] backdrop-blur-xl lg:w-87.5 lg:p-4 dark:border-white/[0.08] dark:bg-[#141417]/95",
+        fullScreen && minimized && "hidden",
         className
       )}
-      aria-label="Snake Game"
     >
-      {/* Pickle-style Balanced Metric Capsules */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-        <div className="relative overflow-hidden rounded-[18px] sm:rounded-[20px] border border-neutral-200/70 bg-[#f4f7fb] px-3.5 py-2 sm:py-2.5 transition-colors dark:border-white/[0.06] dark:bg-white/[0.03]">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
-            Score
+      <div
+        className={cn(
+          "flex min-w-0 flex-col gap-3",
+          fullScreen && "mx-auto min-h-0 w-full max-w-lg flex-1 justify-end"
+        )}
+      >
+        {fullScreen && statusMessage && !generationComplete ? (
+          <div
+            className="flex min-h-0 flex-1 flex-col items-center justify-center text-center"
+            role="status"
+            aria-live="polite"
+          >
+            {/* Only when the screen has height to spare above the board. */}
+            <div className="mb-3 hidden [@media(min-height:50rem)]:block">
+              <ThinkingOrb state="solving" size={64} theme="auto" />
+            </div>
+            <p className="line-clamp-2 max-w-sm text-sm font-medium tracking-tight">{statusMessage}</p>
+            <div className="mt-2 flex w-48 items-center gap-2">
+              <Progress className="h-1 min-w-0 flex-1" value={progress} />
+              <span className="text-xs tabular-nums text-neutral-500 dark:text-neutral-400">
+                {Math.round(progress)}%
+              </span>
+            </div>
+            {onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="h-9 px-3 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
+              >
+                Cancel
+              </button>
+            ) : null}
           </div>
-          <div className="mt-0.5 text-[18px] sm:text-[20px] font-semibold tabular-nums tracking-tight text-neutral-950 dark:text-white">
-            {score}
-          </div>
-        </div>
+        ) : null}
 
-        <div className="relative overflow-hidden rounded-[18px] sm:rounded-[20px] border border-neutral-200/70 bg-[#f4f7fb] px-3.5 py-2 sm:py-2.5 text-right transition-colors dark:border-white/[0.06] dark:bg-white/[0.03]">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
-            Best Score
-          </div>
-          <div className="mt-0.5 text-[18px] sm:text-[20px] font-semibold tabular-nums tracking-tight text-neutral-950 dark:text-white">
-            {highScore}
-          </div>
+        <div className="flex items-center gap-2">
+          <Stat label="Score" value={score} />
+          <Stat label="Best" value={best} />
+          <IconButton label={phase === "running" ? "Pause" : "Resume"} onClick={togglePause} disabled={!canPause}>
+            {phase === "running" ? (
+              <Pause className="size-4" aria-hidden />
+            ) : (
+              <Play className="size-4 fill-current" aria-hidden />
+            )}
+          </IconButton>
+          {fullScreen ? (
+            <IconButton label="Close Snake game" onClick={handleMinimize}>
+              <X className="size-4" aria-hidden />
+            </IconButton>
+          ) : null}
         </div>
       </div>
 
-      {/* Game Board Canvas with Hydrilla Mist Tint */}
-      <div className="mt-2.5 sm:mt-3 overflow-hidden rounded-[20px] sm:rounded-[22px] border border-neutral-200/80 bg-[#f4f7fb] p-1 shadow-inner dark:border-white/[0.08] dark:bg-[#0c0c0e]">
+      <div
+        className={cn(
+          "shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-white/[0.08]",
+          fullScreen
+            ? "mx-auto w-[min(100%,32rem,calc(100dvh_-_17.75rem_-_env(safe-area-inset-bottom)))] [@media(max-height:32rem)]:w-[calc(100dvh_-_5rem_-_env(safe-area-inset-bottom))]"
+            : "w-full"
+        )}
+      >
         <div
           ref={surfaceRef}
           onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
-          className="relative mx-auto aspect-square w-full max-w-[275px] sm:max-w-[305px] touch-none overflow-hidden rounded-[16px] sm:rounded-[18px]"
+          className="relative aspect-square w-full touch-none select-none"
         >
-          <canvas
-            ref={canvasRef}
-            className="block h-full w-full"
-            aria-label="Snake game board"
-          />
-
-          {/* Start Game Overlay */}
-          {!hasStarted ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 p-4 sm:p-5 text-center backdrop-blur-[3px] dark:bg-[#141417]/85">
-              <button
-                type="button"
-                onClick={handleStartGame}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-neutral-950 px-7 text-[13px] font-medium tracking-tight text-white shadow-[0_8px_20px_-4px_rgba(0,0,0,0.25)] transition-all hover:bg-neutral-850 hover:shadow-[0_12px_24px_-4px_rgba(0,0,0,0.3)] active:scale-[0.98] dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100"
-              >
-                <Play className="h-3.5 w-3.5 fill-current" />
-                Start Game
-              </button>
-              <p className="mt-2.5 text-[11px] font-medium text-neutral-400 dark:text-neutral-500">
-                {isTouchDevice ? "Swipe to steer · tap to pause" : "Arrow keys to steer · Space to pause"}
-              </p>
-            </div>
-          ) : null}
-
-          {/* Paused State Overlay */}
-          {hasStarted && !running && !gameOver ? (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-white/70 p-4 text-center backdrop-blur-[2px] dark:bg-[#141417]/70">
-              <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/95 px-4 py-1.5 text-[12px] font-medium text-neutral-900 shadow-sm dark:border-white/[0.08] dark:bg-[#1f1f23]/95 dark:text-neutral-100">
-                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                Paused
-              </div>
-              <p className="mt-2 text-[11px] font-medium text-neutral-400 dark:text-neutral-500">
-                {isTouchDevice ? "Tap board to resume" : "Press Space to resume"}
-              </p>
-            </div>
-          ) : null}
-
-          {/* Game Over State Overlay */}
-          {gameOver ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 p-4 sm:p-5 text-center backdrop-blur-[3px] dark:bg-[#141417]/90 animate-in fade-in-0 duration-200">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">
-                Game Over
-              </span>
-              <p className="mt-1 text-[13px] text-neutral-600 dark:text-neutral-300">
-                Score <span className="font-semibold text-neutral-950 dark:text-white">{score}</span> · Best <span className="font-semibold text-neutral-950 dark:text-white">{highScore}</span>
-              </p>
-              <button
-                type="button"
-                onClick={handleStartGame}
-                className="mt-3.5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-neutral-950 px-6 text-[12px] font-medium tracking-tight text-white shadow-sm transition hover:bg-neutral-850 active:scale-[0.98] dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Play Again
-              </button>
-            </div>
-          ) : null}
+          <canvas ref={canvasRef} className="block h-full w-full" aria-label="Snake game board" />
+          {overlay}
         </div>
       </div>
+
+      <p className="text-center text-xs font-medium text-neutral-400 [@media(max-height:32rem)]:hidden dark:text-neutral-500">
+        <InputHint touch="Swipe to steer · tap to pause" keyboard="Arrow keys or WASD · Space to pause" />
+      </p>
     </section>
   );
 }
