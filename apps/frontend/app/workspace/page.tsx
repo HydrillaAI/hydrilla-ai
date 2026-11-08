@@ -28,6 +28,7 @@ import { InspectorPanel } from "../../components/workspace/inspector/InspectorPa
 import { LibraryPanel } from "../../components/workspace/library/LibraryPanel";
 import { LibraryRail } from "../../components/workspace/library/LibraryRail";
 import { LibraryOptionsBar } from "../../components/workspace/library/LibraryOptionsBar";
+import { SnakeCard, SnakeResumePill, SNAKE_PHONE_QUERY } from "../../components/workspace/SnakeGame";
 import { LIBRARY_BAR } from "../../lib/library-bar";
 import { COMPOSER_SIZE } from "../../lib/composer-size";
 import { useSlotStatus } from "../../hooks/useSlotStatus";
@@ -595,6 +596,55 @@ function WorkspacePage() {
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   /** Bumps on each new Water run so stale polls cannot overwrite a newer job. */
   const waterPollGenRef = useRef(0);
+
+  // Snake waiting game (shown after a short delay while 3D/Water generate)
+  const [snakeVisible, setSnakeVisible] = useState(false);
+  const [snakeCompletion, setSnakeCompletion] = useState(false);
+  const [snakeMinimized, setSnakeMinimized] = useState(false);
+  // Width alone misses landscape phones, which can be wider than a small tablet.
+  const [isSnakePhone, setIsSnakePhone] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(SNAKE_PHONE_QUERY).matches : false
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia(SNAKE_PHONE_QUERY);
+    const sync = () => {
+      setIsSnakePhone(query.matches);
+    };
+    sync();
+    query.addEventListener("change", sync);
+    return () => {
+      query.removeEventListener("change", sync);
+    };
+  }, []);
+
+  const snakeSessionStartRef = useRef<number | null>(null);
+  const snakeGenerationStart =
+    currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
+
+  useEffect(() => {
+    if (snakeGenerationStart === null) {
+      setSnakeVisible(false);
+      snakeSessionStartRef.current = null;
+      return;
+    }
+
+    // Only reset for a new generation, so a re-run of this effect cannot remount a round in progress.
+    if (snakeSessionStartRef.current !== snakeGenerationStart) {
+      snakeSessionStartRef.current = snakeGenerationStart;
+      setSnakeCompletion(false);
+      setSnakeMinimized(false);
+      setSnakeVisible(false);
+    }
+
+    const timer = setTimeout(() => {
+      setSnakeVisible(true);
+    }, Math.max(0, 2_000 - (Date.now() - snakeGenerationStart)));
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [snakeGenerationStart]);
 
   // Track the last generated preview so we can use it for 3D
   const [lastPreviewImageUrl, setLastPreviewImageUrl] = useState<string | null>(null);
@@ -1613,6 +1663,7 @@ function WorkspacePage() {
         }
 
         if (status.status === "completed") {
+          setSnakeCompletion(true);
           // Belt-and-suspenders: Water DONE must never open the GLB viewer (404).
           if (isWaterJobId(currentGenerating.jobId)) {
             return;
@@ -2035,6 +2086,7 @@ function WorkspacePage() {
               if (pollGen !== waterPollGenRef.current) return;
 
               if (job.status === "DONE" && job.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(job.factoryCode);
                 setCodeSculptPass(job.sculptPass || "done");
                 if (job.scene) setWaterScene(job.scene);
@@ -3297,6 +3349,7 @@ function WorkspacePage() {
               const cs = await fetchWaterJob(job.id, tokenGetter);
               if (pollGen !== waterPollGenRef.current) return;
               if (cs.status === "DONE" && cs.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(cs.factoryCode);
                 setCodeSculptPass(cs.sculptPass);
                 setCurrentGenerating(null);
@@ -3639,6 +3692,7 @@ function WorkspacePage() {
     );
   const generatingProgress =
     centerView.type === "generating" ? centerView.progress : (currentGenerating?.progress ?? 0);
+  const generatingMessage = centerView.type === "generating" ? centerView.message : GEN_MSG.fallback3d;
 
   const handleToggleFullView = useCallback(() => {
     setFullView((v) => {
@@ -4294,6 +4348,10 @@ function WorkspacePage() {
       clientMounted={clientMounted}
     />
   );
+  // A generation that finishes while the game is minimized needs no "ready" sheet: the model is already on screen.
+  const snakeOpen = snakeVisible || (snakeCompletion && !(isSnakePhone && snakeMinimized));
+  // On phones the open game carries the progress and takes over the loader's and composer's space.
+  const snakeSheetOpen = snakeOpen && isSnakePhone && !snakeMinimized && !fullView;
   const frameLift = fullView ? 0 : COMPOSER_SIZE === "large" ? 0.16 : COMPOSER_SIZE === "medium" ? 0.12 : 0.1;
   const statsClassName = isCompact
     ? "hidden sm:flex top-14"
@@ -4399,6 +4457,38 @@ function WorkspacePage() {
             </div>
           ) : null}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {snakeOpen ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute transition-transform duration-300 ease-out motion-reduce:transition-none",
+                isSnakePhone
+                  ? // Below the z-30 top bars, so the library, tools and account stay usable over it.
+                    "inset-0 z-20 flex justify-center"
+                  : "right-4 top-[calc(50%_-_3.5rem)] z-20 -translate-y-1/2 lg:right-16",
+                inspectorVisible && !isCompact && "lg:-translate-x-[304px]",
+                fullView && "invisible"
+              )}
+              aria-hidden={fullView || undefined}
+            >
+              <SnakeCard
+                className="pointer-events-auto"
+                userKey={userId ?? null}
+                generationComplete={snakeCompletion}
+                fullScreen={isSnakePhone}
+                minimized={snakeMinimized}
+                statusMessage={generatingMessage}
+                progress={generatingProgress}
+                onCancel={currentGenerating?.jobId ? () => void handleCancelGeneration() : null}
+                onMinimize={() => {
+                  setSnakeMinimized(true);
+                }}
+                onViewGeneratedModel={() => {
+                  setSnakeCompletion(false);
+                  setSnakeVisible(false);
+                }}
+              />
+            </div>
+          ) : null}
           {(centerView.type === "3d" || centerView.type === "code") && !accountFloat && (
             <ViewerToolbar
               kind={centerView.type}
@@ -4428,9 +4518,10 @@ function WorkspacePage() {
 
           {centerView.type === "generating" && <div className="flex-1 min-h-0" />}
 
-          {canvasGenerating && (
+          {canvasGenerating && !snakeSheetOpen && (
             <CanvasGeneratingOverlay
-              message={centerView.type === "generating" ? centerView.message : GEN_MSG.fallback3d}
+              message={generatingMessage}
+              className={snakeOpen && !isSnakePhone && isCompact ? "pr-76" : undefined}
               progress={generatingProgress}
               water={showWaterPassRail ? { tier: waterQualityTier, pass: codeSculptPass } : null}
               queueInfo={currentGenerating?.status === "generating" ? currentGenerating.queueInfo ?? null : null}
@@ -4573,9 +4664,17 @@ function WorkspacePage() {
               className={cn(
                 "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-[padding] duration-[320ms] ease-out motion-reduce:transition-none sm:px-6 sm:pb-5",
                 // Centre on the visible canvas: the docked inspector covers the right 304px.
-                inspectorVisible && !isCompact && "sm:pr-[calc(304px+1.5rem)]"
+                inspectorVisible && !isCompact && "sm:pr-[calc(304px+1.5rem)]",
+                snakeSheetOpen && "hidden"
               )}
             >
+              {isSnakePhone && snakeVisible && snakeMinimized ? (
+                <SnakeResumePill
+                  onClick={() => {
+                    setSnakeMinimized(false);
+                  }}
+                />
+              ) : null}
               <Composer
                 mode={composerMode}
                 onModeChange={handleComposerModeChange}

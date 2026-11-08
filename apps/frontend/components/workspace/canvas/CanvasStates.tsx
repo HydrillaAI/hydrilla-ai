@@ -75,14 +75,15 @@ type GeneratingProps = {
   water: { tier: QualityTier; pass: string | null } | null;
   queueInfo: QueueInfo | null;
   onCancel: (() => void) | null;
+  className?: string;
 };
 
-export function CanvasGeneratingOverlay({ message, progress, water, queueInfo, onCancel }: GeneratingProps) {
+export function CanvasGeneratingOverlay({ message, progress, water, queueInfo, onCancel, className }: GeneratingProps) {
   const showQueue = queueInfo && (queueInfo.jobs_ahead > 0 || (queueInfo.estimated_total_seconds ?? 0) > 0);
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center pb-48"
+      className={cn("pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center pb-48", className)}
       role="status"
       aria-live="polite"
       aria-busy="true"
