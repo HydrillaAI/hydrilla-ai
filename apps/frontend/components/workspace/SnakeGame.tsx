@@ -1,86 +1,800 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Pause, Play, RotateCcw, Sparkles, Trophy } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { Play, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SnakeProps = { userKey?: string | null; className?: string; generationComplete?: boolean; onViewGeneratedModel?: () => void };
-type Point = { x: number; y: number };
+type SnakeProps = {
+  readonly userKey?: string | null;
+  readonly className?: string;
+};
+
+type Point = {
+  readonly x: number;
+  readonly y: number;
+};
+
 type Direction = "up" | "down" | "left" | "right";
-type Palette = { canvas: string; mist: string; grid: string; snake: string; ink: string };
+
+type Palette = {
+  readonly canvas: string;
+  readonly boardBg: string;
+  readonly grid: string;
+  readonly snakeHead: string;
+  readonly snakeBody: string;
+  readonly snakeNeck: string;
+  readonly food: string;
+  readonly foodGlow: string;
+  readonly ink: string;
+};
+
 const HIGH_SCORE_PREFIX = "hydrilla:snake:highscore:";
-const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 
-const scoreKey = (userKey?: string | null) => `${HIGH_SCORE_PREFIX}${userKey || "anonymous"}`;
-const isOpposite = (a: Direction, b: Direction) => (a === "up" && b === "down") || (a === "down" && b === "up") || (a === "left" && b === "right") || (a === "right" && b === "left");
-const palette = (): Palette => {
-  const styles = getComputedStyle(document.documentElement);
-  const read = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
-  return { canvas: read("--app-canvas", "Canvas"), mist: read("--hyd-mist", "Canvas"), grid: read("--hyd-200", "currentColor"), snake: read("--hyd-400", "currentColor"), ink: read("--hyd-ink", "currentColor") };
+const VECTORS: Record<Direction, Point> = {
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
 };
-const makeSnake = (size: number): Point[] => {
-  const center = Math.floor(size / 2);
-  return [{ x: center, y: center }, { x: center - 1, y: center }, { x: center - 2, y: center }];
+
+const ARROW_KEY_DIRECTIONS: Record<string, Direction> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
 };
-const makeFood = (size: number, snake: Point[]): Point => {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const point = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
-    if (!snake.some((part) => part.x === point.x && part.y === point.y)) return point;
+
+const scoreKey = (userKey?: string | null): string => {
+  return `${HIGH_SCORE_PREFIX}${userKey || "anonymous"}`;
+};
+
+const isOpposite = (a: Direction, b: Direction): boolean => {
+  if (a === "up" && b === "down") {
+    return true;
   }
-  return { x: 0, y: 0 };
+  if (a === "down" && b === "up") {
+    return true;
+  }
+  if (a === "left" && b === "right") {
+    return true;
+  }
+  if (a === "right" && b === "left") {
+    return true;
+  }
+  return false;
 };
 
-function drawBoard(context: CanvasRenderingContext2D, width: number, size: number, snake: Point[], food: Point, colors: Palette, paused: boolean) {
-  const cell = width / size;
+const getThemePalette = (): Palette => {
+  if (typeof document === "undefined") {
+    return {
+      canvas: "#ffffff",
+      boardBg: "#f4f7fb",
+      grid: "rgba(180, 202, 228, 0.4)",
+      snakeHead: "#0a0a0b",
+      snakeNeck: "#3b82f6",
+      snakeBody: "#7eb1e3",
+      food: "#ef4444",
+      foodGlow: "rgba(239, 68, 68, 0.32)",
+      ink: "#0a0a0b",
+    };
+  }
+
+  const isDark = document.documentElement.classList.contains("dark");
+  if (isDark) {
+    return {
+      canvas: "#141417",
+      boardBg: "#0c0c0e",
+      grid: "rgba(255, 255, 255, 0.06)",
+      snakeHead: "#ffffff",
+      snakeNeck: "#60a5fa",
+      snakeBody: "#7eb1e3",
+      food: "#ef4444",
+      foodGlow: "rgba(239, 68, 68, 0.38)",
+      ink: "#fafafa",
+    };
+  }
+
+  return {
+    canvas: "#ffffff",
+    boardBg: "#f4f7fb",
+    grid: "rgba(180, 202, 228, 0.4)",
+    snakeHead: "#0a0a0b",
+    snakeNeck: "#3b82f6",
+    snakeBody: "#7eb1e3",
+    food: "#ef4444",
+    foodGlow: "rgba(239, 68, 68, 0.32)",
+    ink: "#0a0a0b",
+  };
+};
+
+const makeInitialSnake = (gridSize: number): Point[] => {
+  const center = Math.floor(gridSize / 2);
+  return [
+    { x: center, y: center },
+    { x: center - 1, y: center },
+    { x: center - 2, y: center },
+  ];
+};
+
+const generateFood = (gridSize: number, snakeBody: readonly Point[]): Point => {
+  const availableSlots: Point[] = [];
+  Array.from({ length: gridSize }).forEach((_, y) => {
+    Array.from({ length: gridSize }).forEach((_, x) => {
+      const isOccupied = snakeBody.some((segment) => {
+        return segment.x === x && segment.y === y;
+      });
+      if (!isOccupied) {
+        availableSlots.push({ x, y });
+      }
+    });
+  });
+
+  if (availableSlots.length === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  const randomIndex = Math.floor(Math.random() * availableSlots.length);
+  return availableSlots[randomIndex];
+};
+
+const getEyeOffsets = (
+  direction: Direction,
+  cell: number
+): { eye1: Point; eye2: Point } => {
+  const lateral = cell * 0.22;
+  const center = cell * 0.5;
+  const forward = cell * 0.24;
+
+  if (direction === "right") {
+    return {
+      eye1: { x: center + forward, y: center - lateral },
+      eye2: { x: center + forward, y: center + lateral },
+    };
+  }
+  if (direction === "left") {
+    return {
+      eye1: { x: center - forward, y: center - lateral },
+      eye2: { x: center - forward, y: center + lateral },
+    };
+  }
+  if (direction === "up") {
+    return {
+      eye1: { x: center - lateral, y: center - forward },
+      eye2: { x: center + lateral, y: center - forward },
+    };
+  }
+
+  return {
+    eye1: { x: center - lateral, y: center + forward },
+    eye2: { x: center + lateral, y: center + forward },
+  };
+};
+
+function renderBoard(
+  context: CanvasRenderingContext2D,
+  width: number,
+  gridSize: number,
+  snake: readonly Point[],
+  food: Point,
+  direction: Direction,
+  colors: Palette
+): void {
+  const cell = width / gridSize;
   context.clearRect(0, 0, width, width);
-  context.fillStyle = colors.mist;
+
+  // Background arena
+  context.fillStyle = colors.boardBg;
   context.fillRect(0, 0, width, width);
+
+  // Soft grid lines
   context.strokeStyle = colors.grid;
-  context.globalAlpha = 0.45;
-  for (let i = 1; i < size; i += 1) {
-    const p = Math.round(i * cell) + 0.5;
-    context.beginPath(); context.moveTo(p, 0); context.lineTo(p, width); context.moveTo(0, p); context.lineTo(width, p); context.stroke();
-  }
-  context.globalAlpha = 1;
-  const block = (point: Point, color: string) => { const inset = Math.max(2, cell * 0.12); context.fillStyle = color; context.fillRect(point.x * cell + inset, point.y * cell + inset, Math.max(1, cell - inset * 2), Math.max(1, cell - inset * 2)); };
-  snake.slice().reverse().forEach((part, index) => block(part, index === snake.length - 1 ? colors.ink : colors.snake));
-  const x = food.x * cell + cell / 2; const y = food.y * cell + cell / 2; const gem = Math.max(4, cell * 0.27);
-  context.fillStyle = colors.snake; context.strokeStyle = colors.ink; context.lineWidth = Math.max(1, cell * 0.08); context.beginPath(); context.moveTo(x, y - gem); context.lineTo(x + gem, y); context.lineTo(x, y + gem); context.lineTo(x - gem, y); context.closePath(); context.fill(); context.stroke();
-  if (paused) { context.fillStyle = colors.canvas; context.globalAlpha = 0.72; context.fillRect(0, 0, width, width); context.globalAlpha = 1; }
+  context.lineWidth = 1;
+  Array.from({ length: gridSize - 1 }).forEach((_, index) => {
+    const position = Math.round((index + 1) * cell) + 0.5;
+
+    context.beginPath();
+    context.moveTo(position, 0);
+    context.lineTo(position, width);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(0, position);
+    context.lineTo(width, position);
+    context.stroke();
+  });
+
+  // Food: bright, vivid ruby red dot with luminous halo and reflection
+  const foodX = food.x * cell + cell / 2;
+  const foodY = food.y * cell + cell / 2;
+  const foodRadius = Math.max(3.8, cell * 0.32);
+
+  context.save();
+  // Outer soft pulse glow
+  context.fillStyle = colors.foodGlow;
+  context.beginPath();
+  context.arc(foodX, foodY, foodRadius + 4.5, 0, Math.PI * 2);
+  context.fill();
+
+  // Core red dot
+  context.fillStyle = colors.food;
+  context.beginPath();
+  context.arc(foodX, foodY, foodRadius, 0, Math.PI * 2);
+  context.fill();
+
+  // Cute little green leaf sprout on the food
+  context.fillStyle = "#22c55e";
+  context.beginPath();
+  context.ellipse(
+    foodX + foodRadius * 0.35,
+    foodY - foodRadius * 0.82,
+    foodRadius * 0.38,
+    foodRadius * 0.22,
+    Math.PI / 4,
+    0,
+    Math.PI * 2
+  );
+  context.fill();
+
+  // Specular gleam highlight
+  context.fillStyle = "rgba(255, 255, 255, 0.85)";
+  context.beginPath();
+  context.arc(
+    foodX - foodRadius * 0.3,
+    foodY - foodRadius * 0.3,
+    foodRadius * 0.32,
+    0,
+    Math.PI * 2
+  );
+  context.fill();
+  context.restore();
+
+  // Snake body and head
+  snake.forEach((part, index) => {
+    const isHead = index === 0;
+    const isNeck = index === 1;
+    const padding = Math.max(1.5, cell * 0.1);
+    const partX = part.x * cell + padding;
+    const partY = part.y * cell + padding;
+    const partSize = Math.max(1, cell - padding * 2);
+    const cornerRadius = isHead
+      ? Math.max(4, cell * 0.38)
+      : Math.max(2.5, cell * 0.26);
+
+    const fillColor = isHead
+      ? colors.snakeHead
+      : isNeck
+        ? colors.snakeNeck
+        : colors.snakeBody;
+
+    context.fillStyle = fillColor;
+    context.beginPath();
+    if (typeof context.roundRect === "function") {
+      context.roundRect(partX, partY, partSize, partSize, cornerRadius);
+    } else {
+      context.rect(partX, partY, partSize, partSize);
+    }
+    context.fill();
+
+    // Direction-aware eyes on the head
+    if (isHead) {
+      const offsets = getEyeOffsets(direction, cell);
+      const eyeRadius = Math.max(2.1, cell * 0.13);
+      const pupilRadius = Math.max(1.1, eyeRadius * 0.55);
+      const catchlightRadius = Math.max(0.6, eyeRadius * 0.28);
+
+      context.save();
+      // Eye 1
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(
+        part.x * cell + offsets.eye1.x,
+        part.y * cell + offsets.eye1.y,
+        eyeRadius,
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+
+      context.fillStyle = "#002664";
+      context.beginPath();
+      context.arc(
+        part.x * cell + offsets.eye1.x,
+        part.y * cell + offsets.eye1.y,
+        pupilRadius,
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(
+        part.x * cell + offsets.eye1.x - pupilRadius * 0.35,
+        part.y * cell + offsets.eye1.y - pupilRadius * 0.35,
+        catchlightRadius,
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+
+      // Eye 2
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(
+        part.x * cell + offsets.eye2.x,
+        part.y * cell + offsets.eye2.y,
+        eyeRadius,
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+
+      context.fillStyle = "#002664";
+      context.beginPath();
+      context.arc(
+        part.x * cell + offsets.eye2.x,
+        part.y * cell + offsets.eye2.y,
+        pupilRadius,
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(
+        part.x * cell + offsets.eye2.x - pupilRadius * 0.35,
+        part.y * cell + offsets.eye2.y - pupilRadius * 0.35,
+        catchlightRadius,
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+
+      context.restore();
+    }
+  });
 }
 
-export function SnakeCard({ userKey, className, generationComplete = false, onViewGeneratedModel }: SnakeProps) {
-  const cardRef = useRef<HTMLElement>(null); const canvasRef = useRef<HTMLCanvasElement>(null); const surfaceRef = useRef<HTMLDivElement>(null); const frameRef = useRef<number | null>(null);
-  const lastFrame = useRef(0); const accumulator = useRef(0); const snake = useRef<Point[]>([]); const food = useRef<Point>({ x: 0, y: 0 }); const direction = useRef<Direction>("right"); const queued = useRef<Direction>("right"); const turnLocked = useRef(false); const size = useRef(16); const swipe = useRef<Point | null>(null);
-  const [score, setScore] = useState(0); const [highScore, setHighScore] = useState(0); const [running, setRunning] = useState(false); const [gameOver, setGameOver] = useState(false); const [touch, setTouch] = useState(false);
+export function SnakeCard({ userKey, className }: SnakeProps) {
+  const cardRef = useRef<HTMLElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
 
-  const saveBest = useCallback((next: number) => setHighScore((current) => { if (next <= current) return current; try { window.localStorage.setItem(scoreKey(userKey), String(next)); } catch { /* best effort */ } return next; }), [userKey]);
-  const paint = useCallback(() => {
-    const canvas = canvasRef.current; const surface = surfaceRef.current; if (!canvas || !surface) return;
-    const width = Math.max(1, Math.floor(surface.clientWidth)); const ratio = Math.min(window.devicePixelRatio || 1, 2); canvas.width = Math.round(width * ratio); canvas.height = Math.round(width * ratio); canvas.style.width = `${width}px`; canvas.style.height = `${width}px`;
-    const context = canvas.getContext("2d"); if (!context) return; context.setTransform(ratio, 0, 0, ratio, 0, 0); drawBoard(context, width, size.current, snake.current, food.current, palette(), !running || gameOver);
-  }, [gameOver, running]);
-  const reset = useCallback((start = false) => { snake.current = makeSnake(size.current); food.current = makeFood(size.current, snake.current); direction.current = "right"; queued.current = "right"; turnLocked.current = false; accumulator.current = 0; setScore(0); setGameOver(false); setRunning(start); }, []);
-  const toggle = useCallback(() => { if (gameOver) reset(true); else setRunning((current) => !current); requestAnimationFrame(() => cardRef.current?.focus()); }, [gameOver, reset]);
-  const steer = useCallback((next: Direction) => { if (!turnLocked.current && !isOpposite(direction.current, next)) { queued.current = next; turnLocked.current = true; } }, []);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastTimestampRef = useRef<number>(0);
+  const accumulatorRef = useRef<number>(0);
 
-  useEffect(() => { setTouch(window.matchMedia("(pointer: coarse)").matches); size.current = window.matchMedia("(max-width: 639px)").matches ? 12 : 16; try { const saved = Number.parseInt(window.localStorage.getItem(scoreKey(userKey)) || "0", 10); setHighScore(Number.isFinite(saved) ? saved : 0); } catch { setHighScore(0); } reset(); }, [reset, userKey]);
+  const gridSizeRef = useRef<number>(16);
+  const snakeRef = useRef<Point[]>([]);
+  const foodRef = useRef<Point>({ x: 0, y: 0 });
+  const directionRef = useRef<Direction>("right");
+  const inputQueueRef = useRef<Direction[]>([]);
+  const paletteRef = useRef<Palette>(getThemePalette());
+
+  const swipeStartRef = useRef<Point | null>(null);
+
+  const [score, setScore] = useState<number>(0);
+  const [highScore, setHighScore] = useState<number>(0);
+  const [hasStarted, setHasStarted] = useState<boolean>(false);
+  const [running, setRunning] = useState<boolean>(false);
+  const [gameOver, setGameOver] = useState<boolean>(false);
+  const [isTouchDevice, setIsTouchDevice] = useState<boolean>(false);
+
+  const scoreRef = useRef<number>(0);
+  scoreRef.current = score;
+  const runningRef = useRef<boolean>(false);
+  runningRef.current = running;
+  const gameOverRef = useRef<boolean>(false);
+  gameOverRef.current = gameOver;
+
+  const saveHighScore = useCallback(
+    (nextScore: number): void => {
+      setHighScore((currentBest) => {
+        if (nextScore <= currentBest) {
+          return currentBest;
+        }
+        try {
+          window.localStorage.setItem(scoreKey(userKey), String(nextScore));
+        } catch {
+          // LocalStorage fallback
+        }
+        return nextScore;
+      });
+    },
+    [userKey]
+  );
+
+  const redrawCanvas = useCallback((): void => {
+    const canvas = canvasRef.current;
+    const surface = surfaceRef.current;
+    if (!canvas || !surface) {
+      return;
+    }
+
+    const clientWidth = Math.max(1, Math.floor(surface.clientWidth));
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+
+    canvas.width = Math.round(clientWidth * dpr);
+    canvas.height = Math.round(clientWidth * dpr);
+    canvas.style.width = `${clientWidth}px`;
+    canvas.style.height = `${clientWidth}px`;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    renderBoard(
+      context,
+      clientWidth,
+      gridSizeRef.current,
+      snakeRef.current,
+      foodRef.current,
+      directionRef.current,
+      paletteRef.current
+    );
+  }, []);
+
+  const resetGameState = useCallback((): void => {
+    snakeRef.current = makeInitialSnake(gridSizeRef.current);
+    foodRef.current = generateFood(gridSizeRef.current, snakeRef.current);
+    directionRef.current = "right";
+    inputQueueRef.current = [];
+    accumulatorRef.current = 0;
+    setScore(0);
+    setGameOver(false);
+  }, []);
+
+  const handleStartGame = useCallback((): void => {
+    resetGameState();
+    setHasStarted(true);
+    setRunning(true);
+    redrawCanvas();
+    requestAnimationFrame(() => {
+      cardRef.current?.focus();
+    });
+  }, [redrawCanvas, resetGameState]);
+
+  const togglePause = useCallback((): void => {
+    if (!hasStarted || gameOverRef.current) {
+      return;
+    }
+    setRunning((prev) => {
+      return !prev;
+    });
+    requestAnimationFrame(() => {
+      cardRef.current?.focus();
+    });
+  }, [hasStarted]);
+
+  const queueDirection = useCallback((nextDirection: Direction): void => {
+    if (!runningRef.current || gameOverRef.current) {
+      return;
+    }
+
+    const queue = inputQueueRef.current;
+    const latestDirection =
+      queue.length > 0 ? queue[queue.length - 1] : directionRef.current;
+
+    if (
+      queue.length < 2 &&
+      !isOpposite(latestDirection, nextDirection) &&
+      latestDirection !== nextDirection
+    ) {
+      inputQueueRef.current = [...queue, nextDirection];
+    }
+  }, []);
+
+  // Initialize scores, responsive board size, and touch detection
   useEffect(() => {
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => paint()); if (surfaceRef.current) observer?.observe(surfaceRef.current); const themeObserver = new MutationObserver(() => paint()); themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
-    const tick = (time: number) => { const delta = lastFrame.current ? Math.min(80, time - lastFrame.current) : 0; lastFrame.current = time;
-      if (running && !gameOver) { accumulator.current += delta; const step = Math.max(90, 190 - score * 2.2); while (accumulator.current >= step) { accumulator.current -= step; const parts = snake.current; direction.current = queued.current; const vector = VECTORS[direction.current]; const head = { x: parts[0].x + vector.x, y: parts[0].y + vector.y }; const collision = head.x < 0 || head.y < 0 || head.x >= size.current || head.y >= size.current || parts.some((part, index) => index > 0 && part.x === head.x && part.y === head.y); if (collision) { setRunning(false); setGameOver(true); saveBest(score); break; } parts.unshift(head); if (head.x === food.current.x && head.y === food.current.y) { const next = score + 1; setScore(next); saveBest(next); food.current = makeFood(size.current, parts); } else parts.pop(); turnLocked.current = false; } }
-      paint(); frameRef.current = requestAnimationFrame(tick);
-    }; frameRef.current = requestAnimationFrame(tick); return () => { if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); observer?.disconnect(); themeObserver.disconnect(); saveBest(score); };
-  }, [gameOver, paint, running, saveBest, score]);
-  useEffect(() => { const onKey = (event: KeyboardEvent) => { const target = event.target as HTMLElement | null; if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return; if (!cardRef.current?.contains(target) && document.activeElement !== cardRef.current) return; const keys: Record<string, Direction | undefined> = { ArrowUp: "up", w: "up", W: "up", ArrowDown: "down", s: "down", S: "down", ArrowLeft: "left", a: "left", A: "left", ArrowRight: "right", d: "right", D: "right" }; const next = keys[event.key]; if (next) { event.preventDefault(); steer(next); } else if (event.code === "Space") { event.preventDefault(); toggle(); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, [steer, toggle]);
-  const pointerDown = (event: ReactPointerEvent<HTMLDivElement>) => { cardRef.current?.focus(); if (event.pointerType === "touch") swipe.current = { x: event.clientX, y: event.clientY }; };
-  const pointerUp = (event: ReactPointerEvent<HTMLDivElement>) => { const start = swipe.current; swipe.current = null; if (!start) return; const dx = event.clientX - start.x; const dy = event.clientY - start.y; if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) toggle(); else if (Math.abs(dx) > Math.abs(dy)) steer(dx > 0 ? "right" : "left"); else steer(dy > 0 ? "down" : "up"); };
-  const status = generationComplete ? "Ready" : gameOver ? "Game over" : running ? "Playing" : "Paused";
+    if (typeof window === "undefined") {
+      return;
+    }
 
-  return <section ref={cardRef} tabIndex={0} className={cn("w-[min(390px,calc(100vw-1.5rem))] overflow-hidden rounded-[22px] border border-[var(--hyd-200)] bg-[var(--app-canvas)] p-3 text-[var(--hyd-ink)] shadow-[var(--shadow-stage-md)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--hyd-400)] sm:p-3.5", className)} aria-label="Play while you wait: Snake">
-    <div className="flex items-start justify-between gap-3 px-0.5"><div><h2 className="text-[14px] font-semibold tracking-[var(--tracking-display)] sm:text-[15px]"><Sparkles className="mr-1 inline h-4 w-4 text-[var(--hyd-400)]" aria-hidden /> Play while you wait: Snake</h2><p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] opacity-55">Hydrilla generation lounge</p></div><div className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--hyd-50)] px-2 py-1 text-[11px] font-semibold"><Trophy className="h-3.5 w-3.5 text-[var(--hyd-400)]" />{highScore}</div></div>
-    <div className="mt-2 grid grid-cols-2 gap-2"><div className="rounded-[13px] border border-[var(--hyd-200)] bg-[var(--card-bg)] px-2.5 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-55">Score</div><div className="mt-0.5 text-[16px] font-semibold">{score}</div></div><div className="rounded-[13px] border border-[var(--hyd-200)] bg-[var(--card-bg)] px-2.5 py-1.5 text-right"><div className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-55">Best</div><div className="mt-0.5 text-[16px] font-semibold">{highScore}</div></div></div>
-    <div className="mt-2 overflow-hidden rounded-[17px] border border-[var(--hyd-200)] bg-[var(--hyd-mist)] shadow-[var(--shadow-stage)]"><div className="flex items-center justify-between px-2.5 py-1.5 text-[10px] font-medium opacity-65"><span>PIXEL GRID · {size.current}×{size.current}</span><span className="rounded-full bg-[var(--hyd-50)] px-1.5 py-0.5 text-[9px] font-semibold">{status}</span></div><div ref={surfaceRef} onPointerDown={pointerDown} onPointerUp={pointerUp} className="relative mx-auto aspect-square w-full max-w-[360px] touch-none overflow-hidden"><canvas ref={canvasRef} className="block h-full w-full" aria-label="Snake game board" />{!running && !gameOver && !generationComplete ? <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="bg-[var(--app-canvas)]/80 px-3 py-2 text-center backdrop-blur-[2px]"><p className="text-[12px] font-semibold">Ready when you are</p><p className="mt-0.5 text-[10px] opacity-65">{touch ? "Swipe to turn · tap to pause" : "Arrow keys / WASD · Space to pause"}</p></div></div> : null}{gameOver && !generationComplete ? <div className="absolute inset-0 flex items-center justify-center bg-[var(--app-canvas)]/80 p-4 text-center backdrop-blur-[2px]"><div><p className="text-[12px] font-semibold">Run complete</p><p className="mt-1 text-[10px] opacity-65">Score {score} · Best {highScore}</p><button type="button" onClick={() => reset(true)} className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--hyd-ink)] px-3.5 text-[11px] font-semibold text-[var(--app-canvas)]"><RotateCcw className="h-3.5 w-3.5" /> Play again</button></div></div> : null}{generationComplete ? <div className="absolute inset-0 flex items-center justify-center bg-[var(--app-canvas)]/85 p-4 text-center backdrop-blur-[2px]"><div><p className="text-[12px] font-semibold">Your model is ready</p><p className="mt-1 text-[10px] opacity-65">Open it in the workspace viewer.</p><button type="button" onClick={onViewGeneratedModel} className="mt-2 min-h-11 rounded-lg bg-[var(--hyd-ink)] px-3.5 text-[11px] font-semibold text-[var(--app-canvas)]">View generated model</button></div></div> : null}</div></div>
-    <div className="mt-2 flex items-center justify-between gap-2"><div className="grid grid-cols-3 gap-1 sm:hidden"><span /><button type="button" aria-label="Move up" onClick={() => steer("up")} className="grid min-h-11 min-w-11 place-items-center rounded-lg border border-[var(--hyd-200)] bg-[var(--hyd-50)]"><ChevronUp className="h-4 w-4" /></button><span /><button type="button" aria-label="Move left" onClick={() => steer("left")} className="grid min-h-11 min-w-11 place-items-center rounded-lg border border-[var(--hyd-200)] bg-[var(--hyd-50)]"><ChevronLeft className="h-4 w-4" /></button><button type="button" aria-label={running ? "Pause game" : "Play game"} onClick={toggle} className="grid min-h-11 min-w-11 place-items-center rounded-lg bg-[var(--hyd-ink)] text-[var(--app-canvas)]">{running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button><button type="button" aria-label="Move right" onClick={() => steer("right")} className="grid min-h-11 min-w-11 place-items-center rounded-lg border border-[var(--hyd-200)] bg-[var(--hyd-50)]"><ChevronRight className="h-4 w-4" /></button><span /><button type="button" aria-label="Move down" onClick={() => steer("down")} className="grid min-h-11 min-w-11 place-items-center rounded-lg border border-[var(--hyd-200)] bg-[var(--hyd-50)]"><ChevronDown className="h-4 w-4" /></button><span /></div><div className="hidden min-w-0 text-[10px] opacity-60 sm:block">Arrow keys / WASD to steer</div><button type="button" onClick={toggle} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--hyd-ink)] px-3.5 text-[11px] font-semibold text-[var(--app-canvas)] sm:min-h-9">{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{running ? "Pause" : gameOver ? "Play again" : "Play"}</button></div>
-  </section>;
+    const isMobile = window.matchMedia("(max-width: 639px)").matches;
+    gridSizeRef.current = isMobile ? 14 : 16;
+    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+    try {
+      const stored = Number.parseInt(
+        window.localStorage.getItem(scoreKey(userKey)) || "0",
+        10
+      );
+      setHighScore(Number.isFinite(stored) ? stored : 0);
+    } catch {
+      setHighScore(0);
+    }
+
+    resetGameState();
+    paletteRef.current = getThemePalette();
+    redrawCanvas();
+  }, [redrawCanvas, resetGameState, userKey]);
+
+  // Main game tick and observer loop
+  useEffect(() => {
+    const handleThemeChange = (): void => {
+      paletteRef.current = getThemePalette();
+      redrawCanvas();
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            redrawCanvas();
+          })
+        : null;
+
+    if (surfaceRef.current && resizeObserver) {
+      resizeObserver.observe(surfaceRef.current);
+    }
+
+    const themeObserver = new MutationObserver(() => {
+      handleThemeChange();
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+
+    const stepTick = (time: number): void => {
+      const delta = lastTimestampRef.current
+        ? Math.min(80, time - lastTimestampRef.current)
+        : 0;
+      lastTimestampRef.current = time;
+
+      if (runningRef.current && !gameOverRef.current) {
+        accumulatorRef.current += delta;
+        const currentSpeed = Math.max(85, 180 - scoreRef.current * 2.2);
+
+        while (accumulatorRef.current >= currentSpeed) {
+          accumulatorRef.current -= currentSpeed;
+
+          if (inputQueueRef.current.length > 0) {
+            const nextDir = inputQueueRef.current[0];
+            inputQueueRef.current = inputQueueRef.current.slice(1);
+            directionRef.current = nextDir;
+          }
+
+          const currentSnake = snakeRef.current;
+          const vector = VECTORS[directionRef.current];
+          const head = currentSnake[0];
+          const size = gridSizeRef.current;
+
+          // Wrap-around edges
+          const wrappedX = (head.x + vector.x + size) % size;
+          const wrappedY = (head.y + vector.y + size) % size;
+          const newHead: Point = { x: wrappedX, y: wrappedY };
+
+          // Self-collision only
+          const selfCollision = currentSnake.some((segment, segmentIndex) => {
+            return (
+              segmentIndex > 0 &&
+              segment.x === newHead.x &&
+              segment.y === newHead.y
+            );
+          });
+
+          if (selfCollision) {
+            setRunning(false);
+            setGameOver(true);
+            saveHighScore(scoreRef.current);
+            break;
+          }
+
+          const updatedSnake = [newHead, ...currentSnake];
+          if (
+            newHead.x === foodRef.current.x &&
+            newHead.y === foodRef.current.y
+          ) {
+            const updatedScore = scoreRef.current + 1;
+            setScore(updatedScore);
+            saveHighScore(updatedScore);
+            foodRef.current = generateFood(size, updatedSnake);
+          } else {
+            updatedSnake.pop();
+          }
+
+          snakeRef.current = updatedSnake;
+        }
+
+        redrawCanvas();
+      }
+
+      animationFrameRef.current = requestAnimationFrame(stepTick);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(stepTick);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      themeObserver.disconnect();
+    };
+  }, [redrawCanvas, saveHighScore]);
+
+  // Arrow keys for steering + Spacebar to pause / unpause
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable ||
+          /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      ) {
+        return;
+      }
+
+      // Spacebar toggles pause
+      if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        togglePause();
+        return;
+      }
+
+      // Arrow keys only
+      const arrowDirection = ARROW_KEY_DIRECTIONS[event.key];
+      if (!arrowDirection) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (runningRef.current && !gameOverRef.current) {
+        queueDirection(arrowDirection);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [queueDirection, togglePause]);
+
+  // Mobile touch gestures: swipe on canvas to steer, tap to pause/resume
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    cardRef.current?.focus();
+    if (event.pointerType === "touch") {
+      swipeStartRef.current = { x: event.clientX, y: event.clientY };
+    }
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start) {
+      return;
+    }
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (Math.max(absX, absY) < 16) {
+      togglePause();
+      return;
+    }
+
+    if (absX > absY) {
+      queueDirection(deltaX > 0 ? "right" : "left");
+    } else {
+      queueDirection(deltaY > 0 ? "down" : "up");
+    }
+  };
+
+  const handlePointerCancel = (): void => {
+    swipeStartRef.current = null;
+  };
+
+  return (
+    <section
+      ref={cardRef}
+      tabIndex={0}
+      className={cn(
+        "studio-float w-[min(340px,calc(100vw-2rem))] sm:w-[350px] overflow-hidden rounded-[26px] sm:rounded-[28px] border border-neutral-200/80 bg-white/95 p-3.5 sm:p-4 text-neutral-900 shadow-[0_16px_48px_-12px_rgba(1,14,36,0.12),0_2px_8px_rgba(1,14,36,0.04)] backdrop-blur-xl outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-white/[0.08] dark:bg-[#141417]/95 dark:text-neutral-100 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_56px_-24px_rgba(0,0,0,0.85)]",
+        className
+      )}
+      aria-label="Snake Game"
+    >
+      {/* Pickle-style Balanced Metric Capsules */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+        <div className="relative overflow-hidden rounded-[18px] sm:rounded-[20px] border border-neutral-200/70 bg-[#f4f7fb] px-3.5 py-2 sm:py-2.5 transition-colors dark:border-white/[0.06] dark:bg-white/[0.03]">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+            Score
+          </div>
+          <div className="mt-0.5 text-[18px] sm:text-[20px] font-semibold tabular-nums tracking-tight text-neutral-950 dark:text-white">
+            {score}
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-[18px] sm:rounded-[20px] border border-neutral-200/70 bg-[#f4f7fb] px-3.5 py-2 sm:py-2.5 text-right transition-colors dark:border-white/[0.06] dark:bg-white/[0.03]">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+            Best Score
+          </div>
+          <div className="mt-0.5 text-[18px] sm:text-[20px] font-semibold tabular-nums tracking-tight text-neutral-950 dark:text-white">
+            {highScore}
+          </div>
+        </div>
+      </div>
+
+      {/* Game Board Canvas with Hydrilla Mist Tint */}
+      <div className="mt-2.5 sm:mt-3 overflow-hidden rounded-[20px] sm:rounded-[22px] border border-neutral-200/80 bg-[#f4f7fb] p-1 shadow-inner dark:border-white/[0.08] dark:bg-[#0c0c0e]">
+        <div
+          ref={surfaceRef}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          className="relative mx-auto aspect-square w-full max-w-[275px] sm:max-w-[305px] touch-none overflow-hidden rounded-[16px] sm:rounded-[18px]"
+        >
+          <canvas
+            ref={canvasRef}
+            className="block h-full w-full"
+            aria-label="Snake game board"
+          />
+
+          {/* Start Game Overlay */}
+          {!hasStarted ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 p-4 sm:p-5 text-center backdrop-blur-[3px] dark:bg-[#141417]/85">
+              <button
+                type="button"
+                onClick={handleStartGame}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-neutral-950 px-7 text-[13px] font-medium tracking-tight text-white shadow-[0_8px_20px_-4px_rgba(0,0,0,0.25)] transition-all hover:bg-neutral-850 hover:shadow-[0_12px_24px_-4px_rgba(0,0,0,0.3)] active:scale-[0.98] dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100"
+              >
+                <Play className="h-3.5 w-3.5 fill-current" />
+                Start Game
+              </button>
+              <p className="mt-2.5 text-[11px] font-medium text-neutral-400 dark:text-neutral-500">
+                {isTouchDevice ? "Swipe to steer · tap to pause" : "Arrow keys to steer · Space to pause"}
+              </p>
+            </div>
+          ) : null}
+
+          {/* Paused State Overlay */}
+          {hasStarted && !running && !gameOver ? (
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-white/70 p-4 text-center backdrop-blur-[2px] dark:bg-[#141417]/70">
+              <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/95 px-4 py-1.5 text-[12px] font-medium text-neutral-900 shadow-sm dark:border-white/[0.08] dark:bg-[#1f1f23]/95 dark:text-neutral-100">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                Paused
+              </div>
+              <p className="mt-2 text-[11px] font-medium text-neutral-400 dark:text-neutral-500">
+                {isTouchDevice ? "Tap board to resume" : "Press Space to resume"}
+              </p>
+            </div>
+          ) : null}
+
+          {/* Game Over State Overlay */}
+          {gameOver ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 p-4 sm:p-5 text-center backdrop-blur-[3px] dark:bg-[#141417]/90 animate-in fade-in-0 duration-200">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400 dark:text-neutral-500">
+                Game Over
+              </span>
+              <p className="mt-1 text-[13px] text-neutral-600 dark:text-neutral-300">
+                Score <span className="font-semibold text-neutral-950 dark:text-white">{score}</span> · Best <span className="font-semibold text-neutral-950 dark:text-white">{highScore}</span>
+              </p>
+              <button
+                type="button"
+                onClick={handleStartGame}
+                className="mt-3.5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-neutral-950 px-6 text-[12px] font-medium tracking-tight text-white shadow-sm transition hover:bg-neutral-850 active:scale-[0.98] dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Play Again
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
 }

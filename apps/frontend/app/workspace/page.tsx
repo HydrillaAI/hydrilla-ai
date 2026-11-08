@@ -1614,7 +1614,7 @@ function WorkspacePage() {
         }
 
         if (status.status === "completed") {
-          setSnakeCompletion(true);
+          setSnakeVisible(false);
           // Belt-and-suspenders: Water DONE must never open the GLB viewer (404).
           if (isWaterJobId(currentGenerating.jobId)) {
             return;
@@ -2037,7 +2037,7 @@ function WorkspacePage() {
               if (pollGen !== waterPollGenRef.current) return;
 
               if (job.status === "DONE" && job.factoryCode) {
-                setSnakeCompletion(true);
+                setSnakeVisible(false);
                 setCodeFactoryCode(job.factoryCode);
                 setCodeSculptPass(job.sculptPass || "done");
                 if (job.scene) setWaterScene(job.scene);
@@ -3300,7 +3300,7 @@ function WorkspacePage() {
               const cs = await fetchWaterJob(job.id, tokenGetter);
               if (pollGen !== waterPollGenRef.current) return;
               if (cs.status === "DONE" && cs.factoryCode) {
-                setSnakeCompletion(true);
+                setSnakeVisible(false);
                 setCodeFactoryCode(cs.factoryCode);
                 setCodeSculptPass(cs.sculptPass);
                 setCurrentGenerating(null);
@@ -3631,7 +3631,6 @@ function WorkspacePage() {
   const isGenerating = loading || generatingPreview || (currentGenerating?.status === "generating");
   const snakeGenerationStart = currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
   const [snakeVisible, setSnakeVisible] = useState(false);
-  const [snakeCompletion, setSnakeCompletion] = useState(false);
   const snakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -3640,8 +3639,9 @@ function WorkspacePage() {
       snakeTimerRef.current = null;
     }
     setSnakeVisible(false);
-    if (currentGenerating?.status !== "generating" || snakeGenerationStart === null) return;
-    setSnakeCompletion(false);
+    if (currentGenerating?.status !== "generating" || snakeGenerationStart === null) {
+      return;
+    }
     const remaining = Math.max(0, 2_000 - (Date.now() - snakeGenerationStart));
     if (remaining === 0) {
       setSnakeVisible(true);
@@ -4432,14 +4432,15 @@ function WorkspacePage() {
             </div>
           ) : null}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          {(snakeVisible || snakeCompletion) && !fullView ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center sm:inset-x-auto sm:bottom-auto sm:right-3 sm:top-[clamp(5rem,calc(50%_-_20rem),11rem)] sm:block">
+          {snakeVisible && !fullView ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-x-0 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-20 flex justify-center px-3 transition-transform duration-300 ease-out motion-reduce:transition-none sm:inset-x-auto sm:bottom-auto sm:right-16 sm:top-[calc(50%_-_3.5rem)] sm:-translate-y-1/2 sm:block sm:px-0",
+                inspectorVisible && !isCompact && "sm:-translate-x-[304px]"
+              )}
+            >
               <div className="pointer-events-auto">
-                <SnakeCard
-                  userKey={userId ?? null}
-                  generationComplete={snakeCompletion}
-                  onViewGeneratedModel={() => setSnakeCompletion(false)}
-                />
+                <SnakeCard userKey={userId ?? null} />
               </div>
             </div>
           ) : null}
