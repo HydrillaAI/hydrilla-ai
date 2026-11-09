@@ -172,6 +172,23 @@ const WATER_PROGRESS_PER_POLL = 3;
 const LIBRARY_POLL_INTERVAL_MS = 10_000;
 // GPU 3D jobs take minutes, so a status check every few seconds is plenty.
 const THREE_D_POLL_INTERVAL_MS = 5_000;
+/** Progress shown the moment an image-to-3D request is sent. */
+const THREE_D_SUBMIT_START_PROGRESS = 1;
+/** Ceiling while waiting for the job to be accepted, since real progress is unknown until then. */
+const THREE_D_SUBMIT_MAX_PROGRESS = 11;
+const THREE_D_SUBMIT_EASE_SECONDS = 15;
+
+/** Eases toward the ceiling, so a slow upload keeps moving without ever claiming to be near done. */
+function threeDSubmitProgress(elapsedSeconds: number): number {
+  const range = THREE_D_SUBMIT_MAX_PROGRESS - THREE_D_SUBMIT_START_PROGRESS;
+  return THREE_D_SUBMIT_START_PROGRESS + range * (1 - Math.exp(-elapsedSeconds / THREE_D_SUBMIT_EASE_SECONDS));
+}
+
+/** Keeps the bar from sliding back when the first server status is lower than what is on screen. */
+function forwardProgress(prev: { type: string; progress?: number }, progress: number): number {
+  return prev.type === "generating" ? Math.max(prev.progress ?? 0, progress) : progress;
+}
+
 
 
 const sculptPassLabel = (pass?: string | null): string => waterPassLabel(pass);
@@ -1588,7 +1605,7 @@ function WorkspacePage() {
               if (!followsCurrentJob) {
                 return prev;
               }
-              return { type: "generating", progress: waitProgress, message: msg };
+              return { type: "generating", progress: forwardProgress(prev, waitProgress), message: msg };
             });
             setCurrentGenerating((prev) =>
               prev ? { ...prev, progress: waitProgress } : null
@@ -1614,7 +1631,7 @@ function WorkspacePage() {
               }
               return {
                 type: "generating",
-                progress,
+                progress: forwardProgress(prev, progress),
                 message: msg,
               };
             });
@@ -1633,7 +1650,7 @@ function WorkspacePage() {
             if (!followsCurrentJob) {
               return prev;
             }
-            return { type: "generating", progress, message: msg };
+            return { type: "generating", progress: forwardProgress(prev, progress), message: msg };
           });
           setCurrentGenerating((prev) =>
             prev ? { ...prev, progress } : null
@@ -1653,7 +1670,7 @@ function WorkspacePage() {
             }
             return {
               type: "generating",
-              progress,
+              progress: forwardProgress(prev, progress),
               message: threeDStageMessage(progress),
             };
           });
@@ -2304,7 +2321,37 @@ function WorkspacePage() {
       setLeftLibraryTab("3d"); // Switch to 3D tab so result will show in 3D section below search
       markMobileGenerationStart();
       setLoading(true);
-      setCenterView({ type: "generating", progress: 0, message: threeDStageMessage(0) });
+      setCenterView({
+        type: "generating",
+        progress: THREE_D_SUBMIT_START_PROGRESS,
+        message: threeDStageMessage(THREE_D_SUBMIT_START_PROGRESS),
+      });
+
+      // Upload and submit can take a while, so keep the bar moving from the moment Send is clicked.
+      const submitStartedAt = Date.now();
+      const submitProgress = { value: THREE_D_SUBMIT_START_PROGRESS };
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+      progressIntervalRef.current = setInterval(() => {
+        submitProgress.value = threeDSubmitProgress((Date.now() - submitStartedAt) / 1000);
+        setCenterView((prev) => {
+          if (prev.type !== "generating") {
+            return prev;
+          }
+          return {
+            type: "generating",
+            progress: submitProgress.value,
+            message: threeDStageMessage(submitProgress.value),
+          };
+        });
+      }, 200);
+      const stopSubmitProgress = () => {
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
+      };
 
       // Optimistic pending entry so the 3D library shows a loader immediately
       // (before the API returns) and the user sees progress without delay.
@@ -2335,6 +2382,7 @@ function WorkspacePage() {
       });
 
       const queueInfo = await fetchQueueInfo().catch(async (err: unknown) => {
+        stopSubmitProgress();
         const msg = err && typeof err === "object" && "message" in err ? String((err as { message?: string }).message) : "";
         const userFacing = msg?.includes("GPU is currently offline")
           ? toUserFacingGpuError(msg)
@@ -2374,13 +2422,14 @@ function WorkspacePage() {
           active3DResolution,
           targetPrompt
         );
+        stopSubmitProgress();
         mobileGenStartedAtRef.current = null;
         setCurrentGenerating({
           jobId: result.job_id,
           status: "generating",
-          progress: 0,
+          progress: submitProgress.value,
           estimatedTotalSeconds: estimatedTotal,
-          startTime: Date.now(),
+          startTime: submitStartedAt,
           queueInfo: queueInfo || undefined,
         });
         loadJobInfo({
@@ -2404,6 +2453,7 @@ function WorkspacePage() {
         refreshLibrary();
       } catch (err: unknown) {
         const msg = err && typeof err === "object" && "message" in err ? String((err as { message?: string }).message) : "Failed to start 3D";
+        stopSubmitProgress();
         if (isPaywallError(msg)) {
           track("paywall_hit", { source: "image_to_3d", action: "generate_3d" });
         }
