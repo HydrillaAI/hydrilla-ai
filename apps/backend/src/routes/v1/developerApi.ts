@@ -33,6 +33,7 @@ import { recordImageUsage, type ImageUsageRecord } from "../../repository/imageU
 import { uploadBufferToS3 } from "../../lib/s3Upload.js";
 import { normalizeGlbUrl } from "../../utils/s3Urls.js";
 import { recoverOrphanMeshIfPresent } from "../../services/orphanMeshRecovery.js";
+import { syncJobFromApi } from "../../services/jobSync.js";
 import { logger } from "../../logger.js";
 import type { JobRecord } from "../../types.js";
 
@@ -491,6 +492,20 @@ developerV1Router.post(
 // ============================================================================
 // 3. GET /v1/3d/tasks/:taskId & /v1/tasks/:taskId: Poll status & retrieve GLB
 // ============================================================================
+/**
+ * Copy the GPU's current state onto an unfinished job row. On Vercel nothing
+ * else does this for API tasks: the GPU sends no webhook and the background
+ * sync loop only runs on a long-lived server. Without it a finished model
+ * stays IN_PROGRESS until the 20-minute timeout below fails and refunds it.
+ */
+async function withGpuStatusSynced(job: JobRecord): Promise<JobRecord> {
+  if (job.status !== "WAIT" && job.status !== "RUN") {
+    return job;
+  }
+  await syncJobFromApi(job.id);
+  return (await getJob(job.id)) ?? job;
+}
+
 async function handleGetTask(req: Request, res: Response) {
   const userId = req.developerUserId!;
   const taskId = req.params.taskId;
@@ -506,8 +521,8 @@ async function handleGetTask(req: Request, res: Response) {
     return;
   }
 
-  const job = await getJob(taskId);
-  if (!job) {
+  const found = await getJob(taskId);
+  if (!found) {
     res.status(404).json({
       error: {
         message: `Task '${taskId}' not found.`,
@@ -518,7 +533,7 @@ async function handleGetTask(req: Request, res: Response) {
     return;
   }
 
-  if (job.userId && job.userId !== userId) {
+  if (found.userId && found.userId !== userId) {
     res.status(403).json({
       error: {
         message: "You do not have access to this task.",
@@ -528,6 +543,8 @@ async function handleGetTask(req: Request, res: Response) {
     });
     return;
   }
+
+  const job = await withGpuStatusSynced(found);
 
   // 20-minute timeout check:
   // If task has been running/waiting for >= 20 minutes, expire it and refund automatically.
