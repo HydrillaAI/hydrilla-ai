@@ -1,15 +1,37 @@
 {
-  "name": "@hydrilla/mcp-server",
-  "version": "1.0.0",
-  "private": true,
+  "name": "hydrilla-mcp",
+  "version": "2.0.0",
+  "description": "MCP server for Hydrilla: generate 3D models and send them into Blender, Unity, Unreal, Godot, Maya or 3ds Max.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "hydrilla",
+    "3d",
+    "text-to-3d",
+    "image-to-3d",
+    "blender",
+    "unity",
+    "unreal",
+    "godot"
+  ],
+  "homepage": "https://hydrilla.ai/integrations/mcp",
+  "license": "UNLICENSED",
   "type": "module",
   "bin": {
     "hydrilla-mcp": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": "^20.20.0 || >=22.22.0"

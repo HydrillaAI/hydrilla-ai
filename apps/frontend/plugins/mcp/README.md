@@ -19,7 +19,7 @@ cp mcp.env.example mcp.env
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `HYDRILLA_API_KEY` | Yes | `hyd_live_…` from `/app/api-keys` |
+| `HYDRILLA_API_KEY` | No, if a plugin has the key | `hyd_live_…` from `/app/api-keys`. When unset, the server uses the key pasted into a Hydrilla plugin (`~/.hydrilla/config.json`), read on every call |
 | `HYDRILLA_API_BASE` | No | Defaults to production backend |
 | `POSTHOG_PROJECT_TOKEN` | Recommended | `phc_…` for MCP Analytics |
 | `POSTHOG_HOST` | No | Defaults to `https://us.i.posthog.com` |
@@ -31,22 +31,79 @@ Committed configs (no secrets):
 - Workspace root: `Hydrilla_all/.mcp.json`
 - Repo root: `hydrilla-ai/.mcp.json`
 
-Both point at `dist/index.js` and load `mcp.env`.
+Both point at `dist/index.js` with a path relative to that folder. The server loads `mcp.env` from its own directory. Do not use `${workspaceFolder}` or `envFile` here: Claude Code does not expand that variable and does not read `envFile`.
 
-Manual client config if needed:
+Public install (same flow as the MCP page). The npm package is `hydrilla-mcp` (Node.js 20+). Replace `hyd_live_…` with a key from `/app/api-keys`. The key stays in the client config, not in chat.
+
+Claude Code (macOS / Linux):
+
+```bash
+claude mcp add -s user hydrilla --env HYDRILLA_API_KEY=hyd_live_… -- npx -y hydrilla-mcp
+```
+
+Claude Code (Windows):
+
+```bash
+claude mcp add -s user hydrilla --env HYDRILLA_API_KEY=hyd_live_… "--" cmd /c npx -y hydrilla-mcp
+```
+
+Codex:
+
+```bash
+codex mcp add hydrilla --env HYDRILLA_API_KEY=hyd_live_… -- npx -y hydrilla-mcp
+```
+
+Cursor: open the install link from `/integrations/mcp`, or paste this into `~/.cursor/mcp.json` and turn `hydrilla` on:
+
+```json
+{
+  "mcpServers": {
+    "hydrilla": {
+      "command": "npx",
+      "args": ["-y", "hydrilla-mcp"],
+      "env": {
+        "HYDRILLA_API_KEY": "hyd_live_…"
+      }
+    }
+  }
+}
+```
+
+Local checkout of this repo:
 
 ```json
 {
   "mcpServers": {
     "hydrilla": {
       "command": "node",
-      "args": ["/absolute/path/to/plugins/mcp/dist/index.js"],
-      "envFile": "/absolute/path/to/plugins/mcp/mcp.env"
+      "args": ["apps/frontend/plugins/mcp/dist/index.js"]
     }
   }
 }
 ```
 
+The path is relative to the folder that contains `.mcp.json`. The server reads `mcp.env` beside itself, so the key is not written into this file.
+
 ## Tools
 
-`hydrilla_me`, `hydrilla_text_to_3d`, `hydrilla_image_to_3d`, `hydrilla_get_task`
+| Tool | What it does |
+|---|---|
+| `hydrilla_me` | Plan and credit balance. Free. |
+| `hydrilla_text_to_3d` | Generate a GLB from a prompt. `send_to` places it in an open app. |
+| `hydrilla_image_to_3d` | Generate a GLB from an image URL. `send_to` places it in an open app. |
+| `hydrilla_get_task` | Status and mesh URL of one task. |
+| `hydrilla_list_tasks` | Recent models on the account. Free. |
+| `hydrilla_cancel_task` | Stop a running task; unused credits are refunded. |
+| `hydrilla_list_apps` | Which apps have their Bridge running right now. |
+| `hydrilla_send_to_app` | Put an existing model into Blender, Unity, Unreal, Godot, Maya or 3ds Max. Free. |
+
+## Sending models into an app
+
+Each Hydrilla plugin has a **Run Bridge** button that listens on its own local port
+(Blender 7345, Maya 7346, 3ds Max 7347, Unreal 7348, Unity 7349, Godot 7350). With the
+Bridge running, `send_to: "blender"` on a generate tool, or `hydrilla_send_to_app`, makes
+the plugin download the GLB and import it into the open scene. If the Bridge is off, the
+tool says which button to click and the model can be sent again without regenerating.
+
+A generate call waits up to 8 minutes and reports progress to clients that ask for it. If
+the model is not ready by then, it returns the task id to check with `hydrilla_get_task`.
