@@ -38,19 +38,19 @@ Public install (same flow as the MCP page). The npm package is `hydrilla-mcp` (N
 Claude Code (macOS / Linux):
 
 ```bash
-claude mcp add -s user hydrilla --env HYDRILLA_API_KEY=hyd_live_… -- npx -y hydrilla-mcp
+claude mcp add -s user hydrilla --env HYDRILLA_API_KEY=hyd_live_… -- npx -y hydrilla-mcp@latest
 ```
 
 Claude Code (Windows):
 
 ```bash
-claude mcp add -s user hydrilla --env HYDRILLA_API_KEY=hyd_live_… "--" cmd /c npx -y hydrilla-mcp
+claude mcp add -s user hydrilla --env HYDRILLA_API_KEY=hyd_live_… "--" cmd /c npx -y hydrilla-mcp@latest
 ```
 
 Codex:
 
 ```bash
-codex mcp add hydrilla --env HYDRILLA_API_KEY=hyd_live_… -- npx -y hydrilla-mcp
+codex mcp add hydrilla --env HYDRILLA_API_KEY=hyd_live_… -- npx -y hydrilla-mcp@latest
 ```
 
 Cursor: open the install link from `/integrations/mcp`, or paste this into `~/.cursor/mcp.json` and turn `hydrilla` on:
@@ -60,7 +60,7 @@ Cursor: open the install link from `/integrations/mcp`, or paste this into `~/.c
   "mcpServers": {
     "hydrilla": {
       "command": "npx",
-      "args": ["-y", "hydrilla-mcp"],
+      "args": ["-y", "hydrilla-mcp@latest"],
       "env": {
         "HYDRILLA_API_KEY": "hyd_live_…"
       }
