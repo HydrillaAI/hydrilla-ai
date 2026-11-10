@@ -18,6 +18,8 @@ import {
   detectMcpOs,
   manualConfig,
   openPromptUrl,
+  cursorInstallUrl,
+  codexConnectCommand,
   stdioCommand,
   terminalHint,
   verifyPrompt,
@@ -403,6 +405,7 @@ function BlenderSetup({
   const prompt = blenderSetupPrompt(agent);
   const openUrl = openPromptUrl(agent, prompt);
   const agentName = clientById(agent).name;
+  const directInstall = agent === "cursor" || agent === "codex";
 
   return (
     <div className="mcp-panel">
@@ -424,13 +427,42 @@ function BlenderSetup({
           </button>
         ))}
       </div>
+      {agent === "cursor" ? (
+        <>
+          <p className="mcp-lead">
+            Opens Cursor&apos;s Install MCP server window with Hydrilla filled in. Click Install. No key is needed
+            here: Cursor uses the key you add in Blender in the next step.
+          </p>
+          <div className="mcp-prompt-actions">
+            <a className="pickle-pill-solid mcp-pill" href={cursorInstallUrl()}>
+              Add to Cursor
+            </a>
+          </div>
+        </>
+      ) : null}
+      {agent === "codex" ? (
+        <>
+          <p className="mcp-lead">
+            Run this in your terminal to add Hydrilla to Codex. No key is needed here: Codex uses the key you add in
+            Blender in the next step.
+          </p>
+          <CommandBlock
+            label="Your terminal"
+            code={codexConnectCommand()}
+            copyId="blender-codex-install"
+            copiedId={copiedId}
+            onCopy={onCopy}
+          />
+        </>
+      ) : null}
       <p className="mcp-lead">
-        Opens {agentName} with the setup prompt typed in. Nothing runs until you press Enter. Your key isn’t in this
-        prompt; you add it in Blender in the next step.
+        {directInstall
+          ? `Then install the Blender add-on: open ${agentName} with the setup prompt below, or follow it yourself.`
+          : `Opens ${agentName} with the setup prompt typed in. Nothing runs until you press Enter. Your key isn’t in this prompt; you add it in Blender in the next step.`}
       </p>
       <div className="mcp-prompt-actions">
         {openUrl ? (
-          <a className="pickle-pill-solid mcp-pill" href={openUrl}>
+          <a className={directInstall ? "pickle-pill-ghost mcp-pill" : "pickle-pill-solid mcp-pill"} href={openUrl}>
             Open in {agentName}
           </a>
         ) : null}
@@ -562,18 +594,28 @@ function ConnectPanel({
         <section className="mcp-substep">
           <h3>
             <span>1</span>
-            Save your key to Cursor
+            Add Hydrilla to Cursor
           </h3>
           <p>
-            Paste this into ~/.cursor/mcp.json, then turn hydrilla on in Settings → MCP &amp; Integrations.
+            Opens Cursor&apos;s Install MCP server window with Hydrilla filled in. Click Install, then replace{" "}
+            {KEY_PLACEHOLDER} with your key in Cursor Settings → MCP &amp; Integrations → hydrilla.
           </p>
-          <CommandBlock
-            label="~/.cursor/mcp.json"
-            code={manual}
-            copyId="cursor-json"
-            copiedId={copiedId}
-            onCopy={onCopy}
-          />
+          <div className="mcp-prompt-actions">
+            <a className="pickle-pill-solid mcp-pill" href={cursorInstallUrl(KEY_PLACEHOLDER)}>
+              Add to Cursor
+            </a>
+          </div>
+          <details className="mcp-manual">
+            <summary>Edit ~/.cursor/mcp.json instead</summary>
+            <p>Paste this into ~/.cursor/mcp.json, then turn hydrilla on in Settings → MCP &amp; Integrations.</p>
+            <CommandBlock
+              label="~/.cursor/mcp.json"
+              code={manual}
+              copyId="cursor-json"
+              copiedId={copiedId}
+              onCopy={onCopy}
+            />
+          </details>
         </section>
       ) : null}
 
