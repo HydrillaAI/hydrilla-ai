@@ -76,6 +76,42 @@ export const INTEGRATIONS: Integration[] = [
     ],
   },
   {
+    slug: "maya",
+    name: "Maya",
+    category: "modeling",
+    status: "available",
+    summary: "Generate AI 3D models and import them into Maya.",
+    description:
+      "A Hydrilla window for Maya that generates models with your API key and imports them into the open scene. Click Run Bridge to receive models sent from Studio or your AI agent.",
+    downloadPath: "/plugins/hydrilla-maya.zip",
+    bridgeTarget: "maya",
+    bridgePort: 7346,
+    installSteps: [
+      "Download hydrilla-maya.zip and unzip it into a folder on Maya's script path (for example your maya/scripts folder).",
+      "In the Script Editor (Python tab), run: import hydrilla_maya; hydrilla_maya.show()",
+      "Paste your API key (create one at /app/api-keys), then generate from text or an image.",
+      "Click Run Bridge to receive models from Studio or your AI agent. Maya imports GLB through its glTF importer.",
+    ],
+  },
+  {
+    slug: "3dsmax",
+    name: "3ds Max",
+    category: "modeling",
+    status: "available",
+    summary: "Generate AI 3D models and import them into 3ds Max.",
+    description:
+      "A Hydrilla window for 3ds Max that generates models with your API key and imports them into the open scene. Click Run Bridge to receive models sent from Studio or your AI agent.",
+    downloadPath: "/plugins/hydrilla-3dsmax.zip",
+    bridgeTarget: "3dsmax",
+    bridgePort: 7347,
+    installSteps: [
+      "Download hydrilla-3dsmax.zip and unzip it.",
+      "In 3ds Max choose Scripting › Run Script and pick hydrilla_max.py.",
+      "Paste your API key (create one at /app/api-keys), then generate from text or an image.",
+      "Click Run Bridge to receive models from Studio or your AI agent. 3ds Max 2023 and newer import GLB directly.",
+    ],
+  },
+  {
     slug: "unity",
     name: "Unity",
     category: "engines",
@@ -169,7 +205,7 @@ export const INTEGRATION_CATEGORIES: Array<{
   {
     id: "modeling",
     title: "3D Modeling",
-    description: "Generate and import meshes inside Blender.",
+    description: "Generate and import models inside Blender, Maya and 3ds Max.",
   },
   {
     id: "engines",

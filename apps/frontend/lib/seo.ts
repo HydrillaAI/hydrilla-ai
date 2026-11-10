@@ -69,6 +69,8 @@ export const PUBLIC_ROUTES: Array<{
   { path: "/image-to-3d", changeFrequency: "monthly", priority: 0.9 },
   { path: "/integrations", changeFrequency: "weekly", priority: 0.7 },
   { path: "/integrations/blender", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/integrations/maya", changeFrequency: "monthly", priority: 0.5 },
+  { path: "/integrations/3dsmax", changeFrequency: "monthly", priority: 0.5 },
   { path: "/integrations/unity", changeFrequency: "monthly", priority: 0.6 },
   { path: "/integrations/unreal", changeFrequency: "monthly", priority: 0.6 },
   { path: "/integrations/godot", changeFrequency: "monthly", priority: 0.5 },

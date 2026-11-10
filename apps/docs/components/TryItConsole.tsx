@@ -60,9 +60,23 @@ export function TryItConsole({ method, path, bodyParams = [], queryParams = [], 
     }
   }, []);
 
-  const effectivePath = path.replace(/:([A-Za-z0-9_]+)/g, (_m, name: string) =>
+  const pathParamNames = useMemo(
+    () => Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g), (match) => match[1]),
+    [path],
+  );
+  const filledPath = path.replace(/:([A-Za-z0-9_]+)/g, (_m, name: string) =>
     encodeURIComponent(values[name] || `:${name}`),
   );
+  // GET and DELETE carry their remaining parameters in the query string (e.g. ?limit=10).
+  const queryString =
+    method === "GET" || method === "DELETE"
+      ? new URLSearchParams(
+          queryParams
+            .filter((param) => !pathParamNames.includes(param.name) && values[param.name])
+            .map((param) => [param.name, values[param.name]]),
+        ).toString()
+      : "";
+  const effectivePath = queryString ? `${filledPath}?${queryString}` : filledPath;
 
   const curl = useMemo(() => {
     const key = revealInCurl ? apiKey || API_KEY_PLACEHOLDER : maskKey(apiKey || API_KEY_PLACEHOLDER);
@@ -135,7 +149,7 @@ export function TryItConsole({ method, path, bodyParams = [], queryParams = [], 
           method,
           path: effectivePath,
           headers: { Authorization: `Bearer ${apiKey}` },
-          body: method === "GET" ? undefined : JSON.stringify(payload),
+          body: method === "GET" || method === "DELETE" ? undefined : JSON.stringify(payload),
         }),
       });
       if (!res.ok) throw new Error("proxy");

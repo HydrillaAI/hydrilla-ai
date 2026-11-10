@@ -56,7 +56,9 @@ Card 6 line: Generation jobs from your own code.
 
 | Tool | Generate in the tool | Receive from Studio | Sign-in |
 |---|---|---|---|
-| Blender | Yes | Bridge | Studio account or API key |
+| Blender | Yes | Bridge | API key |
+| Maya | Yes | Bridge | API key |
+| 3ds Max | Yes | Bridge | API key |
 | Unity | Yes | Bridge | API key |
 | Unreal Engine | Yes | Bridge | API key |
 | Godot 4 | Yes | Bridge | API key |

@@ -78,7 +78,7 @@ export default function IntroductionPage() {
       <Callout variant="note" title="Asynchronous by default">
         <p>
           Generation jobs return a task ID immediately. Poll{" "}
-          <a href="/api/tasks">Tasks &amp; Polling</a> until the status is <code>completed</code>.
+          <a href="/api/tasks">Tasks &amp; Polling</a> until the status is <code>SUCCEEDED</code>.
         </p>
       </Callout>
 

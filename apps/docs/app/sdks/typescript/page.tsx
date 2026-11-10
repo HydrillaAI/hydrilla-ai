@@ -27,7 +27,7 @@ export interface TaskResult {
 
 export interface TaskStatusResponse {
   id: string;
-  status: "queued" | "processing" | "completed" | "failed";
+  status: "PENDING" | "IN_PROGRESS" | "SUCCEEDED" | "FAILED" | "CANCELLED";
   progress?: number;
   result?: TaskResult;
   error?: string;
@@ -78,18 +78,18 @@ export class Hydrilla {
     return this.request<TaskStatusResponse>(\`/v1/3d/tasks/\${taskId}\`);
   }
 
-  async pollUntilReady(taskId: string, intervalMs = 3000, maxAttempts = 60): Promise<TaskResult> {
+  async pollUntilReady(taskId: string, intervalMs = 3000, maxAttempts = 400): Promise<TaskResult> {
     const checkAttempt = async (attempt: number): Promise<TaskResult> => {
       if (attempt >= maxAttempts) {
         throw new Error(\`Polling timed out after \${maxAttempts} attempts.\`);
       }
 
       const task = await this.getTask(taskId);
-      if (task.status === "completed" && task.result) {
+      if (task.status === "SUCCEEDED" && task.result) {
         return task.result;
       }
-      if (task.status === "failed") {
-        throw new Error(task.error || "3D generation failed");
+      if (task.status === "FAILED" || task.status === "CANCELLED") {
+        throw new Error(task.error || \`3D generation \${task.status.toLowerCase()}\`);
       }
 
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
