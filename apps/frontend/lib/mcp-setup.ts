@@ -162,6 +162,30 @@ export function codexAddCommand(os: McpOs, apiKey: string): string {
   return `codex mcp add ${MCP_SERVER_NAME} --env HYDRILLA_API_KEY=${apiKey} -- ${serverCommand(os)}`;
 }
 
+type CursorServerConfig = {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+};
+
+/**
+ * Cursor's install link: opens Cursor's "Install MCP server" window with Hydrilla
+ * filled in. Without an API key the server uses the key saved by a Hydrilla plugin.
+ */
+export function cursorInstallUrl(apiKey?: string): string {
+  const base = mcpCommand();
+  const config: CursorServerConfig = apiKey
+    ? { ...base, env: { HYDRILLA_API_KEY: apiKey } }
+    : base;
+  const encoded = encodeURIComponent(btoa(JSON.stringify(config)));
+  return `cursor://anysphere.cursor-deeplink/mcp/install?name=${MCP_SERVER_NAME}&config=${encoded}`;
+}
+
+/** Codex has no install link, so its direct route is one terminal command. */
+export function codexConnectCommand(): string {
+  return `codex mcp add ${MCP_SERVER_NAME} -- npx -y ${MCP_PACKAGE}`;
+}
+
 export function stdioCommand(): string {
   return `npx -y ${MCP_PACKAGE}`;
 }
@@ -243,7 +267,7 @@ export const BLENDER_GENERATE_PROMPT =
  */
 export function blenderConnectLine(agent: BlenderAgent): string {
   if (agent === "codex") {
-    return `codex mcp add ${MCP_SERVER_NAME} -- npx -y ${MCP_PACKAGE}`;
+    return codexConnectCommand();
   }
   if (agent === "cursor") {
     return `Add this under "mcpServers" in ~/.cursor/mcp.json:\n"${MCP_SERVER_NAME}": {"command":"npx","args":["-y","${MCP_PACKAGE}"]}`;
