@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const SERVER_VERSION = "2.0.0";
+export const SERVER_VERSION = "2.0.1";
 export const DEFAULT_API_BASE = "https://hydrilla-ai-g1bm.vercel.app";
 export const API_KEYS_URL = "https://hydrilla.ai/app/api-keys";
 
