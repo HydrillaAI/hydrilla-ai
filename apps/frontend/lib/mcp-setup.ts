@@ -138,13 +138,19 @@ export function detectMcpOs(userAgent: string): McpOs {
 /** Published on npm; npx downloads and starts it, so nothing has to be built. */
 export const MCP_PACKAGE = "hydrilla-mcp";
 
+/**
+ * What npx is told to run. Without @latest, npx keeps starting the copy it
+ * cached on first install, so users never receive fixes.
+ */
+const MCP_PACKAGE_SPEC = `${MCP_PACKAGE}@latest`;
+
 export function mcpCommand(): { command: string; args: string[] } {
-  return { command: "npx", args: ["-y", MCP_PACKAGE] };
+  return { command: "npx", args: ["-y", MCP_PACKAGE_SPEC] };
 }
 
 /** Windows cannot start npx directly from a CLI-registered server; it runs through cmd. */
 function serverCommand(os: McpOs): string {
-  const npx = `npx -y ${MCP_PACKAGE}`;
+  const npx = `npx -y ${MCP_PACKAGE_SPEC}`;
   if (os === "windows") {
     return `cmd /c ${npx}`;
   }
@@ -183,11 +189,11 @@ export function cursorInstallUrl(apiKey?: string): string {
 
 /** Codex has no install link, so its direct route is one terminal command. */
 export function codexConnectCommand(): string {
-  return `codex mcp add ${MCP_SERVER_NAME} -- npx -y ${MCP_PACKAGE}`;
+  return `codex mcp add ${MCP_SERVER_NAME} -- npx -y ${MCP_PACKAGE_SPEC}`;
 }
 
 export function stdioCommand(): string {
-  return `npx -y ${MCP_PACKAGE}`;
+  return `npx -y ${MCP_PACKAGE_SPEC}`;
 }
 
 export function terminalHint(client: McpClient, os: McpOs): string {
@@ -270,9 +276,9 @@ export function blenderConnectLine(agent: BlenderAgent): string {
     return codexConnectCommand();
   }
   if (agent === "cursor") {
-    return `Add this under "mcpServers" in ~/.cursor/mcp.json:\n"${MCP_SERVER_NAME}": {"command":"npx","args":["-y","${MCP_PACKAGE}"]}`;
+    return `Add this under "mcpServers" in ~/.cursor/mcp.json:\n"${MCP_SERVER_NAME}": {"command":"npx","args":["-y","${MCP_PACKAGE_SPEC}"]}`;
   }
-  return `claude mcp add -s user ${MCP_SERVER_NAME} -- npx -y ${MCP_PACKAGE}`;
+  return `claude mcp add -s user ${MCP_SERVER_NAME} -- npx -y ${MCP_PACKAGE_SPEC}`;
 }
 
 export function blenderSetupPrompt(agent: BlenderAgent): string {

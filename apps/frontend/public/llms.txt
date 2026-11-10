@@ -24,7 +24,7 @@ Last updated: 2026-11-11
 - [Unity](https://hydrilla.ai/integrations/unity.md): Unity AI 3D editor plugin (Window > Hydrilla, GLB into Assets/Hydrilla, plus Bridge)
 - [Unreal Engine](https://hydrilla.ai/integrations/unreal.md): Unreal Engine AI 3D Python editor plugin (Hydrilla menu and Python API, imports into /Game/Hydrilla, plus Bridge)
 - [Godot 4](https://hydrilla.ai/integrations/godot.md): Godot 4 AI 3D editor dock (native glTF import into res://hydrilla/, plus Bridge)
-- [MCP server](https://hydrilla.ai/integrations/mcp.md): npm package hydrilla-mcp (run with npx -y hydrilla-mcp), a local stdio Model Context Protocol server for Claude Code, Cursor, Codex and other agents; it generates models and sends them into the open Blender, Maya, 3ds Max, Unity, Unreal or Godot scene (Water Agent is the agent inside Hydrilla)
+- [MCP server](https://hydrilla.ai/integrations/mcp.md): npm package hydrilla-mcp (run with npx -y hydrilla-mcp@latest), a local stdio Model Context Protocol server for Claude Code, Cursor, Codex and other agents; it generates models and sends them into the open Blender, Maya, 3ds Max, Unity, Unreal or Godot scene (Water Agent is the agent inside Hydrilla)
 - [REST API](https://hydrilla.ai/api.md): submit a job, poll its status, download the mesh and maps
 - [Pricing](https://hydrilla.ai/pricing.md): Free, Starter, Pro, Hourly, and Hourly Pro; credits per model; 14-day trial; Water Agent with no credits on every plan
 

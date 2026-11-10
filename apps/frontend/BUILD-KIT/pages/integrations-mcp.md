@@ -33,7 +33,7 @@ Alt text: Code block showing an MCP client configuration entry for the Hydrilla 
 
 ## Install
 
-1. Install Node.js 20 or newer. The server is the npm package hydrilla-mcp, started with npx -y hydrilla-mcp.
+1. Install Node.js 20 or newer. The server is the npm package hydrilla-mcp, started with npx -y hydrilla-mcp@latest.
 2. Add your API key in a Hydrilla plugin, or set HYDRILLA_API_KEY in the server's MCP config. Never paste it into the chat.
 3. Register the server in your MCP client with the command on this page, then restart the client.
 

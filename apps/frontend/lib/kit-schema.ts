@@ -195,7 +195,7 @@ const INTEGRATION_HOWTO: Record<string, { name: string; steps: string[] }> = {
   "/integrations/mcp": {
     name: "Install",
     steps: [
-      "Install Node.js 20 or newer. The server is the npm package hydrilla-mcp, started with npx -y hydrilla-mcp.",
+      "Install Node.js 20 or newer. The server is the npm package hydrilla-mcp, started with npx -y hydrilla-mcp@latest.",
       "Add your API key in a Hydrilla plugin, or set HYDRILLA_API_KEY in the server's MCP config. Never paste it into the chat.",
       "Register the server in your MCP client with the command on this page, then restart the client.",
     ],
