@@ -16,7 +16,7 @@ export const metadata = {
   alternates: { canonical: "https://docs.hydrilla.ai/quickstart" },
 };
 
-const curlStep2 = `curl -X POST https://api.hydrilla.co/v1/3d/text-to-3d \\
+const curlStep2 = `curl -X POST https://hydrilla-ai-g1bm.vercel.app/v1/3d/text-to-3d \\
   -H "Authorization: Bearer hyd_live_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -28,7 +28,7 @@ const curlStep2 = `curl -X POST https://api.hydrilla.co/v1/3d/text-to-3d \\
     "resolution": 1536
   }'`;
 
-const curlStep3 = `curl -X GET https://api.hydrilla.co/v1/3d/tasks/job_c18ab44d03e192a40 \\
+const curlStep3 = `curl -X GET https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_c18ab44d03e192a40 \\
   -H "Authorization: Bearer hyd_live_your_api_key_here"`;
 
 const pythonQuickstart = `import requests
@@ -41,7 +41,7 @@ HEADERS = {
 }
 
 # 1. Trigger Text-to-3D
-res = requests.post("https://api.hydrilla.co/v1/3d/text-to-3d", headers=HEADERS, json={
+res = requests.post("https://hydrilla-ai-g1bm.vercel.app/v1/3d/text-to-3d", headers=HEADERS, json={
     "prompt": "Futuristic cyberpunk vehicle, high details, game ready prop",
     "resolution": 1536
 })
@@ -50,7 +50,7 @@ print(f"Task submitted: {task_id}")
 
 # 2. Poll until complete
 while True:
-    task = requests.get(f"https://api.hydrilla.co/v1/3d/tasks/{task_id}", headers=HEADERS).json()
+    task = requests.get(f"https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/{task_id}", headers=HEADERS).json()
     status = task.get("status")
     print(f"Status: {status} ({task.get('progress', 0)}%)")
     
@@ -120,7 +120,7 @@ export default async function QuickstartPage() {
   "status": "queued",
   "resolution": 1536,
   "links": {
-    "poll": "https://api.hydrilla.co/v1/3d/tasks/job_c18ab44d03e192a40"
+    "poll": "https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_c18ab44d03e192a40"
   }
 }`}
             lang="json"

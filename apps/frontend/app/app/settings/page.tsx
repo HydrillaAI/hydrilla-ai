@@ -261,7 +261,7 @@ function Pill({ tone, children }: { tone: "green" | "red" | "amber" | "neutral" 
   );
 }
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app").replace(/\/+$/, "");
 
 type BillingPayment = {
   id: string;

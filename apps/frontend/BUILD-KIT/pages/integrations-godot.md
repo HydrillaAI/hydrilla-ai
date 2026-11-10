@@ -34,8 +34,8 @@ Date line: Available | Hydrilla Team
 
 1. Download the plugin and copy addons/hydrilla into your Godot project.
 2. Open Project Settings > Plugins and enable the Hydrilla plugin.
-3. Open the Hydrilla dock and add your hyd_live_ key.
-4. Generate from the dock, or listen on the Bridge for Studio sends.
+3. Open the Hydrilla dock and paste your API key.
+4. Generate from the dock, or click Run Bridge to receive models from Studio or your AI agent.
 
 **[Section 3: Where models land]**
 

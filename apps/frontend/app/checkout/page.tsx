@@ -18,7 +18,7 @@ const ENV_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 const BACKEND_URL =
   ENV_BACKEND && !ENV_BACKEND.includes("hydrilla.co/checkout") && !ENV_BACKEND.includes("hydrilla.ai/checkout")
     ? ENV_BACKEND.replace(/\/+$/, "")
-    : "https://hydrilla-backend.vercel.app";
+    : "https://hydrilla-ai-g1bm.vercel.app";
 
 const checkoutStartLock: { planId: string | null } = { planId: null };
 

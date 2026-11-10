@@ -248,7 +248,7 @@ export default function ApiKeysPage() {
   const displayKeyPlaceholder = newlyCreatedKey || "hyd_live_your_api_key_here";
 
   const snippets = {
-    curl: `curl -X POST https://hydrilla-backend.vercel.app/v1/3d/image-to-3d \\
+    curl: `curl -X POST https://hydrilla-ai-g1bm.vercel.app/v1/3d/image-to-3d \\
   -H "Authorization: Bearer ${displayKeyPlaceholder}" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -257,7 +257,7 @@ export default function ApiKeysPage() {
   }'`,
     python: `import requests
 
-url = "https://hydrilla-backend.vercel.app/v1/3d/image-to-3d"
+url = "https://hydrilla-ai-g1bm.vercel.app/v1/3d/image-to-3d"
 headers = {
     "Authorization": "Bearer ${displayKeyPlaceholder}",
     "Content-Type": "application/json"
@@ -272,7 +272,7 @@ task = response.json()
 print("Task queued:", task["id"])`,
     typescript: `import fetch from "node-fetch";
 
-const res = await fetch("https://hydrilla-backend.vercel.app/v1/3d/image-to-3d", {
+const res = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/3d/image-to-3d", {
   method: "POST",
   headers: {
     "Authorization": "Bearer ${displayKeyPlaceholder}",

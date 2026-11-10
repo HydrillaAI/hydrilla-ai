@@ -7,7 +7,7 @@ import Link from "next/link";
 import { track, trackPaymentFailed, trackPaymentSucceeded } from "@/lib/analytics";
 import { PickleActions } from "@/components/layout/PicklePage";
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app").replace(/\/+$/, "");
 
 function LoadingFallback() {
   return (

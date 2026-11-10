@@ -7,7 +7,7 @@ import PricingSection from "../../../components/sections/PricingSection";
 import { isPaidPlan } from "../../../lib/pricing";
 
 const BACKEND_URL = (
-  process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app"
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app"
 ).replace(/\/+$/, "");
 
 export default function PricingPage() {

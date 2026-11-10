@@ -21,7 +21,7 @@ import time
 from typing import Optional, Dict, Any
 
 class Hydrilla:
-    def __init__(self, api_key: str, base_url: str = "https://api.hydrilla.co"):
+    def __init__(self, api_key: str, base_url: str = "https://hydrilla-ai-g1bm.vercel.app"):
         self.base_url = base_url.rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {api_key}",

@@ -23,12 +23,18 @@ export type Integration = {
   downloadPath?: string;
   docsAnchor?: string;
   bridgeTarget: string;
+  /** Local port the app's plugin listens on for Send to DCC. Unset when the app cannot receive. */
+  bridgePort?: number;
   installSteps: string[];
   guideSteps?: IntegrationGuideStep[];
 };
 
-export const BRIDGE_DEFAULT_PORT = 7345;
-export const BRIDGE_DEFAULT_URL = `http://127.0.0.1:${BRIDGE_DEFAULT_PORT}`;
+/** Each plugin runs its own Bridge on this machine, one port per app. */
+export const BRIDGE_HOST = "127.0.0.1";
+
+export function bridgeUrlFor(port: number): string {
+  return `http://${BRIDGE_HOST}:${port}`;
+}
 
 export const INTEGRATIONS: Integration[] = [
   {
@@ -38,14 +44,15 @@ export const INTEGRATIONS: Integration[] = [
     status: "available",
     summary: "Generate text/image to 3D and import GLB in Blender.",
     description:
-      "Install the Hydrilla Blender add-on, open the sidebar Hydrilla tab, sign in with your Studio account, and generate meshes in place — or receive one-click Send from Studio through the local Bridge.",
+      "Install the Hydrilla Blender add-on, open the sidebar Hydrilla tab, paste your API key, and generate models in place. Models sent from Studio or your AI agent arrive in the open scene through the local Bridge.",
     downloadPath: "/plugins/hydrilla-blender.zip",
     bridgeTarget: "blender",
+    bridgePort: 7345,
     installSteps: [
       "Download hydrilla-blender.zip.",
       "In Blender: Edit → Preferences → Add-ons → dropdown → Install from Disk… and select the zip.",
       "Enable the Hydrilla add-on, then press N (or the sidebar arrow) and open the Hydrilla tab.",
-      "Start the Bridge, Sign in, Sync, and keep the Connect tab open while generating.",
+      "Paste your API key (create one at /app/api-keys), then generate. Click Run Bridge to receive models from Studio or your AI agent.",
     ],
     guideSteps: [
       {
@@ -62,7 +69,7 @@ export const INTEGRATIONS: Integration[] = [
       },
       {
         title: "Open the Hydrilla tab",
-        body: "In the sidebar tabs, click Hydrilla. Start the Bridge, Sign in with your Hydrilla account, Sync, then Generate. Keep the Connect browser tab open while you work.",
+        body: "In the sidebar tabs, click Hydrilla. Paste your API key once and generate from text or an image. Click Run Bridge to receive models sent from Studio or your AI agent.",
         imageSrc: "/integrations/blender/03-hydrilla-tab.jpg",
         imageAlt: "Blender sidebar showing the Hydrilla tab",
       },
@@ -75,13 +82,15 @@ export const INTEGRATIONS: Integration[] = [
     status: "available",
     summary: "Import game-ready GLB into the Unity Editor.",
     description:
-      "Editor window that authenticates with a Hydrilla API key, creates generation tasks, downloads GLB into Assets/Hydrilla, and accepts Studio Send via the local Bridge.",
+      "Editor window that uses your Hydrilla API key to generate models, saves the GLB into Assets/Hydrilla, and receives models sent from Studio or your AI agent through the local Bridge.",
     downloadPath: "/plugins/hydrilla-unity.zip",
     bridgeTarget: "unity",
+    bridgePort: 7349,
     installSteps: [
       "Download hydrilla-unity.zip and copy the Hydrilla folder into Assets/.",
-      "Open Window → Hydrilla → Generate 3D.",
-      "Paste your hyd_live_ API key and generate, or start the Bridge for Studio send.",
+      "Open Window → Hydrilla.",
+      "Paste your API key (create one at /app/api-keys) and generate, or click Run Bridge to receive models from Studio.",
+      "Install a glTF importer such as the glTFast package so Unity can open the GLB files.",
     ],
   },
   {
@@ -91,13 +100,15 @@ export const INTEGRATIONS: Integration[] = [
     status: "available",
     summary: "Import Hydrilla meshes into Unreal Editor.",
     description:
-      "Unreal Editor Python plugin for Hydrilla generation and Bridge import. Downloads GLB into Content/Hydrilla for your glTF importer.",
+      "Unreal Editor Python plugin that generates models with your Hydrilla API key and receives models sent from Studio or your AI agent. Models import into /Game/Hydrilla.",
     downloadPath: "/plugins/hydrilla-unreal.zip",
     bridgeTarget: "unreal",
+    bridgePort: 7348,
     installSteps: [
-      "Enable the Python Editor Script Plugin in Unreal.",
-      "Copy the Hydrilla folder into your project’s Content/Python or Plugins path.",
-      "Run the Hydrilla toolbar actions and set your API key.",
+      "Enable the Python Editor Script Plugin in Unreal and restart the editor.",
+      "Copy the contents of the zip’s Python folder into your project’s Content/Python folder and restart.",
+      "Set your API key once: in the Python console run import hydrilla_unreal; hydrilla_unreal.set_api_key(\"hyd_live_…\").",
+      "Choose Hydrilla → Run Bridge to receive models, or call hydrilla_unreal.generate_text(\"a sci-fi crate\").",
     ],
   },
   {
@@ -107,13 +118,14 @@ export const INTEGRATIONS: Integration[] = [
     status: "available",
     summary: "Bring Hydrilla GLB into Godot 4 projects.",
     description:
-      "Godot 4 editor plugin with API generation and Bridge receive. Imported meshes land under res://hydrilla/.",
+      "Godot 4 editor plugin that generates models with your Hydrilla API key and receives models sent from Studio or your AI agent. Imported meshes land under res://hydrilla/.",
     downloadPath: "/plugins/hydrilla-godot.zip",
     bridgeTarget: "godot",
+    bridgePort: 7350,
     installSteps: [
-      "Copy addons/hydrilla into your Godot project.",
+      "Copy addons/hydrilla into your Godot 4.2+ project.",
       "Enable the Hydrilla plugin in Project Settings → Plugins.",
-      "Open the Hydrilla dock, add your API key, and generate or listen on the Bridge.",
+      "Open the Hydrilla dock, paste your API key (create one at /app/api-keys), and generate or click Run Bridge.",
     ],
   },
   {
@@ -123,13 +135,12 @@ export const INTEGRATIONS: Integration[] = [
     status: "available",
     summary: "Let AI agents generate 3D through Hydrilla over MCP.",
     description:
-      "Local stdio MCP server wrapping the Hydrilla developer REST API. Works with Cursor, Claude Code, and other MCP clients that support stdio servers.",
-    downloadPath: "/plugins/hydrilla-mcp.zip",
+      "Local stdio MCP server for the Hydrilla developer API. Agents can generate models and place them straight into your open Blender, Unity, Unreal or Godot project. Works with Claude Code, Cursor, Codex, and other MCP clients.",
     bridgeTarget: "mcp",
     installSteps: [
-      "Download the MCP package from /plugins/hydrilla-mcp.zip.",
-      "Set HYDRILLA_API_KEY=hyd_live_… in the MCP server env.",
-      "Register the server in your client (see the integration guide).",
+      "Follow the setup on the MCP page for your agent.",
+      "Add your API key in the Hydrilla plugin, or set HYDRILLA_API_KEY in the MCP server config. Never paste it into the chat.",
+      "Ask your agent for a model; with a plugin’s Bridge running it lands in your open scene.",
     ],
   },
   {

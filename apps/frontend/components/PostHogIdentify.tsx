@@ -5,7 +5,7 @@ import posthog from "posthog-js";
 import { useEffect, useRef } from "react";
 import { trackAuthFunnel } from "@/lib/analytics";
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app").replace(/\/+$/, "");
 
 /**
  * Sends the browser's time zone to the backend once per browser session, so Customer.io can

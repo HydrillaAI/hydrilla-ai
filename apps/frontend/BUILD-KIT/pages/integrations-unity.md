@@ -34,8 +34,8 @@ Date line: Available | Hydrilla Team
 
 1. Download hydrilla-unity.zip from this page and unzip it.
 2. Copy the Hydrilla folder into your project's Assets folder.
-3. In the menu bar, open Window > Hydrilla > Generate 3D.
-4. Paste your hyd_live_ API key, or start the Bridge to receive models.
+3. In the menu bar, open Window > Hydrilla.
+4. Paste your API key, or click Run Bridge to receive models.
 
 **[Section 3: Generate]**
 
@@ -44,7 +44,7 @@ Date line: Available | Hydrilla Team
 Type a prompt or choose an image in the Hydrilla window and generate. Finished models download as GLB into Assets/Hydrilla, ready to drag into a scene.
 
 Visual: screenshot of the Hydrilla window in Unity
-Alt text: Unity Editor with the Hydrilla Generate 3D window docked beside the Scene view.
+Alt text: Unity Editor with the Hydrilla window docked beside the Scene view.
 
 **[Section 4: Check]**
 

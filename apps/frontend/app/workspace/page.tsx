@@ -161,7 +161,7 @@ import {
   notifyGenerationComplete,
 } from "../../lib/browserNotifications";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app";
 const WATER_POLL_INTERVAL_MS = 4_000;
 // The backend expires a Water job 90 s after its last write (60 s function limit plus
 // grace), so a dead run reports FAIL well before this client-side cap.

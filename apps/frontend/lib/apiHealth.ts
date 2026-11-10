@@ -56,7 +56,7 @@ function getBackendBase(): string {
     url === "NEXT_PUBLIC_BACKEND_URL" ||
     url.includes("NEXT_PUBLIC_BACKEND_URL")
   ) {
-    return "https://hydrilla-backend.vercel.app";
+    return "https://hydrilla-ai-g1bm.vercel.app";
   }
   return url.replace(/\/$/, "");
 }

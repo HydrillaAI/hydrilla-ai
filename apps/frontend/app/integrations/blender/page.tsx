@@ -115,18 +115,17 @@ export default function BlenderIntegrationPage() {
               <h2 className="pickle-h2">Generate in the Hydrilla tab</h2>
               <div className="pickle-text">
                 <p>
-                  Click Run Bridge, then Sign in and finish the login in your browser. Choose Sync, keep the Connect tab open, and generate from a typed prompt or a picture, or use Send to DCC from Studio. Generated models arrive in the open scene, ready for you to place, light, and shade.
+                  Paste your API key once, then generate from a typed prompt or a picture. Click Run Bridge to receive models from Send to DCC in Studio or from your AI agent. Generated models arrive in the open scene, ready for you to place, light, and shade.
                 </p>
               </div>
             </div>
-            {/* TODO(kit): visual – replace with a capture of the open Hydrilla panel (Run Bridge, Sign in, Sync, Generate) */}
+            {/* TODO(kit): visual – replace with a capture of the open Hydrilla panel (API key, Generate, Run Bridge) */}
             <PickleFlow
-              label="The Hydrilla tab workflow: Run Bridge, Sign in, Sync, then generate or receive from Studio."
+              label="The Hydrilla tab workflow: paste your API key, generate, and run the Bridge to receive from Studio or your agent."
               steps={[
-                { title: "Run Bridge" },
-                { title: "Sign in", detail: "Finish in your browser" },
-                { title: "Sync", detail: "Keep the Connect tab open" },
-                { title: "Generate", detail: "Prompt, picture, or Send to DCC", emphasis: true },
+                { title: "API key", detail: "Paste it once" },
+                { title: "Generate", detail: "Prompt or picture", emphasis: true },
+                { title: "Run Bridge", detail: "Receive from Studio or your agent" },
               ]}
             />
           </section>
@@ -138,8 +137,12 @@ export default function BlenderIntegrationPage() {
             <PickleQA
               items={[
                 {
-                  q: <>The add-on says I&apos;m signed out.</>,
-                  a: "Leave the Connect browser tab open while you work, then choose Sync again. An API key also works if you prefer keys to browser sign-in.",
+                  q: "The add-on says my key was not accepted.",
+                  a: (
+                    <>
+                      Create a new key under <Link href="/app/api-keys">API keys</Link>, paste it into the Hydrilla tab, and choose Check. The add-on uses an API key, so there is no browser sign-in to keep open.
+                    </>
+                  ),
                 },
                 {
                   q: "Nothing arrives when I send from Studio.",
