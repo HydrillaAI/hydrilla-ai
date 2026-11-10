@@ -2,7 +2,7 @@ export const SITE = {
   name: "Hydrilla",
   titleName: "Hydrilla AI",
   docsUrl: "https://docs.hydrilla.ai",
-  apiBaseUrl: "https://api.hydrilla.co",
+  apiBaseUrl: "https://hydrilla-ai-g1bm.vercel.app",
   studioUrl: "https://hydrilla.co/app/studio",
   apiKeysUrl: "https://hydrilla.co/app/api-keys",
   versions: ["v1.0"] as string[],

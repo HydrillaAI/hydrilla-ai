@@ -7,12 +7,8 @@
   },
   "servers": [
     {
-      "url": "https://api.hydrilla.ai",
+      "url": "https://hydrilla-ai-g1bm.vercel.app",
       "description": "Production API Server"
-    },
-    {
-      "url": "https://api.hydrilla.co",
-      "description": "Direct Gateway Server"
     }
   ],
   "security": [
@@ -155,6 +151,57 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/3d/tasks": {
+      "get": {
+        "summary": "List 3D Tasks",
+        "description": "Lists the account's recent 3D generation tasks, newest first. Finished tasks include their download URLs.",
+        "operationId": "list3dTasks",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "How many tasks to return (1-100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of tasks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "example": "list"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TaskStatus"
+                      }
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key."
           }
         }
       }

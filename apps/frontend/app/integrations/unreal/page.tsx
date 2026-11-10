@@ -35,7 +35,7 @@ export default function UnrealIntegrationPage() {
           </h1>
           <div className="pickle-lead">
             <p>
-              Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from the toolbar, and it receives models you send from Studio over the Bridge.
+              Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from inside the editor, and it receives models you send from Studio over the Bridge.
             </p>
           </div>
           <div className="pickle-article-meta">
@@ -66,9 +66,9 @@ export default function UnrealIntegrationPage() {
               <p>The plugin runs on Unreal&apos;s built-in Python support, so the first step is to switch that on.</p>
               <ol className="pickle-steps">
                 <li>Enable the Python Editor Script Plugin in Unreal, then restart the editor.</li>
-                <li>Unzip the download and place its Hydrilla folder in Content/Python or Plugins.</li>
-                <li>Open the Hydrilla actions from the editor toolbar.</li>
-                <li>Set your API key there, or switch on the Bridge listener.</li>
+                <li>Unzip the download and copy the contents of its Python folder into your project's Content/Python folder, then restart.</li>
+                <li>Open the Hydrilla menu in the editor's main menu bar.</li>
+                <li>Set your API key once from the Python console, then choose Run Bridge to receive models.</li>
               </ol>
             </div>
           </section>
@@ -78,15 +78,15 @@ export default function UnrealIntegrationPage() {
               <h2 className="pickle-h2">Generate from the editor</h2>
               <div className="pickle-text">
                 <p>
-                  Run a job from the Hydrilla toolbar with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test. From there they behave like any other imported asset in your project.
+                  Run a job from the editor's Python console with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test. From there they behave like any other imported asset in your project.
                 </p>
               </div>
             </div>
-            {/* TODO(kit): visual – replace with a screenshot of the Hydrilla toolbar in Unreal */}
+            {/* TODO(kit): visual – replace with a screenshot of the Hydrilla menu in Unreal */}
             <PickleFlow
-              label="Unreal flow: run a job from the Hydrilla toolbar, and GLB files land in Content/Hydrilla for the glTF importer."
+              label="Unreal flow: run a job from the editor, and GLB files land in Content/Hydrilla for the glTF importer."
               steps={[
-                { title: "Hydrilla toolbar", detail: "Python editor plugin" },
+                { title: "Hydrilla menu", detail: "Python editor plugin" },
                 { title: "Your brief", detail: "Runs with your API key" },
                 { title: "Content/Hydrilla", detail: "Imported by the glTF importer", emphasis: true },
               ]}
@@ -103,7 +103,7 @@ export default function UnrealIntegrationPage() {
               </p>
             </div>
           </section>
-          <PickleCta line="Dress the level from the toolbar, and spend review time on the shots that matter." />
+          <PickleCta line="Dress the level from inside the editor, and spend review time on the shots that matter." />
         </div>
       </article>
       <Footer />

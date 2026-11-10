@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { planDisplayLabel } from "@/lib/pricing";
 
 const BACKEND_URL = (
-  process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app"
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app"
 ).replace(/\/+$/, "");
 
 /** reset_at is the next reset (period end). Chart from period start, not near the end. */

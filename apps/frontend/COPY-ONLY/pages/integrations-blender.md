@@ -52,17 +52,17 @@ Once the add-on is installed, Water Agent works inside Blender through it. Brief
 
 ## Generate in the Hydrilla tab
 
-Click Run Bridge, then Sign in and finish the login in your browser. Choose Sync, keep the Connect tab open, and generate from a typed prompt or a picture, or use Send to DCC from Studio. Generated models arrive in the open scene, ready for you to place, light, and shade.
+Paste your API key once, then generate from a typed prompt or a picture. Click Run Bridge to receive models from Send to DCC in Studio or from your AI agent. Generated models arrive in the open scene, ready for you to place, light, and shade.
 
 Visual: screenshot of the Hydrilla sidebar tab
-Alt text: Blender viewport with the Hydrilla sidebar tab open, showing Run Bridge, Sign in, Sync, and Generate.
+Alt text: Blender viewport with the Hydrilla sidebar tab open, showing the API key field, Generate, and Run Bridge.
 
 **[Section 5: Troubleshooting]**
 
 ## Troubleshooting
 
-**The add-on says I'm signed out.**
-Leave the Connect browser tab open while you work, then choose Sync again. An API key also works if you prefer keys to browser sign-in.
+**The add-on says my key was not accepted.**
+Create a new key under API keys, paste it into the Hydrilla tab, and choose Check. The add-on uses an API key, so there is no browser sign-in to keep open.
 
 **Nothing arrives when I send from Studio.**
 Check that Run Bridge is active in the Hydrilla panel and Blender is open on a scene, then send again. Formats other than GLB are covered on [exports →](/features#exports).

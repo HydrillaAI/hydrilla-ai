@@ -39,7 +39,7 @@ export class Hydrilla {
 
   constructor(config: HydrillaConfig) {
     this.apiKey = config.apiKey;
-    this.baseUrl = (config.baseUrl || "https://api.hydrilla.co").replace(/\\/+$/, "");
+    this.baseUrl = (config.baseUrl || "https://hydrilla-ai-g1bm.vercel.app").replace(/\\/+$/, "");
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {

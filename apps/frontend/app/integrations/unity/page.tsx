@@ -67,8 +67,8 @@ export default function UnityIntegrationPage() {
               <ol className="pickle-steps">
                 <li>Download hydrilla-unity.zip from this page and unzip it.</li>
                 <li>Copy the Hydrilla folder into your project&apos;s Assets folder.</li>
-                <li>In the menu bar, open Window &gt; Hydrilla &gt; Generate 3D.</li>
-                <li>Paste your hyd_live_ API key, or start the Bridge to receive models.</li>
+                <li>In the menu bar, open Window &gt; Hydrilla.</li>
+                <li>Paste your API key, or click Run Bridge to receive models.</li>
               </ol>
             </div>
           </section>
@@ -86,7 +86,7 @@ export default function UnityIntegrationPage() {
             <PickleFlow
               label="Unity flow: the Hydrilla window generates with your API key and saves GLB files into Assets/Hydrilla."
               steps={[
-                { title: "Hydrilla window", detail: "Window > Hydrilla > Generate 3D" },
+                { title: "Hydrilla window", detail: "Window > Hydrilla" },
                 { title: "Prompt or image", detail: "Generates with your API key" },
                 { title: "Assets/Hydrilla", detail: "GLB, ready to drag into a scene", emphasis: true },
               ]}

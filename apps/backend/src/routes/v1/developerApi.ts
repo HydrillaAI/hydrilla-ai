@@ -27,13 +27,14 @@ import {
   type InputImage,
   type UsageCall,
 } from "../../services/imageProviders/index.js";
-import { createJob, getJob, recordFailedJob, updateJobStatus } from "../../repository/jobs.js";
+import { createJob, getJob, listJobsForUser, recordFailedJob, updateJobStatus } from "../../repository/jobs.js";
 import { recordDeveloperApiKeyUsage } from "../../repository/developerApiKeys.js";
 import { recordImageUsage, type ImageUsageRecord } from "../../repository/imageUsage.js";
 import { uploadBufferToS3 } from "../../lib/s3Upload.js";
 import { normalizeGlbUrl } from "../../utils/s3Urls.js";
 import { recoverOrphanMeshIfPresent } from "../../services/orphanMeshRecovery.js";
 import { logger } from "../../logger.js";
+import type { JobRecord } from "../../types.js";
 
 export const developerV1Router = Router();
 
@@ -89,22 +90,21 @@ async function developerSlotClosed(req: Request, path: string, userId: string, r
   return true;
 }
 
-function parseTimestamp(dateStr?: string | null): number {
-  if (!dateStr) {
-    return Math.floor(Date.now() / 1000);
-  }
-  return Math.floor(new Date(dateStr).getTime() / 1000);
+/** Job rows carry timestamps as Date or as ISO text depending on the query. */
+function toEpochSeconds(value: Date | string | null | undefined): number {
+  const millis = value ? new Date(value).getTime() : Number.NaN;
+  return Math.floor((Number.isFinite(millis) ? millis : Date.now()) / 1000);
 }
 
 function mapJobStatus(rawStatus?: string | null): "PENDING" | "IN_PROGRESS" | "SUCCEEDED" | "FAILED" | "CANCELLED" {
   const s = (rawStatus || "").toUpperCase();
-  if (s === "SUCCESS" || s === "COMPLETED") {
+  if (s === "DONE" || s === "SUCCESS" || s === "COMPLETED") {
     return "SUCCEEDED";
   }
   if (s === "FAIL" || s === "FAILED" || s === "ERROR") {
     return "FAILED";
   }
-  if (s === "PROCESSING" || s === "RUNNING") {
+  if (s === "RUN" || s === "PROCESSING" || s === "RUNNING") {
     return "IN_PROGRESS";
   }
   if (s === "CANCELLED" || s === "CANCELED") {
@@ -602,13 +602,105 @@ async function handleGetTask(req: Request, res: Response) {
     model: "bluefox-1",
     result: resultPayload,
     error: mappedStatus === "FAILED" ? job.errorMessage || "Generation failed" : null,
-    created_at: parseTimestamp(job.createdAt?.toISOString()),
-    updated_at: parseTimestamp(job.updatedAt?.toISOString()),
+    created_at: toEpochSeconds(job.createdAt),
+    updated_at: toEpochSeconds(job.updatedAt),
   });
 }
 
 developerV1Router.get("/3d/tasks/:taskId", requireDeveloperAuth, handleGetTask);
 developerV1Router.get("/tasks/:taskId", requireDeveloperAuth, handleGetTask);
+
+// ============================================================================
+// 3b. GET /v1/3d/tasks & /v1/tasks: List the account's recent 3D tasks
+// ============================================================================
+const TASK_LIST_DEFAULT_LIMIT = 20;
+const TASK_LIST_MAX_LIMIT = 100;
+/** Rows read per request so image-only jobs can be dropped and still fill a page. */
+const TASK_LIST_SCAN_FACTOR = 3;
+
+const NON_MESH_GENERATE_TYPES = new Set(["TextToImage", "EditImage", "Combined", "Water", "CodeSculpt"]);
+const NON_MESH_ENGINES = new Set(["water", "code_sculpt"]);
+
+/** True for jobs that produce a GLB mesh, as opposed to images or procedural scenes. */
+function isMeshJob(job: JobRecord): boolean {
+  if (NON_MESH_GENERATE_TYPES.has(job.generateType)) {
+    return false;
+  }
+  if (job.engine && NON_MESH_ENGINES.has(String(job.engine))) {
+    return false;
+  }
+  if (job.resultKind === "three_factory") {
+    return false;
+  }
+  return !job.id.startsWith("wt_") && !job.id.startsWith("cs_");
+}
+
+function parseTaskListLimit(raw: unknown): number {
+  const parsed = Number.parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return TASK_LIST_DEFAULT_LIMIT;
+  }
+  return Math.min(parsed, TASK_LIST_MAX_LIMIT);
+}
+
+async function handleListTasks(req: Request, res: Response) {
+  const userId = req.developerUserId!;
+  const limit = parseTaskListLimit(req.query.limit);
+
+  try {
+    const jobs = await listJobsForUser(userId, limit * TASK_LIST_SCAN_FACTOR);
+    const meshJobs = jobs.filter(isMeshJob);
+    const page = meshJobs.slice(0, limit);
+
+    const data = page.map((job) => {
+      // A stored mesh means the job finished even when the status sync lagged.
+      const status = job.resultGlbUrl && (job.status === "WAIT" || job.status === "RUN")
+        ? "SUCCEEDED"
+        : mapJobStatus(job.status);
+      return {
+        id: job.id,
+        object: "task",
+        type: job.generateType === "TextTo3D" ? "text-to-3d" : "image-to-3d",
+        status,
+        prompt: job.prompt || null,
+        model: "bluefox-1",
+        result: status === "SUCCEEDED"
+          ? {
+              mesh_url: normalizeGlbUrl(job.id, job.resultGlbUrl),
+              preview_image_url: job.previewImageUrl || job.imageUrl,
+              format: "glb",
+              model: "bluefox-1",
+            }
+          : null,
+        error: status === "FAILED" ? job.errorMessage || "Generation failed" : null,
+        created_at: toEpochSeconds(job.createdAt),
+        updated_at: toEpochSeconds(job.updatedAt),
+      };
+    });
+
+    trackKeyUsage(req, "/v1/3d/tasks", 200, 0, { action: "list", count: data.length });
+
+    res.status(200).json({
+      object: "list",
+      data,
+      has_more: meshJobs.length > limit,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to list tasks";
+    logger.error({ err, userId }, "Developer task list failed");
+    trackKeyUsage(req, "/v1/3d/tasks", 500, 0, { action: "list", error: message });
+    res.status(500).json({
+      error: {
+        message: "Could not list tasks. Try again shortly.",
+        type: "api_error",
+        code: "task_list_failed",
+      },
+    });
+  }
+}
+
+developerV1Router.get("/3d/tasks", requireDeveloperAuth, handleListTasks);
+developerV1Router.get("/tasks", requireDeveloperAuth, handleListTasks);
 
 // ============================================================================
 // 4. DELETE /v1/3d/tasks/:taskId & /v1/tasks/:taskId: Cancel task
@@ -641,6 +733,22 @@ async function handleCancelTask(req: Request, res: Response) {
   }
 
   const wasInFlight = job.status === "WAIT" || job.status === "RUN" || !job.status;
+
+  // A finished task keeps its result; cancelling it late must not mark it failed.
+  if (!wasInFlight) {
+    trackKeyUsage(req, "/v1/3d/tasks", 200, 0, {
+      taskId,
+      action: "cancel",
+      alreadyFinished: true,
+    });
+    res.status(200).json({
+      id: taskId,
+      object: "task",
+      status: mapJobStatus(job.status),
+    });
+    return;
+  }
+
   const refundAmount = wasInFlight && job.creditsUsed > 0 ? job.creditsUsed : 0;
 
   await cancelGpuJob(taskId);

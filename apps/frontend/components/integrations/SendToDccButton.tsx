@@ -4,18 +4,14 @@ import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { Box, ChevronDown, ExternalLink, Loader2, Send } from "lucide-react";
 import Link from "next/link";
-import { checkBridgeHealth, sendGlbBytesToBridge } from "@/lib/dcc/bridge";
-import {
-  BRIDGE_DEFAULT_URL,
-  INTEGRATIONS,
-  type Integration,
-} from "@/lib/integrations";
+import { isBridgeOnline, sendGlbBytesToBridge } from "@/lib/dcc/bridge";
+import { INTEGRATIONS, type Integration } from "@/lib/integrations";
 import { cn } from "@/lib/utils";
 
+type SendTarget = Integration & { bridgePort: number };
+
 const SEND_TARGETS = INTEGRATIONS.filter(
-  (item) =>
-    item.status === "available" &&
-    (item.category === "modeling" || item.category === "engines")
+  (item): item is SendTarget => item.status === "available" && typeof item.bridgePort === "number"
 );
 
 type Props = {
@@ -23,6 +19,16 @@ type Props = {
   jobId?: string | null;
   className?: string;
   compact?: boolean;
+};
+
+/** Which apps have their Hydrilla Bridge running; null while still checking. */
+type OnlineState = Record<string, boolean> | null;
+
+const probeTargets = async (): Promise<Record<string, boolean>> => {
+  const results = await Promise.all(
+    SEND_TARGETS.map(async (target) => [target.slug, await isBridgeOnline(target.bridgePort)] as const)
+  );
+  return Object.fromEntries(results);
 };
 
 export function SendToDccButton({
@@ -33,7 +39,7 @@ export function SendToDccButton({
 }: Props) {
   const { getToken } = useAuth();
   const [open, setOpen] = useState(false);
-  const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
+  const [online, setOnline] = useState<OnlineState>(null);
   const [busyTarget, setBusyTarget] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -42,25 +48,22 @@ export function SendToDccButton({
       return;
     }
     const state = { cancelled: false };
-    void checkBridgeHealth(BRIDGE_DEFAULT_URL)
-      .then(() => {
-        if (!state.cancelled) {
-          setBridgeOk(true);
-        }
-      })
-      .catch(() => {
-        if (!state.cancelled) {
-          setBridgeOk(false);
-        }
-      });
+    const refresh = async () => {
+      const result = await probeTargets();
+      if (!state.cancelled) {
+        setOnline(result);
+      }
+    };
+    void refresh();
     return () => {
       state.cancelled = true;
     };
   }, [open]);
 
   const disabled = !meshUrl;
+  const anyOnline = online ? Object.values(online).some(Boolean) : false;
 
-  const send = async (target: Integration) => {
+  const send = async (target: SendTarget) => {
     if (!meshUrl) {
       return;
     }
@@ -68,18 +71,21 @@ export function SendToDccButton({
     setMessage(null);
     try {
       await sendGlbBytesToBridge({
+        port: target.bridgePort,
         meshUrl,
         name: `hydrilla-${jobId || target.slug}`,
-        target: target.bridgeTarget,
         jobId: jobId || undefined,
         getToken: async () => (await getToken()) ?? null,
       });
-      setMessage(`Sent to ${target.name}. Import from the plugin Bridge panel.`);
-      setBridgeOk(true);
+      setMessage(`Sent to ${target.name}. It appears in your open project.`);
+      setOnline((current) => ({ ...(current ?? {}), [target.slug]: true }));
     } catch {
-      setBridgeOk(false);
+      const stillOnline = await isBridgeOnline(target.bridgePort);
+      setOnline((current) => ({ ...(current ?? {}), [target.slug]: stillOnline }));
       setMessage(
-        "Bridge offline. In the DCC plugin click Run Bridge, then retry."
+        stillOnline
+          ? `${target.name} could not import this model. Try again, or download the GLB instead.`
+          : `${target.name} is not listening. Open the Hydrilla plugin in ${target.name}, click Run Bridge, then retry.`
       );
     } finally {
       setBusyTarget(null);
@@ -98,7 +104,7 @@ export function SendToDccButton({
             ? "h-8 px-2.5 text-[12px] font-semibold text-neutral-600 hover:bg-neutral-100"
             : "h-9 border border-neutral-200/80 bg-white px-3.5 text-[13px] font-semibold shadow-[0_8px_30px_-12px_rgba(0,0,0,0.18)] hover:bg-neutral-50"
         )}
-        title="Send to DCC via local Hydrilla Bridge"
+        title="Send this model to an app running the Hydrilla plugin"
       >
         <Send className="h-3.5 w-3.5" strokeWidth={2} />
         Send to DCC
@@ -110,13 +116,13 @@ export function SendToDccButton({
           <div className="mb-2 flex items-start gap-2 rounded-xl bg-neutral-50 px-3 py-2">
             <Box className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500" strokeWidth={1.85} />
             <div className="min-w-0 text-[12px] leading-5 text-neutral-600">
-              {bridgeOk === null ? (
-                <span>Checking local Bridge…</span>
-              ) : bridgeOk ? (
-                <span>Bridge online at {BRIDGE_DEFAULT_URL}</span>
+              {online === null ? (
+                <span>Looking for open apps…</span>
+              ) : anyOnline ? (
+                <span>Pick an app that is ready to receive.</span>
               ) : (
                 <span>
-                  Bridge offline.{" "}
+                  No app is listening. Open the Hydrilla plugin and click Run Bridge.{" "}
                   <Link href="/integrations" className="font-semibold text-neutral-950 underline">
                     Setup
                   </Link>
@@ -126,21 +132,37 @@ export function SendToDccButton({
           </div>
 
           <ul className="max-h-64 space-y-0.5 overflow-auto">
-            {SEND_TARGETS.map((target) => (
-              <li key={target.slug}>
-                <button
-                  type="button"
-                  disabled={Boolean(busyTarget)}
-                  onClick={() => void send(target)}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] font-medium text-neutral-900 hover:bg-neutral-50 disabled:opacity-60"
-                >
-                  <span>{target.name}</span>
-                  {busyTarget === target.slug ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                </button>
-              </li>
-            ))}
+            {SEND_TARGETS.map((target) => {
+              const ready = online?.[target.slug] === true;
+              return (
+                <li key={target.slug}>
+                  <button
+                    type="button"
+                    disabled={Boolean(busyTarget)}
+                    onClick={() => void send(target)}
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] font-medium text-neutral-900 hover:bg-neutral-50 disabled:opacity-60"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          ready ? "bg-emerald-500" : "bg-neutral-300"
+                        )}
+                      />
+                      {target.name}
+                    </span>
+                    {busyTarget === target.slug ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <span className="text-[11px] font-normal text-neutral-500">
+                        {ready ? "Ready" : "Not open"}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
 
           {message ? (

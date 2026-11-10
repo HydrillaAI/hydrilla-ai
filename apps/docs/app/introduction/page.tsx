@@ -70,7 +70,7 @@ export default function IntroductionPage() {
         {`[Client Request] (Authorization: Bearer hyd_live_...)
   |
   v
-[Hydrilla Gateway: api.hydrilla.co] --- (Verify SHA-256 Key & Credits)
+[Hydrilla API: hydrilla-ai-g1bm.vercel.app] --- (Verify SHA-256 Key & Credits)
   |-- 2D Pipeline --> OpenAI / Google Gemini (Flare, Sunburst, Flash)
   |-- 3D Pipeline --> BlueFox 3D GPU Worker (Trellis / Sparse Voxel Latents)
         |-- Async Post-Processing --> GLB Export to Cloud Storage`}

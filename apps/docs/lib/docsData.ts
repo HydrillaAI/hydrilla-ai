@@ -154,7 +154,7 @@ export const API_SPECS: Record<string, ApiEndpointSpec> = {
         description: "Optional HTTPS webhook endpoint to notify when reconstruction finishes.",
       },
     ],
-    curlExample: `curl -X POST https://api.hydrilla.co/v1/3d/image-to-3d \\
+    curlExample: `curl -X POST https://hydrilla-ai-g1bm.vercel.app/v1/3d/image-to-3d \\
   -H "Authorization: Bearer hyd_live_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -163,7 +163,7 @@ export const API_SPECS: Record<string, ApiEndpointSpec> = {
   }'`,
     pythonExample: `import requests
 
-url = "https://api.hydrilla.co/v1/3d/image-to-3d"
+url = "https://hydrilla-ai-g1bm.vercel.app/v1/3d/image-to-3d"
 headers = {
     "Authorization": "Bearer hyd_live_your_api_key_here",
     "Content-Type": "application/json"
@@ -176,7 +176,7 @@ payload = {
 response = requests.post(url, headers=headers, json=payload)
 data = response.json()
 print("Task queued:", data["id"])`,
-    tsExample: `const response = await fetch("https://api.hydrilla.co/v1/3d/image-to-3d", {
+    tsExample: `const response = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/3d/image-to-3d", {
   method: "POST",
   headers: {
     "Authorization": "Bearer hyd_live_your_api_key_here",
@@ -197,7 +197,7 @@ console.log("Task ID:", data.id);`,
   "created_at": "2026-09-30T10:00:00.000Z",
   "eta_seconds": 45,
   "links": {
-    "poll": "https://api.hydrilla.co/v1/3d/tasks/job_9b1deb4d3b7d4e8b82"
+    "poll": "https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_9b1deb4d3b7d4e8b82"
   }
 }`,
     response401: `{
@@ -271,7 +271,7 @@ console.log("Task ID:", data.id);`,
         description: "Mesh cascade resolution: 1024 or 1536.",
       },
     ],
-    curlExample: `curl -X POST https://api.hydrilla.co/v1/3d/text-to-3d \\
+    curlExample: `curl -X POST https://hydrilla-ai-g1bm.vercel.app/v1/3d/text-to-3d \\
   -H "Authorization: Bearer hyd_live_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -284,7 +284,7 @@ console.log("Task ID:", data.id);`,
   }'`,
     pythonExample: `import requests
 
-url = "https://api.hydrilla.co/v1/3d/text-to-3d"
+url = "https://hydrilla-ai-g1bm.vercel.app/v1/3d/text-to-3d"
 headers = {
     "Authorization": "Bearer hyd_live_your_api_key_here",
     "Content-Type": "application/json"
@@ -301,7 +301,7 @@ payload = {
 response = requests.post(url, headers=headers, json=payload)
 data = response.json()
 print("Task ID:", data["id"])`,
-    tsExample: `const response = await fetch("https://api.hydrilla.co/v1/3d/text-to-3d", {
+    tsExample: `const response = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/3d/text-to-3d", {
   method: "POST",
   headers: {
     "Authorization": "Bearer hyd_live_your_api_key_here",
@@ -328,7 +328,7 @@ console.log("Task ID:", data.id);`,
   "created_at": "2026-09-30T10:00:00.000Z",
   "eta_seconds": 60,
   "links": {
-    "poll": "https://api.hydrilla.co/v1/3d/tasks/job_c18ab44d03e192a40"
+    "poll": "https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_c18ab44d03e192a40"
   }
 }`,
     response401: `{
@@ -361,7 +361,7 @@ console.log("Task ID:", data.id);`,
         description: "The job identifier returned by /v1/3d/text-to-3d or /v1/3d/image-to-3d.",
       },
     ],
-    curlExample: `curl -X GET https://api.hydrilla.co/v1/3d/tasks/job_9b1deb4d3b7d4e8b82 \\
+    curlExample: `curl -X GET https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_9b1deb4d3b7d4e8b82 \\
   -H "Authorization: Bearer hyd_live_your_api_key_here"`,
     pythonExample: `import requests
 import time
@@ -370,7 +370,7 @@ taskId = "job_9b1deb4d3b7d4e8b82"
 headers = {"Authorization": "Bearer hyd_live_your_api_key_here"}
 
 while True:
-    res = requests.get(f"https://api.hydrilla.co/v1/3d/tasks/{taskId}", headers=headers).json()
+    res = requests.get(f"https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/{taskId}", headers=headers).json()
     status = res.get("status")
     print(f"Status: {status} ({res.get('progress', 0)}%)")
     if status == "completed":
@@ -384,7 +384,7 @@ while True:
 const headers = { "Authorization": "Bearer hyd_live_your_api_key_here" };
 
 const pollTask = async () => {
-  const res = await fetch(\`https://api.hydrilla.co/v1/3d/tasks/\${taskId}\`, { headers });
+  const res = await fetch(\`https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/\${taskId}\`, { headers });
   const data = await res.json();
   if (data.status === "completed") {
     console.log("3D Mesh ready:", data.result.mesh_url);
@@ -456,7 +456,7 @@ const pollTask = async () => {
         description: "Image aspect ratio: '1:1', '3:2', or '2:3'.",
       },
     ],
-    curlExample: `curl -X POST https://api.hydrilla.co/v1/images/generate \\
+    curlExample: `curl -X POST https://hydrilla-ai-g1bm.vercel.app/v1/images/generate \\
   -H "Authorization: Bearer hyd_live_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -466,7 +466,7 @@ const pollTask = async () => {
   }'`,
     pythonExample: `import requests
 
-url = "https://api.hydrilla.co/v1/images/generate"
+url = "https://hydrilla-ai-g1bm.vercel.app/v1/images/generate"
 headers = {
     "Authorization": "Bearer hyd_live_your_api_key_here",
     "Content-Type": "application/json"
@@ -478,7 +478,7 @@ payload = {
 
 response = requests.post(url, headers=headers, json=payload)
 print("Image URL:", response.json()["image_url"])`,
-    tsExample: `const response = await fetch("https://api.hydrilla.co/v1/images/generate", {
+    tsExample: `const response = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/images/generate", {
   method: "POST",
   headers: {
     "Authorization": "Bearer hyd_live_your_api_key_here",
@@ -536,7 +536,7 @@ console.log("Rendered Image:", data.image_url);`,
         description: "Model to use for editing.",
       },
     ],
-    curlExample: `curl -X POST https://api.hydrilla.co/v1/images/edit \\
+    curlExample: `curl -X POST https://hydrilla-ai-g1bm.vercel.app/v1/images/edit \\
   -H "Authorization: Bearer hyd_live_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -546,7 +546,7 @@ console.log("Rendered Image:", data.image_url);`,
   }'`,
     pythonExample: `import requests
 
-url = "https://api.hydrilla.co/v1/images/edit"
+url = "https://hydrilla-ai-g1bm.vercel.app/v1/images/edit"
 headers = {
     "Authorization": "Bearer hyd_live_your_api_key_here",
     "Content-Type": "application/json"
@@ -558,7 +558,7 @@ payload = {
 
 response = requests.post(url, headers=headers, json=payload)
 print("Edited Image:", response.json()["image_url"])`,
-    tsExample: `const response = await fetch("https://api.hydrilla.co/v1/images/edit", {
+    tsExample: `const response = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/images/edit", {
   method: "POST",
   headers: {
     "Authorization": "Bearer hyd_live_your_api_key_here",
@@ -593,14 +593,14 @@ console.log("Edited Image:", data.image_url);`,
     creditCost: "Free (0 credits)",
     creditChip: "Free · 0 credits",
     authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
-    curlExample: `curl -X GET https://api.hydrilla.co/v1/models \\
+    curlExample: `curl -X GET https://hydrilla-ai-g1bm.vercel.app/v1/models \\
   -H "Authorization: Bearer hyd_live_your_api_key_here"`,
     pythonExample: `import requests
 
-res = requests.get("https://api.hydrilla.co/v1/models", headers={"Authorization": "Bearer hyd_live_..."})
+res = requests.get("https://hydrilla-ai-g1bm.vercel.app/v1/models", headers={"Authorization": "Bearer hyd_live_..."})
 for model in res.json()["models"]:
     print(model["id"], model["type"], model["credits"])`,
-    tsExample: `const res = await fetch("https://api.hydrilla.co/v1/models", {
+    tsExample: `const res = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/models", {
   headers: { "Authorization": "Bearer hyd_live_..." }
 });
 const { models } = await res.json();
@@ -646,13 +646,13 @@ console.table(models);`,
     creditCost: "Free (0 credits)",
     creditChip: "Free · 0 credits",
     authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
-    curlExample: `curl -X GET https://api.hydrilla.co/v1/user/me \\
+    curlExample: `curl -X GET https://hydrilla-ai-g1bm.vercel.app/v1/user/me \\
   -H "Authorization: Bearer hyd_live_your_api_key_here"`,
     pythonExample: `import requests
 
-res = requests.get("https://api.hydrilla.co/v1/user/me", headers={"Authorization": "Bearer hyd_live_..."})
+res = requests.get("https://hydrilla-ai-g1bm.vercel.app/v1/user/me", headers={"Authorization": "Bearer hyd_live_..."})
 print("Remaining credits:", res.json()["credits"])`,
-    tsExample: `const res = await fetch("https://api.hydrilla.co/v1/user/me", {
+    tsExample: `const res = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/user/me", {
   headers: { "Authorization": "Bearer hyd_live_..." }
 });
 const me = await res.json();

@@ -2,30 +2,26 @@
 using System;
 using System.Collections;
 using System.IO;
-using System.Text;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace Hydrilla
 {
+    /// <summary>Window > Hydrilla: paste an API key, generate models, receive them from Studio or an AI agent.</summary>
     public class HydrillaWindow : EditorWindow
     {
-        const string PrefApiKey = "Hydrilla.ApiKey";
-        const string PrefApiBase = "Hydrilla.ApiBase";
-        const string PrefBridge = "Hydrilla.BridgeUrl";
-        const string DefaultApi = "https://hydrilla-backend.vercel.app";
-        const string DefaultBridge = "http://127.0.0.1:7345";
-
-        string apiKey = "";
-        string apiBase = DefaultApi;
-        string bridgeUrl = DefaultBridge;
+        string keyInput = "";
+        string account = "";
         string prompt = "";
-        string imageUrl = "";
+        string imageSource = "";
         string status = "Ready";
         bool busy;
+        bool cancelRequested;
+        bool showAdvanced;
+        string apiBaseInput = "";
+        Vector2 scroll;
 
-        [MenuItem("Window/Hydrilla/Generate 3D")]
+        [MenuItem("Window/Hydrilla")]
         public static void Open()
         {
             GetWindow<HydrillaWindow>("Hydrilla");
@@ -33,333 +29,258 @@ namespace Hydrilla
 
         void OnEnable()
         {
-            apiKey = EditorPrefs.GetString(PrefApiKey, "");
-            apiBase = EditorPrefs.GetString(PrefApiBase, DefaultApi);
-            bridgeUrl = EditorPrefs.GetString(PrefBridge, DefaultBridge);
+            keyInput = HydrillaSettings.SavedApiKey;
+            apiBaseInput = HydrillaSettings.ApiBase;
+            minSize = new Vector2(320, 420);
+            if (HydrillaSettings.ApiKey.Length > 0)
+            {
+                CheckKey();
+            }
+            else
+            {
+                account = "Add your API key to start";
+            }
+        }
+
+        void OnInspectorUpdate()
+        {
+            // Keeps progress and Bridge messages current while the window is open.
+            Repaint();
         }
 
         void OnGUI()
         {
-            EditorGUILayout.LabelField("Hydrilla", EditorStyles.boldLabel);
-            apiKey = EditorGUILayout.PasswordField("API Key", apiKey);
-            apiBase = EditorGUILayout.TextField("API Base", apiBase);
-            bridgeUrl = EditorGUILayout.TextField("Bridge URL", bridgeUrl);
-
-            if (GUILayout.Button("Save settings"))
-            {
-                EditorPrefs.SetString(PrefApiKey, apiKey);
-                EditorPrefs.SetString(PrefApiBase, apiBase);
-                EditorPrefs.SetString(PrefBridge, bridgeUrl);
-                status = "Settings saved";
-            }
-
+            scroll = EditorGUILayout.BeginScrollView(scroll);
+            DrawAccount();
             EditorGUILayout.Space();
+            DrawGenerate();
+            EditorGUILayout.Space();
+            DrawBridge();
+            EditorGUILayout.Space();
+            DrawAdvanced();
+            EditorGUILayout.EndScrollView();
+        }
+
+        void DrawAccount()
+        {
+            EditorGUILayout.LabelField("Account", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(account, EditorStyles.wordWrappedLabel);
+            keyInput = EditorGUILayout.PasswordField("API key", keyInput);
+            if (HydrillaSettings.SavedApiKey.Length == 0 && HydrillaSettings.ApiKey.Length > 0)
+            {
+                EditorGUILayout.LabelField("Using the key already saved on this computer.", EditorStyles.miniLabel);
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Get API key"))
+                {
+                    Application.OpenURL(HydrillaSettings.ApiKeysUrl);
+                }
+                if (GUILayout.Button("Save and check"))
+                {
+                    SaveKey();
+                }
+                using (new EditorGUI.DisabledScope(HydrillaSettings.SavedApiKey.Length == 0))
+                {
+                    if (GUILayout.Button("Remove"))
+                    {
+                        keyInput = "";
+                        HydrillaSettings.SaveApiKey("");
+                        account = "API key removed from this editor.";
+                        GUI.FocusControl(null);
+                    }
+                }
+            }
+        }
+
+        void DrawGenerate()
+        {
+            EditorGUILayout.LabelField("Generate", EditorStyles.boldLabel);
             prompt = EditorGUILayout.TextField("Prompt", prompt);
             using (new EditorGUI.DisabledScope(busy || string.IsNullOrWhiteSpace(prompt)))
             {
-                if (GUILayout.Button("Generate from Text"))
+                if (GUILayout.Button("Generate from text"))
                 {
-                    EditorCoroutine.Start(GenerateText());
+                    var text = prompt.Trim();
+                    Run(HydrillaApi.GenerateFromText(text, SetStatus, IsCancelled, OnSaved, OnFailed));
                 }
             }
 
-            imageUrl = EditorGUILayout.TextField("Image URL", imageUrl);
-            using (new EditorGUI.DisabledScope(busy || string.IsNullOrWhiteSpace(imageUrl)))
+            using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("Generate from Image URL"))
+                imageSource = EditorGUILayout.TextField("Image", imageSource);
+                if (GUILayout.Button("Browse…", GUILayout.Width(72)))
                 {
-                    EditorCoroutine.Start(GenerateImage());
-                }
-            }
-
-            EditorGUILayout.Space();
-            using (new EditorGUI.DisabledScope(busy))
-            {
-                if (GUILayout.Button("Check Bridge"))
-                {
-                    EditorCoroutine.Start(CheckBridge());
-                }
-                if (GUILayout.Button("Import from Bridge"))
-                {
-                    EditorCoroutine.Start(ImportBridge());
-                }
-            }
-
-            EditorGUILayout.HelpBox(status, MessageType.Info);
-        }
-
-        IEnumerator GenerateText()
-        {
-            busy = true;
-            status = "Submitting text-to-3d…";
-            var body = "{\"prompt\":" + JsonEscape(prompt) + "}";
-            yield return PostJson(apiBase.TrimEnd('/') + "/v1/3d/text-to-3d", body, OnTaskCreated);
-            busy = false;
-        }
-
-        IEnumerator GenerateImage()
-        {
-            busy = true;
-            status = "Submitting image-to-3d…";
-            var body = "{\"image_url\":" + JsonEscape(imageUrl) + "}";
-            yield return PostJson(apiBase.TrimEnd('/') + "/v1/3d/image-to-3d", body, OnTaskCreated);
-            busy = false;
-        }
-
-        IEnumerator OnTaskCreated(string json)
-        {
-            var id = ExtractJsonString(json, "id");
-            if (string.IsNullOrEmpty(id))
-            {
-                status = "No task id returned";
-                yield break;
-            }
-            yield return PollTask(id);
-        }
-
-        IEnumerator PollTask(string taskId)
-        {
-            while (true)
-            {
-                string response = null;
-                yield return GetJson(apiBase.TrimEnd('/') + "/v1/3d/tasks/" + UnityWebRequest.EscapeURL(taskId), s => response = s);
-                if (response == null)
-                {
-                    yield break;
-                }
-                var taskStatus = ExtractJsonString(response, "status");
-                var progress = ExtractJsonNumber(response, "progress");
-                status = taskStatus + " " + progress + "%";
-                if (taskStatus == "SUCCEEDED")
-                {
-                    var meshUrl = ExtractNestedString(response, "result", "mesh_url");
-                    if (!string.IsNullOrEmpty(meshUrl))
+                    var picked = EditorUtility.OpenFilePanel("Choose image", "", "png,jpg,jpeg,webp");
+                    if (!string.IsNullOrEmpty(picked))
                     {
-                        yield return DownloadAndImport(meshUrl, taskId);
+                        imageSource = picked;
+                        GUI.FocusControl(null);
                     }
-                    yield break;
-                }
-                if (taskStatus == "FAILED" || taskStatus == "CANCELLED")
-                {
-                    status = ExtractJsonString(response, "error") ?? taskStatus;
-                    yield break;
-                }
-                var resumeAt = EditorApplication.timeSinceStartup + 2.0;
-                while (EditorApplication.timeSinceStartup < resumeAt)
-                {
-                    yield return null;
                 }
             }
-        }
-
-        IEnumerator DownloadAndImport(string meshUrl, string stem)
-        {
-            status = "Downloading GLB…";
-            var dir = Path.Combine(Application.dataPath, "Hydrilla");
-            Directory.CreateDirectory(dir);
-            var filePath = Path.Combine(dir, Sanitize(stem) + ".glb");
-            using (var req = UnityWebRequest.Get(meshUrl))
+            using (new EditorGUI.DisabledScope(busy || string.IsNullOrWhiteSpace(imageSource)))
             {
-                yield return req.SendWebRequest();
-                if (req.result != UnityWebRequest.Result.Success)
+                if (GUILayout.Button("Generate from image"))
                 {
-                    status = req.error;
-                    yield break;
+                    GenerateFromImage(imageSource.Trim());
                 }
-                File.WriteAllBytes(filePath, req.downloadHandler.data);
             }
-            AssetDatabase.Refresh();
-            status = "Imported Assets/Hydrilla/" + Path.GetFileName(filePath);
+
+            EditorGUILayout.HelpBox(status, MessageType.None);
+            if (busy)
+            {
+                using (new EditorGUI.DisabledScope(cancelRequested))
+                {
+                    if (GUILayout.Button("Cancel"))
+                    {
+                        cancelRequested = true;
+                        status = "Cancelling…";
+                    }
+                }
+            }
         }
 
-        IEnumerator CheckBridge()
+        void DrawBridge()
         {
+            EditorGUILayout.LabelField("Bridge", EditorStyles.boldLabel);
+            if (HydrillaBridge.IsRunning)
+            {
+                if (GUILayout.Button("Bridge ON (click to stop)"))
+                {
+                    HydrillaBridge.Stop();
+                }
+            }
+            else if (GUILayout.Button("Run Bridge"))
+            {
+                HydrillaBridge.Start();
+            }
+            var message = HydrillaBridge.Message;
+            EditorGUILayout.LabelField(
+                string.IsNullOrEmpty(message)
+                    ? "Lets Hydrilla Studio and your AI agent send models into this project."
+                    : message,
+                EditorStyles.wordWrappedLabel);
+        }
+
+        void DrawAdvanced()
+        {
+            showAdvanced = EditorGUILayout.Foldout(showAdvanced, "Developer");
+            if (!showAdvanced)
+            {
+                return;
+            }
+            apiBaseInput = EditorGUILayout.TextField("API address", apiBaseInput);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Save"))
+                {
+                    HydrillaSettings.SaveApiBase(apiBaseInput);
+                    apiBaseInput = HydrillaSettings.ApiBase;
+                    GUI.FocusControl(null);
+                }
+                if (GUILayout.Button("Use production"))
+                {
+                    HydrillaSettings.SaveApiBase(HydrillaSettings.DefaultApiBase);
+                    apiBaseInput = HydrillaSettings.ApiBase;
+                    GUI.FocusControl(null);
+                }
+            }
+        }
+
+        void SaveKey()
+        {
+            var cleaned = HydrillaSettings.CleanKey(keyInput);
+            keyInput = cleaned;
+            GUI.FocusControl(null);
+            if (cleaned.Length > 0 && !HydrillaSettings.LooksLikeApiKey(cleaned))
+            {
+                account = "That does not look like a Hydrilla key (hyd_live_…).";
+                return;
+            }
+            HydrillaSettings.SaveApiKey(cleaned);
+            if (HydrillaSettings.ApiKey.Length == 0)
+            {
+                account = "Add your API key to start";
+                return;
+            }
+            CheckKey();
+        }
+
+        void CheckKey()
+        {
+            account = "Checking your key…";
+            HydrillaCoroutine.Start(HydrillaApi.CheckKey(label => account = label, error => account = error));
+        }
+
+        void GenerateFromImage(string source)
+        {
+            if (source.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                || source.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                Run(HydrillaApi.GenerateFromImageUrl(source, SetStatus, IsCancelled, OnSaved, OnFailed));
+                return;
+            }
+            if (File.Exists(source))
+            {
+                Run(HydrillaApi.GenerateFromImageFile(source, SetStatus, IsCancelled, OnSaved, OnFailed));
+                return;
+            }
+            status = "Choose an image file, or paste an https:// image link.";
+        }
+
+        void Run(IEnumerator work)
+        {
+            if (busy)
+            {
+                return;
+            }
+            if (HydrillaSettings.ApiKey.Length == 0)
+            {
+                status = HydrillaApi.NoKeyMessage;
+                return;
+            }
             busy = true;
-            string response = null;
-            yield return GetJson(bridgeUrl.TrimEnd('/') + "/health", s => response = s, false);
-            if (response != null)
-            {
-                status = "Bridge ok";
-                yield return PostJson(bridgeUrl.TrimEnd('/') + "/register", "{\"app\":\"unity\",\"name\":\"Unity\"}", null, false);
-            }
-            busy = false;
+            cancelRequested = false;
+            HydrillaCoroutine.Start(Guarded(work));
         }
 
-        IEnumerator ImportBridge()
+        IEnumerator Guarded(IEnumerator work)
         {
-            busy = true;
-            string response = null;
-            yield return GetJson(bridgeUrl.TrimEnd('/') + "/pending?app=unity", s => response = s, false);
-            if (response == null)
+            try
             {
+                yield return work;
+            }
+            finally
+            {
+                // Runs on success, failure and unexpected errors, so the buttons never stay disabled.
                 busy = false;
-                yield break;
-            }
-            var meshUrl = ExtractFirstMeshUrl(response);
-            var filePath = ExtractJsonString(response, "file_path");
-            var id = ExtractFirstId(response);
-            if (string.IsNullOrEmpty(meshUrl) && string.IsNullOrEmpty(filePath))
-            {
-                status = "Bridge idle";
-                busy = false;
-                yield break;
-            }
-            if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
-            {
-                var dir = Path.Combine(Application.dataPath, "Hydrilla");
-                Directory.CreateDirectory(dir);
-                var dest = Path.Combine(dir, Sanitize(id ?? "bridge") + ".glb");
-                File.Copy(filePath, dest, true);
-                AssetDatabase.Refresh();
-                status = "Imported Assets/Hydrilla/" + Path.GetFileName(dest);
-            }
-            else
-            {
-                yield return DownloadAndImport(meshUrl, id ?? "bridge");
-            }
-            if (!string.IsNullOrEmpty(id))
-            {
-                yield return PostJson(bridgeUrl.TrimEnd('/') + "/ack", "{\"id\":" + JsonEscape(id) + "}", null, false);
-            }
-            busy = false;
-        }
-
-        IEnumerator PostJson(string url, string body, Func<string, IEnumerator> next, bool auth = true)
-        {
-            var bytes = Encoding.UTF8.GetBytes(body);
-            using (var req = new UnityWebRequest(url, "POST"))
-            {
-                req.uploadHandler = new UploadHandlerRaw(bytes);
-                req.downloadHandler = new DownloadHandlerBuffer();
-                req.SetRequestHeader("Content-Type", "application/json");
-                req.SetRequestHeader("Accept", "application/json");
-                if (auth)
-                {
-                    req.SetRequestHeader("Authorization", "Bearer " + apiKey);
-                }
-                yield return req.SendWebRequest();
-                if (req.result != UnityWebRequest.Result.Success)
-                {
-                    status = req.downloadHandler.text;
-                    if (string.IsNullOrEmpty(status))
-                    {
-                        status = req.error;
-                    }
-                    yield break;
-                }
-                if (next != null)
-                {
-                    yield return next(req.downloadHandler.text);
-                }
+                cancelRequested = false;
             }
         }
 
-        IEnumerator GetJson(string url, Action<string> onOk, bool auth = true)
+        bool IsCancelled()
         {
-            using (var req = UnityWebRequest.Get(url))
+            return cancelRequested;
+        }
+
+        void SetStatus(string message)
+        {
+            if (!cancelRequested)
             {
-                req.SetRequestHeader("Accept", "application/json");
-                if (auth)
-                {
-                    req.SetRequestHeader("Authorization", "Bearer " + apiKey);
-                }
-                yield return req.SendWebRequest();
-                if (req.result != UnityWebRequest.Result.Success)
-                {
-                    status = req.downloadHandler.text;
-                    if (string.IsNullOrEmpty(status))
-                    {
-                        status = req.error;
-                    }
-                    yield break;
-                }
-                onOk?.Invoke(req.downloadHandler.text);
+                status = message;
             }
         }
 
-        static string JsonEscape(string value)
+        void OnSaved(string message)
         {
-            return "\"" + (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+            status = message;
+            CheckKey();
         }
 
-        static string Sanitize(string value)
+        void OnFailed(string message)
         {
-            var sb = new StringBuilder();
-            foreach (var ch in value)
-            {
-                sb.Append(char.IsLetterOrDigit(ch) || ch == '-' || ch == '_' ? ch : '-');
-            }
-            return sb.ToString();
-        }
-
-        static string ExtractJsonString(string json, string key)
-        {
-            var token = "\"" + key + "\"";
-            var idx = json.IndexOf(token, StringComparison.Ordinal);
-            if (idx < 0) return null;
-            idx = json.IndexOf(':', idx);
-            if (idx < 0) return null;
-            idx = json.IndexOf('"', idx + 1);
-            if (idx < 0) return null;
-            var end = json.IndexOf('"', idx + 1);
-            if (end < 0) return null;
-            return json.Substring(idx + 1, end - idx - 1);
-        }
-
-        static string ExtractJsonNumber(string json, string key)
-        {
-            var token = "\"" + key + "\"";
-            var idx = json.IndexOf(token, StringComparison.Ordinal);
-            if (idx < 0) return "0";
-            idx = json.IndexOf(':', idx);
-            if (idx < 0) return "0";
-            idx++;
-            while (idx < json.Length && char.IsWhiteSpace(json[idx])) idx++;
-            var end = idx;
-            while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '.')) end++;
-            return json.Substring(idx, end - idx);
-        }
-
-        static string ExtractNestedString(string json, string parent, string child)
-        {
-            var p = json.IndexOf("\"" + parent + "\"", StringComparison.Ordinal);
-            if (p < 0) return null;
-            return ExtractJsonString(json.Substring(p), child);
-        }
-
-        static string ExtractFirstMeshUrl(string json)
-        {
-            return ExtractJsonString(json, "mesh_url");
-        }
-
-        static string ExtractFirstId(string json)
-        {
-            return ExtractJsonString(json, "id");
-        }
-    }
-
-    /// <summary>Tiny editor coroutine runner (no external package).</summary>
-    static class EditorCoroutine
-    {
-        public static void Start(IEnumerator routine)
-        {
-            EditorApplication.CallbackFunction update = null;
-            update = () =>
-            {
-                try
-                {
-                    if (routine != null && routine.MoveNext())
-                    {
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                EditorApplication.update -= update;
-            };
-            EditorApplication.update += update;
+            status = message;
         }
     }
 }
