@@ -16,6 +16,8 @@ type Props = {
 
 const THUMB_BY_SLUG: Record<string, PickleThumbVariant> = {
   blender: "pipeline-arch",
+  maya: "pipeline-arch",
+  "3dsmax": "pipeline-arch",
   unity: "unity-engine",
   unreal: "unreal-engine",
   godot: "godot-engine",

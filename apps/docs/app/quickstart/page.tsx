@@ -54,11 +54,11 @@ while True:
     status = task.get("status")
     print(f"Status: {status} ({task.get('progress', 0)}%)")
     
-    if status == "completed":
+    if status == "SUCCEEDED":
         glb_url = task["result"]["mesh_url"]
         print(f"3D Model Ready! Download at: {glb_url}")
         break
-    elif status == "failed":
+    elif status in ("FAILED", "CANCELLED"):
         print("Failed:", task.get("error"))
         break
         
@@ -131,14 +131,14 @@ export default async function QuickstartPage() {
         <Step number={3} id="step-3" title="Poll for completion and download the mesh" last>
           <p>
             Poll <code>GET /v1/3d/tasks/:taskId</code> every 2–3 seconds until the status reaches{" "}
-            <code>completed</code>.
+            <code>SUCCEEDED</code>. Generation usually takes a few minutes.
           </p>
           {/* CONTENT-FLAG: third-party storage hostnames (storage.googleapis.com) in example URLs. */}
           <CodeBlock code={curlStep3} lang="bash" filename="request.sh" />
           <CodeBlock
             code={`{
   "id": "job_c18ab44d03e192a40",
-  "status": "completed",
+  "status": "SUCCEEDED",
   "progress": 100,
   "result": {
     "mesh_url": "https://storage.googleapis.com/hydrilla-meshes/job_c18ab.glb",

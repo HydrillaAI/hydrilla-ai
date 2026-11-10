@@ -73,6 +73,8 @@ export const DOC_SECTIONS: DocSection[] = [
       { id: "image-to-3d", title: "Image to 3D", href: "/api/image-to-3d", method: "POST" },
       { id: "text-to-3d", title: "Text to 3D", href: "/api/text-to-3d", method: "POST" },
       { id: "tasks", title: "Tasks & Polling", href: "/api/tasks", method: "GET" },
+      { id: "tasks-list", title: "List Tasks", href: "/api/tasks-list", method: "GET" },
+      { id: "tasks-cancel", title: "Cancel Task", href: "/api/tasks-cancel", method: "DELETE" },
     ],
   },
   {
@@ -347,9 +349,9 @@ console.log("Task ID:", data.id);`,
     path: "/v1/3d/tasks/:taskId",
     title: "Tasks & Polling",
     summary:
-      "Poll the current progress and download URLs of an asynchronous 3D reconstruction or image generation job.",
+      "Poll the current progress and download URLs of an asynchronous 3D generation job.",
     description:
-      "Poll the current progress and download URLs of an asynchronous 3D reconstruction or image generation job.",
+      "Poll the current progress and download URLs of an asynchronous 3D generation job. The status moves from PENDING to IN_PROGRESS, then ends as SUCCEEDED, FAILED or CANCELLED. Poll every 2–3 seconds; generation usually takes a few minutes. Failed and cancelled jobs refund their credits automatically.",
     creditCost: "Free (0 credits)",
     creditChip: "Free · 0 credits",
     authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
@@ -373,10 +375,10 @@ while True:
     res = requests.get(f"https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/{taskId}", headers=headers).json()
     status = res.get("status")
     print(f"Status: {status} ({res.get('progress', 0)}%)")
-    if status == "completed":
+    if status == "SUCCEEDED":
         print("Download GLB:", res["result"]["mesh_url"])
         break
-    elif status == "failed":
+    elif status in ("FAILED", "CANCELLED"):
         print("Job failed:", res.get("error"))
         break
     time.sleep(3)`,
@@ -386,11 +388,11 @@ const headers = { "Authorization": "Bearer hyd_live_your_api_key_here" };
 const pollTask = async () => {
   const res = await fetch(\`https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/\${taskId}\`, { headers });
   const data = await res.json();
-  if (data.status === "completed") {
+  if (data.status === "SUCCEEDED") {
     console.log("3D Mesh ready:", data.result.mesh_url);
     return data.result;
   }
-  if (data.status === "failed") {
+  if (data.status === "FAILED" || data.status === "CANCELLED") {
     throw new Error(data.error);
   }
   await new Promise((r) => setTimeout(r, 3000));
@@ -398,17 +400,21 @@ const pollTask = async () => {
 };`,
     response200: `{
   "id": "job_9b1deb4d3b7d4e8b82",
-  "status": "completed",
+  "object": "task",
+  "type": "text-to-3d",
+  "status": "SUCCEEDED",
   "progress": 100,
+  "status_message": null,
+  "model": "bluefox-1",
   "result": {
     "mesh_url": "https://storage.googleapis.com/hydrilla-meshes/job_9b1deb4d3b7d4e8b82.glb",
     "preview_image_url": "https://storage.googleapis.com/hydrilla-meshes/job_9b1deb4d3b7d4e8b82_thumb.png",
     "format": "glb",
-    "triangles": 128450,
-    "vertices": 64230
+    "model": "bluefox-1"
   },
-  "created_at": "2026-09-30T10:00:00.000Z",
-  "completed_at": "2026-09-30T10:00:42.000Z"
+  "error": null,
+  "created_at": 1790762400,
+  "updated_at": 1790762442
 }`,
     response401: `{
   "error": "Unauthorized",
@@ -416,9 +422,118 @@ const pollTask = async () => {
 }`,
     responseFailed: `{
   "id": "job_9b1deb4d3b7d4e8b82",
-  "status": "failed",
-  "progress": 42,
+  "object": "task",
+  "status": "FAILED",
+  "progress": 0,
+  "result": null,
   "error": "GPU worker error during reconstruction. Credits refunded."
+}`,
+  },
+  "tasks-list": {
+    method: "GET",
+    path: "/v1/3d/tasks",
+    title: "List Tasks",
+    summary: "List your recent 3D generation tasks, newest first, with download URLs for finished ones.",
+    description:
+      "List the account's recent 3D generation tasks, newest first. Use it to find a model that already exists instead of generating it again, or to resume after your app restarts. Finished tasks include result.mesh_url.",
+    creditCost: "Free (0 credits)",
+    creditChip: "Free · 0 credits",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
+    queryParams: [
+      {
+        name: "limit",
+        type: "integer",
+        required: false,
+        default: "20",
+        description: "How many tasks to return, from 1 to 100.",
+      },
+    ],
+    curlExample: `curl -X GET "https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks?limit=10" \\
+  -H "Authorization: Bearer hyd_live_your_api_key_here"`,
+    pythonExample: `import requests
+
+headers = {"Authorization": "Bearer hyd_live_your_api_key_here"}
+res = requests.get("https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks", params={"limit": 10}, headers=headers).json()
+
+for task in res["data"]:
+    mesh = (task.get("result") or {}).get("mesh_url")
+    print(task["id"], task["status"], mesh or "")`,
+    tsExample: `const res = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks?limit=10", {
+  headers: { "Authorization": "Bearer hyd_live_your_api_key_here" },
+});
+const { data } = await res.json();
+const ready = data.filter((task) => task.status === "SUCCEEDED");
+console.log(ready.map((task) => task.result.mesh_url));`,
+    response200: `{
+  "object": "list",
+  "data": [
+    {
+      "id": "job_9b1deb4d3b7d4e8b82",
+      "object": "task",
+      "type": "text-to-3d",
+      "status": "SUCCEEDED",
+      "prompt": "a medieval treasure chest",
+      "model": "bluefox-1",
+      "result": {
+        "mesh_url": "https://storage.googleapis.com/hydrilla-meshes/job_9b1deb4d3b7d4e8b82.glb",
+        "preview_image_url": "https://storage.googleapis.com/hydrilla-meshes/job_9b1deb4d3b7d4e8b82_thumb.png",
+        "format": "glb",
+        "model": "bluefox-1"
+      },
+      "error": null,
+      "created_at": 1790762400,
+      "updated_at": 1790762442
+    }
+  ],
+  "has_more": false
+}`,
+    response401: `{
+  "error": {
+    "message": "Invalid API key.",
+    "type": "authentication_error"
+  }
+}`,
+  },
+  "tasks-cancel": {
+    method: "DELETE",
+    path: "/v1/3d/tasks/:taskId",
+    title: "Cancel Task",
+    summary: "Stop a 3D generation task that is still running. Unused credits are refunded.",
+    description:
+      "Stop a task that is still PENDING or IN_PROGRESS. Its credits are refunded automatically. Cancelling a task that has already finished changes nothing and returns its current status.",
+    creditCost: "Free (0 credits)",
+    creditChip: "Free · 0 credits",
+    authHeader: "Authorization: Bearer hyd_live_your_api_key_here",
+    queryParams: [
+      {
+        name: "taskId",
+        type: "string",
+        required: true,
+        description: "The job identifier returned by /v1/3d/text-to-3d or /v1/3d/image-to-3d.",
+      },
+    ],
+    curlExample: `curl -X DELETE https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_9b1deb4d3b7d4e8b82 \\
+  -H "Authorization: Bearer hyd_live_your_api_key_here"`,
+    pythonExample: `import requests
+
+headers = {"Authorization": "Bearer hyd_live_your_api_key_here"}
+res = requests.delete("https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_9b1deb4d3b7d4e8b82", headers=headers).json()
+print(res["status"])  # CANCELLED`,
+    tsExample: `const res = await fetch("https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_9b1deb4d3b7d4e8b82", {
+  method: "DELETE",
+  headers: { "Authorization": "Bearer hyd_live_your_api_key_here" },
+});
+console.log((await res.json()).status); // CANCELLED`,
+    response200: `{
+  "id": "job_9b1deb4d3b7d4e8b82",
+  "object": "task",
+  "status": "CANCELLED"
+}`,
+    response401: `{
+  "error": {
+    "message": "Invalid API key.",
+    "type": "authentication_error"
+  }
 }`,
   },
   "images-generate": {

@@ -6,15 +6,17 @@ import { PickleCta, PickleFlow, PickleLinkCards, type PickleLinkItem } from "@/c
 import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
-  title: "Integrations: Blender, Unity, Unreal, Godot | Hydrilla AI",
+  title: "Integrations: Blender, Maya, 3ds Max, Unity, Unreal, Godot | Hydrilla AI",
   description:
-    "Send Hydrilla models into Blender, Unity, Unreal, and Godot through plugins and the local Bridge, or connect AI agents over MCP and code over REST.",
+    "Send Hydrilla models into Blender, Maya, 3ds Max, Unity, Unreal, and Godot through plugins and the local Bridge, or connect AI agents over MCP and code over REST.",
   ogTitle: "Hydrilla integrations",
   path: "/integrations",
   absoluteTitle: true,
   keywords: [
     "best AI 3D plugin",
     "AI 3D plugin for Blender",
+    "AI 3D plugin for Maya",
+    "AI 3D plugin for 3ds Max",
     "AI 3D plugin for Unity",
     "AI 3D plugin for Unreal Engine",
     "AI 3D plugin for Godot 4",
@@ -30,6 +32,20 @@ const TOOL_CARDS = [
     tileDetail: "Add-on",
     href: "/integrations/blender",
     line: "Generation in a sidebar tab, plus models sent from Studio.",
+  },
+  {
+    title: "Maya",
+    tileLabel: "Maya",
+    tileDetail: "Hydrilla window",
+    href: "/integrations/maya",
+    line: "Generation and GLB import in the open Maya scene.",
+  },
+  {
+    title: "3ds Max",
+    tileLabel: "3ds Max",
+    tileDetail: "Hydrilla window",
+    href: "/integrations/3dsmax",
+    line: "Generation and GLB import in the open 3ds Max scene.",
   },
   {
     title: "Unity",
@@ -57,7 +73,7 @@ const TOOL_CARDS = [
     tileLabel: "MCP server",
     tileDetail: "stdio",
     href: "/integrations/mcp",
-    line: "Hydrilla generation for any MCP client.",
+    line: "Your AI agent generates and places models in your open app.",
   },
   {
     title: "REST API",
@@ -69,11 +85,13 @@ const TOOL_CARDS = [
 ] satisfies PickleLinkItem[];
 
 const MATRIX_ROWS = [
-  ["Blender", "Yes", "Bridge", "Studio account or API key"],
+  ["Blender", "Yes", "Bridge", "API key"],
+  ["Maya", "Yes", "Bridge", "API key"],
+  ["3ds Max", "Yes", "Bridge", "API key"],
   ["Unity", "Yes", "Bridge", "API key"],
   ["Unreal Engine", "Yes", "Bridge", "API key"],
   ["Godot 4", "Yes", "Bridge", "API key"],
-  ["MCP server", "Through your agent", "No", "API key"],
+  ["MCP server", "Through your agent", "Sends to your open app", "API key"],
   ["REST API", "From your code", "No", "API key"],
 ] as const;
 
@@ -87,7 +105,7 @@ export default function IntegrationsPage() {
           <h1 className="pickle-article-title">Integrations</h1>
           <div className="pickle-lead">
             <p>
-              Hydrilla AI connects to the tools you already run: a Blender add-on, plugins for Unity, Unreal, and Godot, a local Bridge from Studio, and MCP and REST for custom pipelines.
+              Hydrilla AI connects to the tools you already run: plugins for Blender, Maya, 3ds Max, Unity, Unreal, and Godot, a local Bridge from Studio, and MCP and REST for custom pipelines.
             </p>
           </div>
           <div className="pickle-actions">
@@ -112,23 +130,23 @@ export default function IntegrationsPage() {
               <h2 className="pickle-h2">From Studio to your open scene</h2>
               <div className="pickle-text">
                 <p>
-                  The local Bridge runs on your machine and sends meshes from Studio into Blender, Unity, Unreal, or Godot. Start it from a plugin, then use Send to DCC in Studio. The model arrives in the tool you have open, so you can review it in context, under your own lighting, at the moment you need it.
+                  The local Bridge runs on your machine and sends meshes from Studio, or from your AI agent, into Blender, Maya, 3ds Max, Unity, Unreal, or Godot. Click Run Bridge in a plugin, then use Send to DCC in Studio. The model arrives in the tool you have open, so you can review it in context, under your own lighting, at the moment you need it.
                 </p>
               </div>
             </div>
             <PickleFlow
-              label="Diagram: Hydrilla Studio in the browser, an arrow to the Bridge running locally on port 7345, and an arrow to an open Blender scene."
+              label="Diagram: Hydrilla Studio or your AI agent, an arrow to the Bridge running locally in the plugin, and an arrow to the open scene."
               steps={[
-                { title: "Studio", detail: "In your browser" },
-                { title: "Bridge on your machine", detail: "127.0.0.1:7345" },
-                { title: "Your open tool", detail: "Blender, Unity, Unreal, or Godot", emphasis: true },
+                { title: "Studio or your agent", detail: "Send to DCC, or MCP" },
+                { title: "Bridge on your machine", detail: "Run Bridge in the plugin" },
+                { title: "Your open tool", detail: "Blender, Maya, 3ds Max, Unity, Unreal, or Godot", emphasis: true },
               ]}
             />
           </section>
 
           <section className="pickle-section">
             <div className="pickle-head-block">
-              <h2 className="pickle-h2">One workspace, six ways in</h2>
+              <h2 className="pickle-h2">One workspace, eight ways in</h2>
               <div className="pickle-text">
                 <p>
                   Pick the integration that matches where the work happens. Artists usually start with a plugin; pipeline and tools teams reach for the API or MCP.
@@ -155,7 +173,7 @@ export default function IntegrationsPage() {
                       <th>Tool</th>
                       <th>Generate in the tool</th>
                       <th>Receive from Studio</th>
-                      <th>Sign-in</th>
+                      <th>Authentication</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -173,7 +191,7 @@ export default function IntegrationsPage() {
             </figure>
             <div id="sign-in" className="pickle-text scroll-mt-28">
               <p>
-                The Blender add-on can use your Studio sign-in in the browser. Every plugin, and the MCP server, also accepts a hyd_live_ API key, created from your account.
+                Every plugin and the MCP server use a hyd_live_ API key from <Link href="/app/api-keys">API keys</Link>. There is no browser sign-in to keep open. Paste the key once in a plugin and the other Hydrilla plugins and the MCP server on that computer use it too, so it never goes into an AI chat.
               </p>
             </div>
           </section>

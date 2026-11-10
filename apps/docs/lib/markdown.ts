@@ -34,7 +34,7 @@ const GUIDE_BODY: Record<string, string[]> = {
     "",
     "## Step 3: Poll for completion and download the mesh",
     "",
-    "Poll `GET /v1/3d/tasks/:taskId` every 2–3 seconds until `status` is `completed`, then download `result.mesh_url` (`.glb`).",
+    "Poll `GET /v1/3d/tasks/:taskId` every 2–3 seconds until `status` is `SUCCEEDED`, then download `result.mesh_url` (`.glb`).",
     "",
     "```bash",
     "curl -X GET https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_c18ab44d03e192a40 \\",
