@@ -10,12 +10,16 @@ export type Task = {
   prompt?: string | null;
   error?: string | null;
   result?: { mesh_url?: string | null; preview_image_url?: string | null; format?: string } | null;
+  /** Unix seconds. */
+  created_at?: number;
 };
 
 const REQUEST_TIMEOUT_MS = 60_000;
 /** Text-to-3D creates its concept image before the request returns. */
 export const CREATE_TIMEOUT_MS = 240_000;
-const POLL_INTERVAL_MS = 2_000;
+const POLL_INTERVAL_MS = 3_000;
+/** Shortest timeout given to one status request, so a nearly spent wait still gets an answer. */
+const MIN_POLL_TIMEOUT_MS = 10_000;
 const MAX_POLL_FAILURES = 5;
 
 const NO_KEY_MESSAGE =
@@ -111,12 +115,12 @@ export async function api<T>(path: string, init: RequestInit = {}, timeoutMs = R
   return data as T;
 }
 
-export const getTask = (taskId: string): Promise<Task> =>
-  api<Task>(`/v1/3d/tasks/${encodeURIComponent(taskId)}`);
+export const getTask = (taskId: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Task> =>
+  api<Task>(`/v1/3d/tasks/${encodeURIComponent(taskId)}`, {}, timeoutMs);
 
-const pollOnce = async (taskId: string): Promise<Task | null> => {
+const pollOnce = async (taskId: string, timeoutMs: number): Promise<Task | null> => {
   try {
-    return await getTask(taskId);
+    return await getTask(taskId, timeoutMs);
   } catch (error) {
     // A brief network or server hiccup should not lose a paid task.
     const retryable = error instanceof HydrillaError && (error.status === 0 || error.status >= 500);
@@ -130,8 +134,10 @@ const pollOnce = async (taskId: string): Promise<Task | null> => {
 export type WaitOutcome = { task: Task; timedOut: boolean };
 
 /**
- * Poll until the task finishes or the wait budget runs out. On timeout the
- * task keeps running on Hydrilla and can be checked again with its id.
+ * Poll until the task finishes or the wait budget runs out. Always checks at
+ * least once, and no request outlives the deadline by more than
+ * MIN_POLL_TIMEOUT_MS. On timeout the task keeps running on Hydrilla and can
+ * be checked again with its id.
  */
 export async function waitForTask(
   taskId: string,
@@ -139,13 +145,16 @@ export async function waitForTask(
   onProgress: (task: Task) => Promise<void>
 ): Promise<WaitOutcome> {
   const deadline = Date.now() + maxWaitMs;
-  const state: { failures: number; last: Task } = {
+  const state: { polls: number; failures: number; last: Task } = {
+    polls: 0,
     failures: 0,
     last: { id: taskId, status: "PENDING" },
   };
 
-  while (Date.now() < deadline) {
-    const task = await pollOnce(taskId);
+  while (state.polls === 0 || Date.now() < deadline) {
+    state.polls += 1;
+    const timeoutMs = Math.max(MIN_POLL_TIMEOUT_MS, Math.min(REQUEST_TIMEOUT_MS, deadline - Date.now()));
+    const task = await pollOnce(taskId, timeoutMs);
     if (task) {
       state.failures = 0;
       state.last = task;
@@ -159,7 +168,11 @@ export async function waitForTask(
         throw new HydrillaError("Lost contact with Hydrilla while waiting. Check the task again with hydrilla_get_task.");
       }
     }
-    await sleep(POLL_INTERVAL_MS);
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      break;
+    }
+    await sleep(Math.min(POLL_INTERVAL_MS, remainingMs));
   }
   return { task: state.last, timedOut: true };
 }

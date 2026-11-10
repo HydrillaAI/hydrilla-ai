@@ -91,7 +91,7 @@ The path is relative to the folder that contains `.mcp.json`. The server reads `
 | `hydrilla_me` | Plan and credit balance. Free. |
 | `hydrilla_text_to_3d` | Generate a GLB from a prompt. `send_to` places it in an open app. |
 | `hydrilla_image_to_3d` | Generate a GLB from an image URL. `send_to` places it in an open app. |
-| `hydrilla_get_task` | Status and mesh URL of one task. |
+| `hydrilla_get_task` | Waits up to ~45 s on one task, then returns status, progress and mesh URL. `send_to` places it in an app once ready. |
 | `hydrilla_list_tasks` | Recent models on the account. Free. |
 | `hydrilla_cancel_task` | Stop a running task; unused credits are refunded. |
 | `hydrilla_list_apps` | Which apps have their Bridge running right now. |
@@ -105,5 +105,8 @@ Bridge running, `send_to: "blender"` on a generate tool, or `hydrilla_send_to_ap
 the plugin download the GLB and import it into the open scene. If the Bridge is off, the
 tool says which button to click and the model can be sent again without regenerating.
 
-A generate call waits up to 8 minutes and reports progress to clients that ask for it. If
-the model is not ready by then, it returns the task id to check with `hydrilla_get_task`.
+A model takes 10 to 20 minutes to generate. No tool call stays open longer than about a
+minute: a generate call returns the task id with the progress so far, and the agent calls
+`hydrilla_get_task` (which waits up to ~45 seconds per call) until the model is ready, telling
+the user the progress in between. Calls also send progress notifications to clients that ask
+for them. Hydrilla fails and refunds a task that runs longer than 20 minutes.
