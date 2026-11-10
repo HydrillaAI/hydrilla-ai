@@ -9,8 +9,8 @@ export type App = (typeof APPS)[number];
 const BRIDGE_HOST = "127.0.0.1";
 const BRIDGE_SERVICE = "hydrilla-bridge";
 const HEALTH_TIMEOUT_MS = 1_500;
-/** The plugin downloads the mesh before it replies. */
-const IMPORT_TIMEOUT_MS = 5 * 60_000;
+/** The plugin downloads the mesh before it replies; kept short so the tool call still answers. */
+const IMPORT_TIMEOUT_MS = 2 * 60_000;
 
 const BRIDGE_PORTS: Record<App, number> = {
   blender: 7345,
@@ -85,7 +85,9 @@ const postImport = async (app: App, body: Record<string, string | undefined>): P
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new BridgeError(`${APP_NAMES[app]} stopped responding while receiving the model (${reason}).`);
+    throw new BridgeError(
+      `${APP_NAMES[app]} did not confirm the import (${reason}). It may still be importing; ask the user to check the app before sending the model again.`
+    );
   }
 };
 

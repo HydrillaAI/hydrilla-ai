@@ -9,8 +9,14 @@ import { SERVER_VERSION, getPostHogHost, getPostHogProjectToken, loadLocalEnv } 
 
 loadLocalEnv();
 
-/** How long a generate call waits before handing back the task id to check later. */
-const MAX_WAIT_MS = 8 * 60_000;
+/**
+ * Longest a tool call waits on a running task before it answers. A generation
+ * takes 10 to 20 minutes, far longer than many clients let one tool call run
+ * (Codex stops at 60 seconds), and the user sees nothing while a call is open.
+ * So each call answers with the current progress, and the agent calls
+ * hydrilla_get_task again to keep waiting.
+ */
+const CALL_BUDGET_MS = 45_000;
 
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -82,25 +88,30 @@ const deliver = async (task: Task, app: App | undefined, name: string | undefine
   }
 };
 
-/** Wait for a created task and, if asked, place the model in the user's open app. */
-const finishGeneration = async (
+const STILL_GENERATING_NOTE =
+  "Still generating; a model usually takes 10 to 20 minutes in total. Tell the user the progress so far, " +
+  "then call hydrilla_get_task with this task_id (and the same send_to and name, if any) to keep waiting. " +
+  "Do not start the generation again.";
+
+const elapsedSecondsOf = (task: Task): number | undefined =>
+  typeof task.created_at === "number" ? Math.max(0, Math.round(Date.now() / 1000 - task.created_at)) : undefined;
+
+/**
+ * Wait on a task for at most waitMs, then report where it stands. Once it has
+ * succeeded, place the model in the user's open app if asked.
+ */
+const awaitTask = async (
   taskId: string,
-  options: { wait: boolean; sendTo?: App; name?: string },
+  options: { waitMs: number; sendTo?: App; name?: string },
   extra: ToolExtra
 ): Promise<ToolResult> => {
-  if (!options.wait) {
-    return jsonResult({
-      id: taskId,
-      status: "PENDING",
-      note: "Generation started. Check it with hydrilla_get_task; send it to an app with hydrilla_send_to_app once it has succeeded.",
-    });
-  }
-  const { task, timedOut } = await waitForTask(taskId, MAX_WAIT_MS, progressReporter(extra));
+  const { task, timedOut } = await waitForTask(taskId, options.waitMs, progressReporter(extra));
   if (timedOut) {
     return jsonResult({
       ...task,
       id: taskId,
-      note: "Still generating. Call hydrilla_get_task with this id in a minute; do not start the generation again.",
+      elapsed_seconds: elapsedSecondsOf(task),
+      note: STILL_GENERATING_NOTE,
     });
   }
   if (task.status !== "SUCCEEDED") {
@@ -108,6 +119,24 @@ const finishGeneration = async (
   }
   const delivery = await deliver({ ...task, id: taskId }, options.sendTo, options.name);
   return jsonResult({ ...task, id: taskId, ...delivery });
+};
+
+/** After the create request, wait only for what is left of this call's budget. */
+const finishGeneration = async (
+  taskId: string,
+  startedAt: number,
+  options: { wait: boolean; sendTo?: App; name?: string },
+  extra: ToolExtra
+): Promise<ToolResult> => {
+  if (!options.wait) {
+    return jsonResult({
+      id: taskId,
+      status: "PENDING",
+      note: "Generation started; it usually takes 10 to 20 minutes. Check it with hydrilla_get_task (pass send_to there to place it in an app when it is done).",
+    });
+  }
+  const waitMs = Math.max(0, CALL_BUDGET_MS - (Date.now() - startedAt));
+  return awaitTask(taskId, { waitMs, sendTo: options.sendTo, name: options.name }, extra);
 };
 
 const server = new McpServer({
@@ -180,51 +209,68 @@ server.tool(
 
 server.tool(
   "hydrilla_text_to_3d",
-  "Generate a textured 3D model (GLB) from a text prompt. Costs credits and takes a few minutes. Set send_to to place it in the user's open Blender, Unity, Unreal, Godot, Maya or 3ds Max.",
+  "Generate a textured 3D model (GLB) from a text prompt. Costs credits and takes 10 to 20 minutes: the call returns a task_id within about a minute, then keep calling hydrilla_get_task with it until the model is ready. Set send_to to place it in the user's open Blender, Unity, Unreal, Godot, Maya or 3ds Max.",
   {
     prompt: z.string().min(1).describe("What to generate"),
-    wait: z.boolean().optional().describe("Wait until the model is ready (default true)"),
+    wait: z
+      .boolean()
+      .optional()
+      .describe("Wait up to about 45 seconds for progress before answering (default true). The model is rarely ready that fast; keep checking with hydrilla_get_task."),
     send_to: sendToSchema,
     name: nameSchema,
   },
   async ({ prompt, wait = true, send_to, name }, extra) =>
     guarded(async () => {
+      const startedAt = Date.now();
       const created = await api<{ id: string }>(
         "/v1/3d/text-to-3d",
         { method: "POST", body: JSON.stringify({ prompt }) },
         CREATE_TIMEOUT_MS
       );
-      return finishGeneration(created.id, { wait, sendTo: send_to, name }, extra as ToolExtra);
+      return finishGeneration(created.id, startedAt, { wait, sendTo: send_to, name }, extra as ToolExtra);
     })
 );
 
 server.tool(
   "hydrilla_image_to_3d",
-  "Generate a textured 3D model (GLB) from a public image URL. Costs credits and takes a few minutes. Set send_to to place it in the user's open app.",
+  "Generate a textured 3D model (GLB) from a public image URL. Costs credits and takes 10 to 20 minutes: the call returns a task_id within about a minute, then keep calling hydrilla_get_task with it until the model is ready. Set send_to to place it in the user's open app.",
   {
     image_url: z.string().url().describe("Public image URL"),
-    wait: z.boolean().optional().describe("Wait until the model is ready (default true)"),
+    wait: z
+      .boolean()
+      .optional()
+      .describe("Wait up to about 45 seconds for progress before answering (default true). The model is rarely ready that fast; keep checking with hydrilla_get_task."),
     send_to: sendToSchema,
     name: nameSchema,
   },
   async ({ image_url, wait = true, send_to, name }, extra) =>
     guarded(async () => {
+      const startedAt = Date.now();
       const created = await api<{ id: string }>(
         "/v1/3d/image-to-3d",
         { method: "POST", body: JSON.stringify({ image_url }) },
         CREATE_TIMEOUT_MS
       );
-      return finishGeneration(created.id, { wait, sendTo: send_to, name }, extra as ToolExtra);
+      return finishGeneration(created.id, startedAt, { wait, sendTo: send_to, name }, extra as ToolExtra);
     })
 );
 
 server.tool(
   "hydrilla_get_task",
-  "Check a Hydrilla 3D task by id. Returns its status and, once it has succeeded, the mesh URL.",
+  "Check a Hydrilla 3D task by id, waiting up to about 45 seconds for it to finish. Returns its status and progress and, once it has succeeded, the mesh URL. While it is still generating, tell the user the progress and call this again with the same task_id. Pass send_to to place the model in an open app as soon as it is ready.",
   {
     task_id: z.string().min(1),
+    wait: z
+      .boolean()
+      .optional()
+      .describe("Wait up to about 45 seconds for the task to finish (default true). Set false for an instant status check."),
+    send_to: sendToSchema,
+    name: nameSchema,
   },
-  async ({ task_id }) => guarded(async () => jsonResult(await getTask(task_id)))
+  async ({ task_id, wait = true, send_to, name }, extra) =>
+    guarded(async () =>
+      awaitTask(task_id, { waitMs: wait ? CALL_BUDGET_MS : 0, sendTo: send_to, name }, extra as ToolExtra)
+    )
 );
 
 server.tool(
