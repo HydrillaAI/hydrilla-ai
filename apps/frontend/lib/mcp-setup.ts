@@ -303,53 +303,56 @@ export function clientById(id: McpClientId): McpClient {
 }
 
 export const MCP_GUIDE_URL = "https://hydrilla.ai/integrations/mcp";
-export const MCP_GUIDE_MARKDOWN_URL = `${MCP_GUIDE_URL}.md`;
+/** Slug the Markdown route serves the agent skill under. */
+export const AGENT_SKILL_SLUG = "agent-onboarding/SKILL";
+export const AGENT_SKILL_URL = `https://hydrilla.ai/${AGENT_SKILL_SLUG}.md`;
 const API_KEYS_URL = "https://hydrilla.ai/app/api-keys";
 
-/**
- * Short prompt for any agent. The per-app detail lives in the Markdown guide
- * it links to, so the prompt stays readable.
- */
+/** The whole setup prompt: the agent reads the skill file and follows it. */
 export function agentSetupPrompt(): string {
-  return `Set up the Hydrilla MCP server in this app so you can generate 3D models for me.
-
-- Server: npx -y ${MCP_PACKAGE_SPEC}, named "${MCP_SERVER_NAME}" (needs Node.js 20 or newer).
-- Add it to this app's global MCP config. Steps for every app: ${MCP_GUIDE_MARKDOWN_URL}
-- Never ask for my API key or print it. Set HYDRILLA_API_KEY to the placeholder ${KEY_PLACEHOLDER} and tell me where to swap in my real key from ${API_KEYS_URL}.
-- Tell me what to restart, then call hydrilla_me to check it works.`;
+  return `Read and follow ${AGENT_SKILL_URL}`;
 }
 
-/** How an agent should use the tools once connected. Generations are slow, so the polling rules matter. */
-export function agentUsagePrompt(): string {
-  return `Use the Hydrilla MCP tools (hydrilla_*) whenever I ask for a 3D model.
+/**
+ * The skill an agent reads to connect Hydrilla and use it correctly. Built
+ * here so its commands always match the ones on the MCP page.
+ */
+export function agentSkillMarkdown(): string {
+  return `---
+name: hydrilla
+description: |
+  Hydrilla generates textured 3D models (GLB) from text or images and
+  can place them in Blender, Maya, 3ds Max, Unreal, Unity or Godot.
+  Use this skill to connect the Hydrilla MCP server to the current
+  agent and to use its tools correctly.
+---
 
-- A model takes 10 to 20 minutes. A generate call returns a task_id within about a minute; keep calling hydrilla_get_task with it, telling me the progress, until it has SUCCEEDED or FAILED.
-- Never start the same generation twice. Find a lost task with hydrilla_list_tasks.
-- To put the model in my open app (Blender, Maya, 3ds Max, Unreal, Unity, Godot), pass send_to, or use hydrilla_send_to_app with the task_id.
-- "Generation timed out" means the credits were refunded. Tell me and offer to retry.
-- Never ask me to paste my API key into the chat.`;
-}
+# Hydrilla
 
-/** Markdown for agents that read the guide instead of the web page. */
-export function agentGuideMarkdown(): string {
-  return `## Set up with your agent
+Hydrilla turns a text prompt or an image into a textured 3D model. Its
+MCP server, the npm package \`${MCP_PACKAGE}\`, runs on the user's computer
+and gives the agent tools to generate models, follow their progress and
+send them into the user's open 3D app.
 
-Paste this prompt into any AI agent. It adds the Hydrilla MCP server to its own config, tells you where to put your API key, and checks the connection.
+## Install
 
-\`\`\`text
-${agentSetupPrompt()}
-\`\`\`
+If \`hydrilla_*\` tools are already available, call \`hydrilla_me\`. If it
+answers, setup is done: go to [Using Hydrilla](#using-hydrilla).
 
-## Setup steps for agents
-
-1. Run \`node --version\`. If Node.js is missing or older than 20, ask the user to install it from https://nodejs.org and stop.
-2. Check whether \`~/.hydrilla/config.json\` contains an \`api_key\` (a Hydrilla plugin such as the Blender add-on saves it there). Never print its value. If it is there, the server reads that key: leave out \`--env\` and the \`env\` block.
-3. Add the server to the user-level (global) config of the app you run in. Replace an existing \`${MCP_SERVER_NAME}\` entry and keep every other server.
+1. Run \`node --version\`. If Node.js is missing or older than 20, ask the
+   user to install it from https://nodejs.org and stop.
+2. Check whether \`~/.hydrilla/config.json\` contains an \`api_key\`. A
+   Hydrilla plugin such as the Blender add-on saves it there. Check only
+   that the field exists; never print its value. With a saved key, leave
+   out \`--env\` and the \`env\` block below: the server reads that key.
+3. Add the server to the user-level (global) config of the app you are
+   running in. Replace an existing \`${MCP_SERVER_NAME}\` entry and keep every
+   other server.
 
 | App | How |
 |---|---|
-| Claude Code | \`${claudeAddCommand("unix", KEY_PLACEHOLDER)}\` (remove an old entry first: \`claude mcp remove ${MCP_SERVER_NAME} -s user\`) |
-| Codex | \`${codexAddCommand("unix", KEY_PLACEHOLDER)}\` (remove an old entry first: \`codex mcp remove ${MCP_SERVER_NAME}\`) |
+| Claude Code | \`${claudeAddCommand("unix", KEY_PLACEHOLDER)}\` |
+| Codex | \`${codexAddCommand("unix", KEY_PLACEHOLDER)}\` |
 | Cursor | The JSON below in \`~/.cursor/mcp.json\`, under \`"mcpServers"\` |
 | VS Code | The JSON below in the user MCP config (MCP: Open User Configuration), under \`"servers"\` |
 | Claude Desktop | The JSON below in \`claude_desktop_config.json\`, under \`"mcpServers"\` |
@@ -359,18 +362,93 @@ ${agentSetupPrompt()}
 ${mcpJsonConfig("mcpServers", KEY_PLACEHOLDER)}
 \`\`\`
 
-On Windows, start the server through cmd: put \`cmd /c\` before \`npx\` in the commands, and in JSON use \`"command": "cmd"\` with \`"args": ["/c", "npx", "-y", "${MCP_PACKAGE_SPEC}"]\`.
+   An old entry is removed with \`claude mcp remove ${MCP_SERVER_NAME} -s user\`
+   or \`codex mcp remove ${MCP_SERVER_NAME}\`. On Windows, start the server
+   through cmd: put \`cmd /c\` before \`npx\` in the commands, and in JSON use
+   \`"command": "cmd"\` with \`"args": ["/c", "npx", "-y", "${MCP_PACKAGE_SPEC}"]\`.
+   Always keep \`@latest\`: without it npx keeps running an old cached copy.
+4. Add the key as described under [Credentials](#credentials).
+5. Tell the user what to restart: quit and reopen the app, start a new
+   chat, or turn \`${MCP_SERVER_NAME}\` on in the app's MCP settings (Cursor and
+   VS Code need that).
+6. After the restart, call \`hydrilla_me\`. Setup is complete only when it
+   returns the plan and credit balance; report both to the user.
 
-4. The API key never passes through the chat. Without a saved key: in Claude Code or Codex, show the user the full command to run in their own terminal with their key in place of \`${KEY_PLACEHOLDER}\`; in any other app, write the entry with the placeholder and tell the user the file and line to edit. Keys are created at ${API_KEYS_URL} (Pro plan or above).
-5. Tell the user what to restart: quit and reopen the app, start a new chat, or turn \`${MCP_SERVER_NAME}\` on in the app's MCP settings.
-6. After the restart, call \`hydrilla_me\` (free) and report the plan and credit balance.
+## Credentials
+
+The API key starts with \`hyd_live_\` and is created at ${API_KEYS_URL}.
+It must never pass through the chat: do not ask for it, read it aloud or
+print it.
+
+- **A plugin already saved the key** (step 2): nothing to do.
+- **Claude Code or Codex**: do not run the add command yourself. Show the
+  user the full command to run in their own terminal, with their key in
+  place of \`${KEY_PLACEHOLDER}\`.
+- **Any other app**: write the entry with the placeholder
+  \`${KEY_PLACEHOLDER}\`, then tell the user the exact file and line where
+  they replace it with their key.
 
 ## Using Hydrilla
 
-Rules for an agent with the server connected. Add them to AGENTS.md, CLAUDE.md or Cursor rules.
+| Tool | What it does |
+|---|---|
+| \`hydrilla_me\` | Plan and credit balance. Free. |
+| \`hydrilla_text_to_3d\` | Textured GLB from a text prompt. Costs credits. |
+| \`hydrilla_image_to_3d\` | Textured GLB from a public image URL. Costs credits. |
+| \`hydrilla_get_task\` | Status, progress and mesh URL of one task. Free; waits up to about 45 seconds. |
+| \`hydrilla_list_tasks\` | The user's recent models. Free. |
+| \`hydrilla_cancel_task\` | Stops a running task; unused credits are refunded. |
+| \`hydrilla_list_apps\` | Which 3D apps can receive a model right now. Free. |
+| \`hydrilla_send_to_app\` | Puts a finished model into one of those apps. Free. |
+
+- **A model takes 10 to 20 minutes.** A generate call returns a \`task_id\`
+  within about a minute. Keep calling \`hydrilla_get_task\` with it, telling
+  the user the progress between calls, until the status is \`SUCCEEDED\` or
+  \`FAILED\`. Do not stop after one check.
+- **Never start the same generation twice.** Each one costs credits. Find
+  a lost task with \`hydrilla_list_tasks\`.
+- **Check the balance before a batch** with \`hydrilla_me\`.
+- **Write prompts for one object**: its shape, material and colour. One
+  model per call.
+
+## Sending a model into a 3D app
+
+The user's app (Blender, Maya, 3ds Max, Unreal, Unity or Godot) needs the
+Hydrilla plugin installed with its Bridge running.
+
+1. Call \`hydrilla_list_apps\` to see which apps are ready.
+2. Pass \`send_to\` (for example \`"blender"\`) on the generate call or on
+   \`hydrilla_get_task\`; the model lands in the open scene when it is done.
+3. If the app was not ready, tell the user which button to click (the
+   tool's error names it), then call \`hydrilla_send_to_app\` with the same
+   \`task_id\`. Do not generate again.
+
+## Troubleshooting
+
+- **No \`hydrilla_*\` tools after setup**: the app was not restarted, or the
+  server is switched off in its MCP settings.
+- **"Hydrilla did not accept the API key"**: the placeholder is still in
+  the config, or the key was revoked. The user fixes it in the config.
+- **"Not enough credits"**: the user tops up at https://hydrilla.ai/pricing.
+- **"Generation timed out"**: the task ran past 20 minutes and its credits
+  were refunded. Tell the user and offer to try once more.
+- **A generate call seems to hang for minutes**: an old server version is
+  cached. Make sure the config runs \`${MCP_PACKAGE_SPEC}\`, then restart.
+
+Setup page for people: ${MCP_GUIDE_URL}
+`;
+}
+
+/** Added to the MCP page's Markdown copy so agents reading it find the skill. */
+export function agentGuideMarkdown(): string {
+  return `## Set up with your agent
+
+Paste this into any AI agent (Claude Code, Codex, Cursor, VS Code, Claude Desktop, Windsurf, Gemini CLI and others). It connects the Hydrilla MCP server, tells you where to put your API key, and checks the connection.
 
 \`\`\`text
-${agentUsagePrompt()}
+${agentSetupPrompt()}
 \`\`\`
+
+Agents: the full instructions are at ${AGENT_SKILL_URL}
 `;
 }

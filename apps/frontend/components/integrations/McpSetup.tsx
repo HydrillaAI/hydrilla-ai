@@ -411,18 +411,16 @@ function AgentSetup({
     <section className="mcp-agent">
       <h2>Let your agent set it up</h2>
       <p className="mcp-lead">
-        Copy the prompt and paste it into any AI agent. It connects Hydrilla for you, and your API key never goes
-        into the chat.
+        Copy this line into any AI agent. It reads Hydrilla’s setup guide, connects the MCP server for you, and
+        checks it works. Your API key never goes into the chat.
       </p>
-      <div className="mcp-prompt-actions">
-        <button
-          type="button"
-          className="pickle-pill-solid mcp-pill"
-          onClick={() => onCopy("agent-setup", agentSetupPrompt())}
-        >
-          {copiedId === "agent-setup" ? "Copied" : "Copy prompt"}
-        </button>
-      </div>
+      <CommandBlock
+        label="Paste into your agent"
+        code={agentSetupPrompt()}
+        copyId="agent-setup"
+        copiedId={copiedId}
+        onCopy={onCopy}
+      />
     </section>
   );
 }

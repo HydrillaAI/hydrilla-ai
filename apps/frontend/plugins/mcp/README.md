@@ -26,14 +26,11 @@ cp mcp.env.example mcp.env
 
 ## Project MCP config (any AI)
 
-Committed configs (no secrets):
+The committed config (no secrets) is `.mcp.json` at the repo root. It points at `dist/index.js` with a path relative to that folder. The server loads `mcp.env` from its own directory. Do not use `${workspaceFolder}` or `envFile` here: Claude Code does not expand that variable and does not read `envFile`.
 
-- Workspace root: `Hydrilla_all/.mcp.json`
-- Repo root: `hydrilla-ai/.mcp.json`
+The fastest setup is to paste this into any agent: `Read and follow https://hydrilla.ai/agent-onboarding/SKILL.md`.
 
-Both point at `dist/index.js` with a path relative to that folder. The server loads `mcp.env` from its own directory. Do not use `${workspaceFolder}` or `envFile` here: Claude Code does not expand that variable and does not read `envFile`.
-
-Public install (same flow as the MCP page). The npm package is `hydrilla-mcp` (Node.js 20+). Replace `hyd_live_…` with a key from `/app/api-keys`. The key stays in the client config, not in chat.
+Public install by hand (same flow as the MCP page). The npm package is `hydrilla-mcp` (Node.js 20+). Replace `hyd_live_…` with a key from `/app/api-keys`. The key stays in the client config, not in chat.
 
 Claude Code (macOS / Linux):
 
