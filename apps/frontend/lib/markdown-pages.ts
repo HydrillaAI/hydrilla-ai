@@ -6,7 +6,7 @@ import {
   SITE_URL,
 } from "@/lib/brand";
 import { kitPageMarkdown, legalPageMarkdown } from "@/lib/kit-markdown";
-import { agentGuideMarkdown } from "@/lib/mcp-setup";
+import { AGENT_SKILL_SLUG, agentGuideMarkdown, agentSkillMarkdown } from "@/lib/mcp-setup";
 import { PRICING, SLOT_PRICING } from "@/lib/pricing";
 
 /** Homepage mirror. Leave this text unchanged. */
@@ -44,6 +44,10 @@ Plans: Free ($${PRICING.free.monthly}/mo, 100 credits), Starter ($${PRICING.star
 export async function getMarkdownForSlug(slugParts: string[]): Promise<string | null> {
   const slug = slugParts.join("/") || "index";
   if (slug === "index") return INDEX_MARKDOWN;
+
+  if (slug === AGENT_SKILL_SLUG) {
+    return agentSkillMarkdown();
+  }
 
   const kit = kitPageMarkdown(slug);
   if (kit && slug === "integrations/mcp") {

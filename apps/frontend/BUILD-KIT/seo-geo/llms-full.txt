@@ -398,7 +398,7 @@ Let AI agents generate 3D through Hydrilla over MCP. Hydrilla's MCP server calls
 2. Set HYDRILLA_API_KEY to your hyd_live_ key in the server's environment.
 3. Register the server in your MCP client, following the integration guide, then restart the client.
 
-the MCP server needs REST API access, included with Pro. [Plans](https://hydrilla.ai/pricing) Want an agent inside Hydrilla instead? [See Water Agent](https://hydrilla.ai/water)
+the MCP server works on every plan, and generating a model uses your credits. [Plans](https://hydrilla.ai/pricing) Want an agent inside Hydrilla instead? [See Water Agent](https://hydrilla.ai/water)
 
 ---
 
