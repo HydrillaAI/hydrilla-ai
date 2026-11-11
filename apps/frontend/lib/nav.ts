@@ -9,6 +9,7 @@ export type NavIconName =
   | "preview"
   | "export"
   | "api"
+  | "mcp"
   | "integrations"
   | "rigging"
   | "enterprise"
@@ -81,6 +82,7 @@ export const NAV_PRIMARY: NavGroup[] = [
           { label: "Overview", href: "/features", description: "Everything in Hydrilla", icon: "features" },
           { label: "Integrations", href: "/integrations", description: "Plug into your 3D tools", icon: "integrations" },
           { label: "API", href: "/api", description: "Generate from your own code", icon: "api" },
+          { label: "MCP", href: "/integrations/mcp", description: "Generate from your AI agent", icon: "mcp" },
         ],
       },
     ],

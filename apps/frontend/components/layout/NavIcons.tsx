@@ -90,6 +90,16 @@ export function NavIcon({ name, className }: IconProps) {
           <path d="M12 12l-4 4 4 4M20 12l4 4-4 4" stroke="#9333EA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </Glyph>
       );
+    case "mcp":
+      return (
+        <Glyph className={className}>
+          <rect x="4" y="6" width="24" height="20" rx="6" fill="#DCFCE7" />
+          <circle cx="11" cy="16" r="3" fill="#16A34A" />
+          <circle cx="21" cy="11" r="2.5" fill="#16A34A" />
+          <circle cx="21" cy="21" r="2.5" fill="#16A34A" />
+          <path d="M13.6 14.6l5.2-2.6M13.6 17.4l5.2 2.6" stroke="#16A34A" strokeWidth="1.8" strokeLinecap="round" />
+        </Glyph>
+      );
     case "integrations":
       return (
         <Glyph className={className}>
