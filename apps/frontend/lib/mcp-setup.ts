@@ -400,6 +400,9 @@ print it.
 | \`hydrilla_cancel_task\` | Stops a running task; unused credits are refunded. |
 | \`hydrilla_list_apps\` | Which 3D apps can receive a model right now. Free. |
 | \`hydrilla_send_to_app\` | Puts a finished model into one of those apps. Free. |
+| \`hydrilla_blender_scene_info\` | What is in the open Blender scene: names, positions, sizes. Free. |
+| \`hydrilla_blender_run_python\` | Runs Python in the open Blender scene to arrange or change it. Free. |
+| \`hydrilla_blender_screenshot\` | The Blender viewport as an image. Free. |
 
 - **A model takes 10 to 20 minutes.** A generate call returns a \`task_id\`
   within about a minute. Keep calling \`hydrilla_get_task\` with it, telling
@@ -422,6 +425,20 @@ Hydrilla plugin installed with its Bridge running.
 3. If the app was not ready, tell the user which button to click (the
    tool's error names it), then call \`hydrilla_send_to_app\` with the same
    \`task_id\`. Do not generate again.
+
+## Building a scene in Blender
+
+Models land at the centre of the scene. To arrange them, or to build
+anything else, use the Blender tools (add-on 2.1 or newer, Bridge running):
+
+1. \`hydrilla_blender_scene_info\` for exact object names and sizes. Hydrilla
+   models are named \`Hydrilla_<name>\`.
+2. \`hydrilla_blender_run_python\` in small steps, one task per call.
+3. \`hydrilla_blender_screenshot\` or \`hydrilla_blender_scene_info\` to check.
+
+Scripts only run once the user turns on **Let AI agent edit this scene** in
+Blender's Hydrilla panel. If the tool says it is off, tell the user where
+the switch is and wait; do not ask them to run the script by hand instead.
 
 ## Troubleshooting
 

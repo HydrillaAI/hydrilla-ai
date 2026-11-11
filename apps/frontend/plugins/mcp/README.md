@@ -93,6 +93,31 @@ The path is relative to the folder that contains `.mcp.json`. The server reads `
 | `hydrilla_cancel_task` | Stop a running task; unused credits are refunded. |
 | `hydrilla_list_apps` | Which apps have their Bridge running right now. |
 | `hydrilla_send_to_app` | Put an existing model into Blender, Unity, Unreal, Godot, Maya or 3ds Max. Free. |
+| `hydrilla_blender_scene_info` | Objects in the open Blender scene with world location, rotation, scale and bounding-box size. Read-only. |
+| `hydrilla_blender_run_python` | Run Python (`bpy`) in the open Blender session and return what it printed. Needs the user's permission in the add-on. |
+| `hydrilla_blender_screenshot` | The Blender 3D viewport as an image. Read-only. |
+
+## Building a scene in Blender
+
+With the Blender add-on 2.1+ and its Bridge running, the agent can also see and change the
+open scene, the same way the community `mcp-for-blender` server works, but through the one
+Hydrilla Bridge (no second server or port):
+
+1. `hydrilla_blender_scene_info` lists what is in the scene and how big it is.
+2. `hydrilla_blender_run_python` runs a script on Blender's main thread. Each script is one
+   Ctrl+Z step.
+3. `hydrilla_blender_screenshot` returns the viewport so the agent can check the result.
+
+Scripts only run after the user turns on **Let AI agent edit this scene** in the add-on's
+Bridge panel (off by default). Reading the scene and the viewport needs no extra permission.
+
+The command endpoint (`POST /command`) is stricter than `/import`:
+
+- It refuses every request that carries `Origin` or `Sec-Fetch-Site`, so no web page can send
+  one, including Hydrilla's own sites.
+- Each request needs the `X-Hydrilla-Token` header. The add-on writes a fresh random token to
+  `~/.hydrilla/bridge/blender.token` (mode 600) each time the Bridge starts and deletes it when
+  the Bridge stops. This server reads it on every call.
 
 ## Sending models into an app
 

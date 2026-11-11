@@ -4,7 +4,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { PostHog, instrument } from "@posthog/mcp";
 import { z } from "zod";
 import { CREATE_TIMEOUT_MS, type Task, api, getTask, waitForTask } from "./api.js";
-import { APPS, type App, appName, listListeningApps, sendMeshToApp } from "./bridge.js";
+import {
+  APPS,
+  type App,
+  type CommandReply,
+  appName,
+  listListeningApps,
+  runAppCommand,
+  sendMeshToApp,
+} from "./bridge.js";
 import { SERVER_VERSION, getPostHogHost, getPostHogProjectToken, loadLocalEnv } from "./config.js";
 
 loadLocalEnv();
@@ -18,10 +26,15 @@ loadLocalEnv();
  */
 const CALL_BUDGET_MS = 45_000;
 
+type ToolContent = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
 type ToolResult = {
-  content: Array<{ type: "text"; text: string }>;
+  content: ToolContent[];
   isError?: boolean;
 };
+
+/** Default wait for a Blender command; under the 60 seconds some clients give one tool call. */
+const BLENDER_COMMAND_TIMEOUT_S = 50;
 
 /** What a tool handler is given besides its arguments; only the parts used here. */
 type ToolExtra = {
@@ -332,6 +345,99 @@ server.tool(
       }
       await sendMeshToApp(app, { meshUrl: meshUrlOf(task), name, taskId: task_id });
       return jsonResult({ id: task_id, sent_to: appName(app) });
+    })
+);
+
+/** A failed command as a tool error, keeping the traceback and printed output. */
+const commandErrorResult = (reply: CommandReply): ToolResult => {
+  const parts = [
+    reply.message || reply.error || "The command failed.",
+    typeof reply.traceback === "string" && reply.traceback ? `\n${reply.traceback}` : "",
+    typeof reply.output === "string" && reply.output ? `\nPrinted before the error:\n${reply.output}` : "",
+  ];
+  return { content: [{ type: "text", text: parts.join("\n").trim() }], isError: true };
+};
+
+const withoutOk = (reply: CommandReply): Record<string, unknown> => {
+  const { ok: _ok, ...rest } = reply;
+  return rest;
+};
+
+server.tool(
+  "hydrilla_blender_scene_info",
+  "See what is in the user's open Blender scene: each object's name, type, parent, world location, rotation (degrees), scale and world bounding box (bounds_min, bounds_max, size in metres, children included), plus the selection, active object and mode. Free and read-only. Lists top-level objects by default; pass root to list one object and everything under it, or query to find objects by name. Models placed by Hydrilla are named Hydrilla_<name>. Call it before hydrilla_blender_run_python to learn exact names and sizes, and after it to check the result. Needs the Hydrilla Bridge running in Blender.",
+  {
+    query: z.string().max(200).optional().describe("Only objects whose name contains this text (any depth)"),
+    root: z.string().max(200).optional().describe("Exact name of an object whose whole hierarchy to list"),
+    limit: z.number().int().min(1).max(500).optional().describe("Most objects to list (default 50)"),
+  },
+  { title: "Read Blender scene", readOnlyHint: true, openWorldHint: false },
+  async ({ query, root, limit }) =>
+    guarded(async () => {
+      const reply = await runAppCommand("blender", "scene_info", { query, root, limit }, BLENDER_COMMAND_TIMEOUT_S);
+      return reply.ok ? jsonResult(withoutOk(reply)) : commandErrorResult(reply);
+    })
+);
+
+server.tool(
+  "hydrilla_blender_run_python",
+  [
+    "Run Python in the user's open Blender session to create, move, rotate, scale, duplicate, delete or change objects, materials, lights and cameras. Returns everything the script prints, or the error with a traceback.",
+    "Already imported: bpy, bmesh, mathutils, Vector, Matrix, Euler, math. Units are metres and Z is up. bpy.ops calls run with the 3D viewport as context.",
+    "Work in small steps: one task per call, print the values you need, then check with hydrilla_blender_scene_info or hydrilla_blender_screenshot. Use exact names from hydrilla_blender_scene_info. After moving objects, call bpy.context.view_layer.update() before reading matrix_world.",
+    "Blender freezes while a script runs and a running script cannot be stopped, so avoid long loops, renders, file dialogs and saving over the user's file unless they ask. Each call is one Ctrl+Z step for the user.",
+    "The user must turn on “Let AI agent edit this scene” in Blender's Hydrilla panel; if it is off, the call fails with a message to pass on to them.",
+  ].join(" "),
+  {
+    code: z.string().min(1).max(1_000_000).describe("Python to run. print() what you want returned."),
+    timeout_seconds: z
+      .number()
+      .int()
+      .min(1)
+      .max(300)
+      .optional()
+      .describe("How long to wait for Blender to finish (default 50). The script is not stopped when this runs out."),
+  },
+  { title: "Run Python in Blender", readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+  async ({ code, timeout_seconds = BLENDER_COMMAND_TIMEOUT_S }) =>
+    guarded(async () => {
+      const reply = await runAppCommand("blender", "run_python", { code }, timeout_seconds);
+      if (!reply.ok) {
+        return commandErrorResult(reply);
+      }
+      const output = typeof reply.output === "string" ? reply.output : "";
+      return {
+        content: [{ type: "text", text: output ? `Script ran. Output:\n${output}` : "Script ran. It printed nothing." }],
+      };
+    })
+);
+
+server.tool(
+  "hydrilla_blender_screenshot",
+  "Look at the user's Blender 3D viewport as an image, from the same angle and with the same shading they see. Free and read-only. Use it to check layout and appearance after changing the scene; for exact positions and sizes use hydrilla_blender_scene_info. Images stay in the conversation, so use a small max_size for quick checks.",
+  {
+    max_size: z
+      .number()
+      .int()
+      .min(128)
+      .max(2000)
+      .optional()
+      .describe("Longest side of the image in pixels (default 768)"),
+  },
+  { title: "Capture Blender viewport", readOnlyHint: true, openWorldHint: false },
+  async ({ max_size }) =>
+    guarded(async () => {
+      const reply = await runAppCommand("blender", "screenshot", { max_size }, BLENDER_COMMAND_TIMEOUT_S);
+      if (!reply.ok || typeof reply.image_base64 !== "string") {
+        return commandErrorResult(reply.ok ? { ok: false, message: "Blender returned no image." } : reply);
+      }
+      const mimeType = typeof reply.mime_type === "string" ? reply.mime_type : "image/png";
+      return {
+        content: [
+          { type: "image", data: reply.image_base64, mimeType },
+          { type: "text", text: `Blender viewport, ${String(reply.width)}x${String(reply.height)} px.` },
+        ],
+      };
     })
 );
 

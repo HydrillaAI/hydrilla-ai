@@ -1,15 +1,24 @@
 """Hydrilla Bridge: a small local server a plugin runs so meshes can be sent to it.
 
 Hydrilla Studio (in the browser) and the Hydrilla MCP server post a mesh to
-the Bridge; the host app imports it. The Bridge carries no account data and
-accepts no credentials. It only receives meshes.
+the Bridge; the host app imports it. The Bridge carries no account data.
 
 It listens on 127.0.0.1 only. Requests from a web page are accepted only from
 Hydrilla's own sites, because any page open in a browser can reach localhost.
 
+A host app may also accept commands from the user's AI agent (read the scene,
+run a script, capture the viewport). Commands are a separate, stricter path:
+  * no web page may send one, from any site, so a bug on a Hydrilla page can
+    never run code on the user's machine;
+  * each request must carry the session token the Bridge writes, readable by
+    this user only, to <config dir>/bridge/<app>.token when it starts;
+  * the host runs them on its main thread and decides which ones are allowed.
+
 Endpoints
-  GET  /health                  liveness and which app is listening
+  GET  /health                  liveness, which app is listening, which commands it takes
   POST /import, /import-file    {"mesh_url": "..."} or {"file_base64": "..."}
+  POST /command                 {"type": "...", "params": {...}, "timeout": seconds}
+                                with header X-Hydrilla-Token
 
 Standard library only, Python 3.7+.
 """
@@ -17,9 +26,11 @@ Standard library only, Python 3.7+.
 from __future__ import annotations
 
 import base64
+import hmac
 import json
 import os
 import queue
+import secrets
 import tempfile
 import threading
 import time
@@ -38,12 +49,23 @@ except ImportError:
     import hydrilla_config as config
 
 SERVICE_NAME = "hydrilla-bridge"
-PROTOCOL_VERSION = 2
+PROTOCOL_VERSION = 3
 MAX_MESH_BYTES = 200 * 1024 * 1024
 # Base64 adds a third; leave room for the JSON around it.
 MAX_BODY_BYTES = int(MAX_MESH_BYTES * 1.4) + 64 * 1024
 MAX_QUEUED = 25
 ORIGINS_ENV = "HYDRILLA_BRIDGE_ORIGINS"
+
+TOKEN_HEADER = "X-Hydrilla-Token"
+MAX_COMMAND_BYTES = 2 * 1024 * 1024
+MAX_QUEUED_COMMANDS = 10
+DEFAULT_COMMAND_TIMEOUT_S = 50.0
+MAX_COMMAND_TIMEOUT_S = 300.0
+# Headers a browser adds to every POST a page sends, and other HTTP clients do
+# not. (Sec-Fetch-Mode is not one: Node's fetch sends it too.) Browsers also
+# cannot send the token header cross-site, because the Bridge never allows it
+# in a CORS preflight.
+BROWSER_HEADERS = ("Origin", "Sec-Fetch-Site")
 
 ALLOWED_ORIGINS = (
     "https://hydrilla.ai",
@@ -127,14 +149,14 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         return True
 
-    def _read_json(self) -> Dict[str, Any]:
+    def _read_json(self, max_bytes: int = MAX_BODY_BYTES) -> Dict[str, Any]:
         try:
             length = int(self.headers.get("Content-Length") or "0")
         except ValueError:
             raise BridgeRequestError(400, "invalid Content-Length")
         if length <= 0:
             return {}
-        if length > MAX_BODY_BYTES:
+        if length > max_bytes:
             raise BridgeRequestError(413, "request too large")
         chunks = []
         remaining = length
@@ -166,10 +188,39 @@ class _Handler(BaseHTTPRequestHandler):
             return
         self._send(404, {"ok": False, "error": "not_found"})
 
+    def _handle_command(self) -> None:
+        """Run one agent command on the host's main thread and reply with its result."""
+        if any(self.headers.get(name) for name in BROWSER_HEADERS):
+            self._send(403, {"ok": False, "error": "commands_not_allowed_from_browsers"})
+            return
+        if not self.bridge.check_token(self.headers.get(TOKEN_HEADER)):
+            self._send(
+                401,
+                {
+                    "ok": False,
+                    "error": "bad_token",
+                    "message": "Missing or stale session token. Read it again from the Bridge token file.",
+                },
+            )
+            return
+        try:
+            data = self._read_json(MAX_COMMAND_BYTES)
+            reply = self.bridge.run_command(data)
+        except BridgeRequestError as error:
+            self._send(error.status, {"ok": False, "error": str(error)})
+            return
+        except Exception as error:
+            self._send(500, {"ok": False, "error": str(error)})
+            return
+        self._send(200, reply)
+
     def do_POST(self) -> None:
         if not self._guard():
             return
         path = urlparse(self.path).path
+        if path == "/command":
+            self._handle_command()
+            return
         if path not in ("/import", "/import-file"):
             self._send(404, {"ok": False, "error": "not_found"})
             return
@@ -218,6 +269,11 @@ class Bridge:
         self._server: Optional[_Server] = None
         self._thread: Optional[threading.Thread] = None
         self._folder = os.path.join(tempfile.gettempdir(), "hydrilla-bridge-%s" % app)
+        # Agent commands: empty until the host calls enable_commands().
+        self._command_types: List[str] = []
+        self._commands: "queue.Queue[Dict[str, Any]]" = queue.Queue()
+        self._command_lock = threading.Lock()
+        self._token = ""
 
     @property
     def url(self) -> str:
@@ -236,7 +292,152 @@ class Bridge:
             "version": config.PLUGIN_VERSION,
             "app": self.app,
             "pending": self._items.qsize(),
+            # Present only while a token file exists, so a caller can rely on it.
+            "commands": list(self._command_types) if self._token else [],
         }
+
+    # ---- agent commands -------------------------------------------------
+
+    def enable_commands(self, types: List[str]) -> None:
+        """Declare which command types the host runs. Call before start()."""
+        self._command_types = [str(item) for item in types]
+
+    def token_path(self) -> str:
+        return os.path.join(config.config_dir(), "bridge", "%s.token" % self.app)
+
+    def check_token(self, value: Optional[str]) -> bool:
+        token = self._token
+        if not token or not value:
+            return False
+        return hmac.compare_digest(token.encode("utf-8"), value.strip().encode("utf-8"))
+
+    def _write_token(self) -> None:
+        """Create a fresh session token in a file only this user can read."""
+        token = secrets.token_urlsafe(32)
+        path = self.token_path()
+        folder = os.path.dirname(path)
+        os.makedirs(folder, exist_ok=True)
+        try:
+            os.chmod(folder, 0o700)
+        except OSError:
+            # Windows has no POSIX modes; the home folder ACL already limits access.
+            pass
+        descriptor, temp_path = tempfile.mkstemp(prefix="token-", suffix=".tmp", dir=folder)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(token)
+            os.replace(temp_path, path)
+        except Exception:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            raise
+        self._token = token
+
+    def _remove_token(self) -> None:
+        token = self._token
+        self._token = ""
+        if not token:
+            return
+        path = self.token_path()
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                current = handle.read().strip()
+            # Leave a file written by a newer session alone.
+            if current == token:
+                os.remove(path)
+        except OSError:
+            pass
+
+    def run_command(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Queue a command for the host's main thread and wait for its reply.
+
+        Called on a request thread. The reply is whatever the host passed to
+        finish_command(), or a timeout error.
+        """
+        kind = str(payload.get("type") or "").strip()
+        if kind not in self._command_types:
+            raise BridgeRequestError(
+                404,
+                "unknown command %r; this app takes: %s" % (kind, ", ".join(self._command_types) or "none"),
+            )
+        params = payload.get("params") or {}
+        if not isinstance(params, dict):
+            raise BridgeRequestError(400, "params must be a JSON object")
+        try:
+            timeout_s = float(payload.get("timeout") or DEFAULT_COMMAND_TIMEOUT_S)
+        except (TypeError, ValueError):
+            raise BridgeRequestError(400, "timeout must be a number of seconds")
+        timeout_s = max(1.0, min(timeout_s, MAX_COMMAND_TIMEOUT_S))
+        if self._commands.qsize() >= MAX_QUEUED_COMMANDS:
+            raise BridgeRequestError(429, "too many commands waiting; let the earlier ones finish")
+
+        item: Dict[str, Any] = {
+            "id": uuid.uuid4().hex,
+            "type": kind,
+            "params": params,
+            "state": "queued",
+            "reply": None,
+            "done": threading.Event(),
+        }
+        self._commands.put(item)
+        if item["done"].wait(timeout_s):
+            return item["reply"]
+
+        with self._command_lock:
+            started = item["state"] == "running"
+            if not started:
+                item["state"] = "abandoned"
+        if started:
+            return {
+                "ok": False,
+                "error": "timeout",
+                "message": (
+                    "The app is still running this command after %d seconds. It was not "
+                    "stopped and may still change the scene; check the scene before "
+                    "sending it again." % timeout_s
+                ),
+            }
+        return {
+            "ok": False,
+            "error": "timeout",
+            "message": (
+                "The app did not pick up the command within %d seconds, so it was "
+                "dropped and nothing ran. The app may be busy (a render, a dialog "
+                "or a long operation)." % timeout_s
+            ),
+        }
+
+    def take_commands(self) -> List[Dict[str, Any]]:
+        """Take the commands to run now. Call from the host's main thread.
+
+        Each one is marked as running; run it, then call finish_command().
+        Commands whose caller already gave up are skipped.
+        """
+        taken = []
+        while True:
+            try:
+                item = self._commands.get_nowait()
+            except queue.Empty:
+                return taken
+            with self._command_lock:
+                if item["state"] != "queued":
+                    continue
+                item["state"] = "running"
+            taken.append(item)
+
+    @staticmethod
+    def finish_command(item: Dict[str, Any], reply: Dict[str, Any]) -> None:
+        item["reply"] = reply
+        item["state"] = "done"
+        item["done"].set()
+
+    def _fail_waiting_commands(self) -> None:
+        for item in self.take_commands():
+            self.finish_command(item, {"ok": False, "error": "bridge_stopped", "message": "The Bridge was stopped."})
+
+    # ---- lifecycle ------------------------------------------------------
 
     def start(self) -> Dict[str, Any]:
         """Start listening. Returns {"ok": True} or {"ok": False, "error": "..."}."""
@@ -247,6 +448,16 @@ class Bridge:
                 server = _Server((config.BRIDGE_HOST, self.port), _Handler)
             except OSError as error:
                 return {"ok": False, "error": self._bind_error(error)}
+            commands_error = ""
+            if self._command_types:
+                try:
+                    self._write_token()
+                except OSError as error:
+                    # Models can still be received; only agent commands are off.
+                    commands_error = "Agent commands are off: could not write %s (%s)." % (
+                        self.token_path(),
+                        error,
+                    )
             server.bridge = self  # type: ignore[attr-defined]
             thread = threading.Thread(
                 target=server.serve_forever,
@@ -257,7 +468,10 @@ class Bridge:
             self._server = server
             self._thread = thread
             thread.start()
-        return {"ok": True, "already": False, "url": self.url}
+        result: Dict[str, Any] = {"ok": True, "already": False, "url": self.url}
+        if commands_error:
+            result["commands_error"] = commands_error
+        return result
 
     def stop(self) -> None:
         with self._lock:
@@ -267,6 +481,8 @@ class Bridge:
             self._thread = None
         if server is None:
             return
+        self._remove_token()
+        self._fail_waiting_commands()
         try:
             server.shutdown()
             server.server_close()

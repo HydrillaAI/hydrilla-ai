@@ -14,7 +14,7 @@ import os
 import tempfile
 from typing import Any, Dict, Optional
 
-PLUGIN_VERSION = "2.0.0"
+PLUGIN_VERSION = "2.1.0"
 
 DEFAULT_API_BASE = "https://hydrilla-ai-g1bm.vercel.app"
 LOCAL_API_BASE = "http://localhost:4000"
