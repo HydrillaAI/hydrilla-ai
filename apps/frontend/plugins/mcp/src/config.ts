@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const SERVER_VERSION = "2.0.2";
+export const SERVER_VERSION = "2.1.0";
 export const DEFAULT_API_BASE = "https://hydrilla-ai-g1bm.vercel.app";
 export const API_KEYS_URL = "https://hydrilla.ai/app/api-keys";
 
@@ -47,13 +47,17 @@ export function loadLocalEnv(): void {
 
 type SharedConfig = { api_key?: unknown; api_base?: unknown };
 
+/** Folder the Hydrilla plugins share with this server (~/.hydrilla unless overridden). */
+export function hydrillaConfigDir(): string {
+  return (process.env.HYDRILLA_CONFIG_DIR || "").trim() || join(homedir(), ".hydrilla");
+}
+
 /**
  * Config the Hydrilla plugins write when a key is pasted into one of them.
  * Read on every call, so a key added in Blender works without restarting the agent.
  */
 function readSharedConfig(): SharedConfig {
-  const folder = (process.env.HYDRILLA_CONFIG_DIR || "").trim() || join(homedir(), ".hydrilla");
-  const path = join(folder, "config.json");
+  const path = join(hydrillaConfigDir(), "config.json");
   if (!existsSync(path)) {
     return {};
   }

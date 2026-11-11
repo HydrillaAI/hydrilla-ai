@@ -42,7 +42,7 @@ else gets `403`. Extra origins for development: `HYDRILLA_BRIDGE_ORIGINS=https:/
 | `shared/` | The one copy of the Python API client, config and Bridge server, plus the Qt window used by Maya and 3ds Max |
 | `blender/`, `maya/`, `max/`, `unreal/` | Thin host code on top of `shared/` |
 | `unity/`, `godot/` | Self-contained C# and GDScript plugins with the same behaviour |
-| `mcp/` | MCP server (`hydrilla_text_to_3d`, `hydrilla_send_to_app`, …) |
+| `mcp/` | MCP server (`hydrilla_text_to_3d`, `hydrilla_send_to_app`, `hydrilla_blender_run_python`, …) |
 
 Edit shared Python code in `shared/` only. `pack.sh` copies it into each zip.
 

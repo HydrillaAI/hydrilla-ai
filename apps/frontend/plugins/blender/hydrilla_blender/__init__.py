@@ -1,10 +1,10 @@
 bl_info = {
     "name": "Hydrilla",
     "author": "Hydrilla",
-    "version": (2, 0, 0),
+    "version": (2, 1, 0),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > Hydrilla",
-    "description": "Generate AI 3D models and receive them from Hydrilla Studio or your AI agent",
+    "description": "Generate AI 3D models, receive them from Hydrilla Studio, and let your AI agent build the scene",
     "category": "Import-Export",
 }
 
@@ -22,6 +22,7 @@ from bpy_extras.io_utils import ImportHelper
 from . import hydrilla_config
 from . import hydrilla_api
 from . import bridge_server
+from . import agent_commands
 from . import bridge_runtime
 
 ADDON_ID = __package__ or __name__
@@ -549,6 +550,15 @@ class HydrillaPreferences(AddonPreferences):
         ),
         default=False,
     )
+    allow_agent_edits: BoolProperty(
+        name="Let AI agent edit this scene",
+        description=(
+            "Allow your AI agent (through the Hydrilla MCP) to run Python in Blender to "
+            "move, build and change objects. Only turn this on while you are using an "
+            "agent you trust, and save your work first. Each script can be undone with Ctrl+Z"
+        ),
+        default=False,
+    )
     show_developer: BoolProperty(name="Developer", default=False)
     api_server: StringProperty(
         name="API address",
@@ -566,6 +576,7 @@ class HydrillaPreferences(AddonPreferences):
         box = layout.box()
         box.label(text="Bridge", icon="LINKED")
         box.prop(self, "auto_start_bridge")
+        box.prop(self, "allow_agent_edits")
         box.label(text="Listens on 127.0.0.1:%d for models sent to Blender." % bridge_runtime.port())
 
         box = layout.box()
@@ -922,6 +933,20 @@ class HYDRILLA_PT_bridge(_HydrillaPanel, Panel):
         if prefs is not None:
             box.prop(prefs, "auto_start_bridge")
 
+            box = layout.box()
+            box.prop(prefs, "allow_agent_edits")
+            if prefs.allow_agent_edits:
+                for line in _wrap("Your AI agent can run Python here to build the scene. Save your work first; Ctrl+Z undoes each script."):
+                    box.label(text=line)
+            else:
+                for line in _wrap("Turn on to let your AI agent arrange and change objects. It can always see the scene."):
+                    box.label(text=line)
+
+
+def _agent_edits_allowed() -> bool:
+    prefs = _prefs()
+    return bool(prefs is not None and prefs.allow_agent_edits)
+
 
 classes = (
     HydrillaPreferences,
@@ -988,11 +1013,13 @@ def _startup():
 
 def register():
     # Pick up new files after reinstalling the zip without restarting Blender.
-    for module in (hydrilla_config, hydrilla_api, bridge_server, bridge_runtime):
+    # Order matters: each module is reloaded after the ones it imports.
+    for module in (hydrilla_config, hydrilla_api, bridge_server, agent_commands, bridge_runtime):
         importlib.reload(module)
 
     bridge_runtime.register_runtime()
     bridge_runtime.set_status_hook(_set_status)
+    bridge_runtime.set_agent_edits_hook(_agent_edits_allowed)
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -1038,4 +1065,5 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     bridge_runtime.set_status_hook(None)
+    bridge_runtime.set_agent_edits_hook(None)
     bridge_runtime.unregister_runtime()
