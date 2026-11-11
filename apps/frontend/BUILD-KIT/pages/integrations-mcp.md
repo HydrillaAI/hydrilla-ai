@@ -39,7 +39,7 @@ Alt text: Code block showing an MCP client configuration entry for the Hydrilla 
 
 **[Section 3: Access]**
 
-Note: the MCP server needs REST API access, included with Pro. [Plans →](/pricing) Want an agent inside Hydrilla instead? [See Water Agent →](/water)
+Note: the MCP server works on every plan, and generating a model uses your credits. [Plans →](/pricing) Want an agent inside Hydrilla instead? [See Water Agent →](/water)
 <!-- COPY:END -->
 
 ## CTAs

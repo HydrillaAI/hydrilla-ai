@@ -49,7 +49,7 @@ The agent sends a request to the server in plain language. The server submits a 
 
 **[Section 4: Access]**
 
-Note: the MCP server needs REST API access, included with Pro. [Plans →](/pricing)
+Note: the MCP server works on every plan, and generating a model uses your credits. [Plans →](/pricing)
 
 **[Section 5: Related]**
 

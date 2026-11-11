@@ -87,21 +87,12 @@ export function PageActions() {
     }
   }
 
-  async function copyCursorConfig() {
-    const snippet = JSON.stringify(
-      {
-        mcpServers: {
-          "hydrilla-docs": {
-            url: `${SITE.docsUrl}/llms-full.txt`,
-          },
-        },
-      },
-      null,
-      2,
-    );
+  /** One line any agent can follow to connect the Hydrilla MCP server. */
+  async function copyAgentSetup() {
+    const snippet = "Read and follow https://hydrilla.ai/agent-onboarding/SKILL.md";
     try {
       await navigator.clipboard.writeText(snippet);
-      markCopied("cursor");
+      markCopied("agent");
       setMenuOpen(false);
     } catch {
       /* ignore */
@@ -323,7 +314,7 @@ export function PageActions() {
           <button
             type="button"
             role="menuitem"
-            onClick={copyCursorConfig}
+            onClick={copyAgentSetup}
             className="context-menu-item"
           >
             <span className="context-menu-icon">
@@ -331,10 +322,10 @@ export function PageActions() {
             </span>
             <span className="min-w-0 flex-1 text-left">
               <span className="block text-[13px] font-medium leading-4 text-ink">
-                Connect to Cursor
+                Connect your agent
               </span>
               <span className="mt-0.5 block text-[12px] leading-4 text-ink-3">
-                Copy MCP docs config for Cursor
+                Copy the Hydrilla MCP setup prompt
               </span>
             </span>
           </button>

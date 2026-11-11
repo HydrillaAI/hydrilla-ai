@@ -519,7 +519,7 @@ function BlenderSetup({
       </details>
       <p className="mcp-note">
         This is Hydrilla’s Blender add-on. The API key stays on your computer, not in the agent chat. There is no
-        browser sign-in. Generation needs Pro.{" "}
+        browser sign-in. Generating uses your credits.{" "}
         <Link href="/integrations/blender">Blender add-on</Link>
       </p>
     </div>
@@ -572,7 +572,7 @@ function KeyStep({
       ) : null}
       {keyError ? <p className="mcp-error">{keyError}</p> : null}
       <p className="mcp-note">
-        The MCP server needs REST API access, included with Pro. <Link href="/pricing">Plans</Link>
+        The MCP server works on every plan. Generating a model uses your credits. <Link href="/pricing">Plans</Link>
       </p>
     </>
   );

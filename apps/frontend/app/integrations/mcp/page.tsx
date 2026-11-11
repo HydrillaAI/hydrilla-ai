@@ -32,7 +32,7 @@ export default function McpIntegrationPage() {
           </p>
           <h1 className="pickle-article-title">MCP</h1>
           <p className="pickle-article-subtitle">
-            Use Hydrilla from the agent or app you already work in. Requires Pro plan or above.
+            Use Hydrilla from the agent or app you already work in. Works on every plan; generating uses your credits.
           </p>
         </header>
         <div className="pickle-article-column">
