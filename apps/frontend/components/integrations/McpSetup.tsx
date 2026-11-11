@@ -9,8 +9,11 @@ import {
   BLENDER_GENERATE_PROMPT,
   GENERATE_PROMPT,
   KEY_PLACEHOLDER,
+  MCP_GUIDE_MARKDOWN_URL,
   OTHER_CLIENTS,
   PRIMARY_CLIENTS,
+  agentSetupPrompt,
+  agentUsagePrompt,
   blenderConnectLine,
   blenderSetupPrompt,
   clientById,
@@ -243,6 +246,10 @@ export function McpSetup() {
 
   return (
     <div className="mcp-setup">
+      <AgentSetup copiedId={copiedId} onCopy={onCopy} />
+
+      <h2 className="mcp-divider">Or set it up step by step</h2>
+
       <ol className="mcp-steps">
         <li className="mcp-step">
           <span className="mcp-step-index" aria-hidden>
@@ -391,6 +398,105 @@ export function McpSetup() {
         ))}
       </section>
     </div>
+  );
+}
+
+/** Where the page's agent-readable Markdown is served. */
+const GUIDE_MARKDOWN_PATH = "/integrations/mcp.md";
+
+async function fetchGuideMarkdown(): Promise<string | null> {
+  try {
+    const response = await fetch(GUIDE_MARKDOWN_PATH);
+    if (!response.ok) {
+      return null;
+    }
+    return await response.text();
+  } catch {
+    // Offline or blocked; the caller tells the user to open the page instead.
+    return null;
+  }
+}
+
+/** One prompt any agent can follow to install the server itself. */
+function AgentSetup({
+  copiedId,
+  onCopy,
+}: {
+  copiedId: string | null;
+  onCopy: (id: string, code: string) => void;
+}) {
+  const [pageError, setPageError] = useState<string | null>(null);
+  const setupPrompt = agentSetupPrompt();
+  const usagePrompt = agentUsagePrompt();
+
+  async function onCopyPage() {
+    setPageError(null);
+    const markdown = await fetchGuideMarkdown();
+    if (!markdown) {
+      setPageError("Couldn’t copy the page. Open it as Markdown and copy it from there.");
+      return;
+    }
+    onCopy("guide-page", markdown);
+  }
+
+  return (
+    <section className="mcp-agent">
+      <h2>Let your agent set it up</h2>
+      <p className="mcp-lead">
+        Paste this prompt into any AI agent: Claude Code, Codex, Cursor, VS Code, Claude Desktop, Windsurf, Gemini CLI
+        and others. It adds Hydrilla to the agent’s own config, tells you where to put your API key, and checks the
+        connection. Your key never goes into the chat.
+      </p>
+      <div className="mcp-prompt-actions">
+        <button
+          type="button"
+          className="pickle-pill-solid mcp-pill"
+          onClick={() => onCopy("agent-setup", setupPrompt)}
+        >
+          {copiedId === "agent-setup" ? "Copied" : "Copy setup prompt"}
+        </button>
+        {PRIMARY_CLIENTS.map((item) => {
+          const url = openPromptUrl(item.id, setupPrompt);
+          if (!url) {
+            return null;
+          }
+          return (
+            <a key={item.id} className="pickle-pill-ghost mcp-pill" href={url}>
+              Open in {item.name}
+            </a>
+          );
+        })}
+      </div>
+      <CommandBlock
+        label="setup prompt"
+        code={setupPrompt}
+        copyId="agent-setup-block"
+        copiedId={copiedId}
+        onCopy={onCopy}
+      />
+      <details className="mcp-manual">
+        <summary>Using Hydrilla: rules for your agent</summary>
+        <p>
+          How an agent should use the tools once connected. A model takes 10 to 20 minutes, so these rules keep the
+          agent checking progress instead of starting again. Add them to AGENTS.md, CLAUDE.md or your Cursor rules.
+        </p>
+        <CommandBlock
+          label="agent rules"
+          code={usagePrompt}
+          copyId="agent-usage"
+          copiedId={copiedId}
+          onCopy={onCopy}
+        />
+      </details>
+      <p className="mcp-note">
+        Agents can also read this whole guide as Markdown:{" "}
+        <a href={GUIDE_MARKDOWN_PATH}>{MCP_GUIDE_MARKDOWN_URL.replace("https://", "")}</a>.{" "}
+        <button type="button" className="mcp-text-button" onClick={() => void onCopyPage()}>
+          {copiedId === "guide-page" ? "Copied" : "Copy page"}
+        </button>
+      </p>
+      {pageError ? <p className="mcp-error">{pageError}</p> : null}
+    </section>
   );
 }
 

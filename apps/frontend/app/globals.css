@@ -4448,6 +4448,7 @@ input.range-minimal::-moz-range-track {
 }
 
 .mcp-step-body h2,
+.mcp-agent h2,
 .mcp-trouble h2 {
   margin: 6px 0 8px;
   font-size: 22px;
@@ -4698,6 +4699,26 @@ input.range-minimal::-moz-range-track {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.mcp-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcp-agent .mcp-lead,
+.mcp-agent .mcp-note {
+  margin: 0;
+}
+
+.mcp-divider {
+  margin: 8px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 15px;
+  font-weight: 520;
+  color: rgba(0, 0, 0, 0.62);
 }
 
 .mcp-prompt-actions {
