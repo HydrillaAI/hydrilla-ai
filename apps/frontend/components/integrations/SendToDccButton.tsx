@@ -79,7 +79,8 @@ export function SendToDccButton({
       });
       setMessage(`Sent to ${target.name}. It appears in your open project.`);
       setOnline((current) => ({ ...(current ?? {}), [target.slug]: true }));
-    } catch {
+    } catch (error) {
+      console.error("Send to DCC failed", error);
       const stillOnline = await isBridgeOnline(target.bridgePort);
       setOnline((current) => ({ ...(current ?? {}), [target.slug]: stillOnline }));
       setMessage(
