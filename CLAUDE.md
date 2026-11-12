@@ -12,6 +12,9 @@ Use pnpm, never npm or yarn (`pnpm --filter <package-name> add <dep>` to add a d
 - **No browser actions.** Do not open, drive, inspect, or screenshot the app with
   browser tools. Verify UI another way (read the component, typecheck, tests)
   and say what was not checked in a browser.
+- **Never run Claudeifyer** (or any claudeify / claude-handoff auto-runner). Do not
+  start it, suggest running it, or invoke related skills unless the user explicitly
+  asks in that turn.
 - Never read out, print, or commit `.env*`, `gcp-key.json`, or `uploads/`.
 
 ## Git workflow
