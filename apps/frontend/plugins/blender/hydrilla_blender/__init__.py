@@ -854,14 +854,16 @@ def _draw_update_banner(layout) -> None:
 
 
 def _draw_bridge_controls(layout, prefs) -> None:
-    column = layout.column(align=True)
+    """Compact Bridge status. The section stays visible after the API key is saved."""
+    row = layout.row(align=True)
     if bridge_runtime.is_running():
-        column.operator("hydrilla.bridge_stop", text="Bridge on", icon="CHECKMARK", depress=True)
+        row.label(text="Listening", icon="CHECKMARK")
+        row.operator("hydrilla.bridge_stop", text="Stop", icon="X")
     else:
-        column.operator("hydrilla.bridge_start", text="Run Bridge", icon="PLAY")
-    column.prop(prefs, "auto_start_bridge", text="Start with Blender")
-    column.separator()
-    column.prop(prefs, "allow_agent_edits", text="Let AI edit this scene")
+        row.label(text="Off", icon="UNLINKED")
+        row.operator("hydrilla.bridge_start", text="Start", icon="PLAY")
+    layout.prop(prefs, "auto_start_bridge", text="Start with Blender")
+    layout.prop(prefs, "allow_agent_edits", text="Let AI edit this scene")
 
 
 def _update_ready_label() -> str:
@@ -1386,17 +1388,11 @@ class HYDRILLA_PT_bridge(_HydrillaPanel, Panel):
     bl_label = "Bridge"
     bl_idname = "HYDRILLA_PT_bridge"
     bl_parent_id = "HYDRILLA_PT_main"
-    bl_options = {"DEFAULT_CLOSED"}
-
-    @classmethod
-    def poll(cls, context):
-        """Shown while the API key is still missing, so setup stays in one place."""
-        prefs = _prefs(context)
-        return prefs is not None and not _has_api_key(prefs)
 
     def draw(self, context):
         prefs = _prefs(context)
         if prefs is None:
+            self.layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
             return
         _draw_bridge_controls(self.layout, prefs)
 
