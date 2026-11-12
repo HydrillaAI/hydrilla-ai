@@ -50,10 +50,11 @@ Edit shared Python code in `shared/` only. `pack.sh` copies it into each zip.
 
 ```bash
 ./pack.sh
-# writes plugin zips to ../public/plugins/
+# writes plugin zips (and hydrilla-blender.json update manifest) to ../public/plugins/
 ```
 
 Run it after any plugin change and commit the zips; the site serves them as static files.
+The Blender add-on checks `/plugins/hydrilla-blender.json` on startup (and via **Check update** in the Hydrilla sidebar) and hot-reloads any newly packed `hydrilla-blender.zip` in place without reinstalling the add-on.
 
 ## Local development
 

@@ -351,7 +351,8 @@ export function McpSetup() {
               </div>
               <p className="mcp-lead">
                 Blender remembers the key and shares it with your agent on this computer, so it never goes into the
-                chat. Tick Start Bridge with Blender to skip the Run Bridge click next time.
+                chat. Start Bridge with Blender is on by default, so the Bridge runs automatically whenever Blender
+                starts.
               </p>
             </div>
           </li>

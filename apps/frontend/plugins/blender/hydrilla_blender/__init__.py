@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Hydrilla",
     "author": "Hydrilla",
-    "version": (2, 1, 0),
+    "version": (2, 2, 0),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > Hydrilla",
     "description": "Generate AI 3D models, receive them from Hydrilla Studio, and let your AI agent build the scene",
@@ -21,6 +21,7 @@ from bpy_extras.io_utils import ImportHelper
 
 from . import hydrilla_config
 from . import hydrilla_api
+from . import addon_updater
 from . import bridge_server
 from . import agent_commands
 from . import bridge_runtime
@@ -38,8 +39,8 @@ _JOB = {"busy": False, "cancel": False, "started_at": 0.0, "task_id": ""}
 _STATUS = {"text": "Ready", "kind": "INFO", "phase": "", "progress": 0}
 _ACCOUNT = {"state": "NONE", "credits": None, "plan": "", "message": ""}
 _TASKS = {"items": [], "fetching": False, "error": "", "fetched_at": "", "next_refresh": 0.0}
-# Guards the key field's update callback against re-entering itself.
-_GUARD = {"key": False, "base": False}
+# Guards the key and server fields' update callbacks against re-entering themselves.
+_GUARD = {"key": False, "base": False, "site": False}
 
 ACCOUNT_NONE = "NONE"
 ACCOUNT_UNVERIFIED = "UNVERIFIED"
@@ -47,6 +48,23 @@ ACCOUNT_CHECKING = "CHECKING"
 ACCOUNT_OK = "OK"
 ACCOUNT_BAD = "BAD"
 ACCOUNT_ERROR = "ERROR"
+
+UPDATE_IDLE = "IDLE"
+UPDATE_CHECKING = "CHECKING"
+UPDATE_AVAILABLE = "AVAILABLE"
+UPDATE_UPDATING = "UPDATING"
+UPDATE_UP_TO_DATE = "UP_TO_DATE"
+UPDATE_UPDATED = "UPDATED"
+UPDATE_ERROR = "ERROR"
+
+_UPDATE = {
+    "state": UPDATE_IDLE,
+    "remote_version": "",
+    "remote_build_id": "",
+    "manifest": None,
+    "message": "",
+    "manual": False,
+}
 
 # --------------------------------------------------------------------------
 # Settings
@@ -67,6 +85,18 @@ def _api_key(context=None) -> str:
 def _api_base(context=None) -> str:
     prefs = _prefs(context)
     return hydrilla_config.resolve_api_base(prefs.api_server if prefs else "")
+
+
+def _site_base(context=None) -> str:
+    prefs = _prefs(context)
+    explicit = ""
+    if prefs and prefs.site_server and prefs.site_server != hydrilla_config.DEFAULT_SITE_URL:
+        explicit = prefs.site_server
+    return hydrilla_config.site_url(explicit)
+
+
+def _version_text() -> str:
+    return ".".join(str(part) for part in bl_info["version"])
 
 
 def _background_calls_allowed() -> bool:
@@ -129,6 +159,18 @@ def _on_api_base_changed(self, context):
             self.api_server = fixed
         finally:
             _GUARD["base"] = False
+
+
+def _on_site_base_changed(self, context):
+    if _GUARD["site"]:
+        return
+    fixed = hydrilla_config.normalize_site_url(self.site_server)
+    if fixed != self.site_server:
+        _GUARD["site"] = True
+        try:
+            self.site_server = fixed
+        finally:
+            _GUARD["site"] = False
 
 
 # --------------------------------------------------------------------------
@@ -309,6 +351,81 @@ def _handle_event(event: dict) -> None:
             _set_status(message, "ERROR")
             _popup(message, title="Hydrilla", icon="ERROR")
         _refresh_after_job()
+        return
+
+    if kind == "update_checked":
+        result = event.get("result") or {}
+        available = bool(result.get("available"))
+        manifest = result.get("manifest")
+        manual = bool(event.get("manual"))
+        install_if_found = bool(event.get("install_if_found"))
+        remote_version = str(result.get("remote_version") or "")
+        remote_build_id = str(result.get("remote_build_id") or "")
+        if available:
+            _UPDATE.update(
+                state=UPDATE_AVAILABLE,
+                remote_version=remote_version,
+                remote_build_id=remote_build_id,
+                manifest=manifest,
+                message="",
+                manual=manual,
+            )
+            if install_if_found and not _JOB["busy"]:
+                _start_addon_install(manual=manual)
+        else:
+            _UPDATE.update(
+                state=UPDATE_UP_TO_DATE,
+                remote_version=remote_version,
+                remote_build_id=remote_build_id,
+                manifest=manifest,
+                message="",
+                manual=manual,
+            )
+        return
+
+    if kind == "update_check_error":
+        manual = bool(event.get("manual"))
+        message = str(event.get("message") or "Could not check for updates.")
+        if manual:
+            _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+        else:
+            _UPDATE.update(state=UPDATE_IDLE, message="", manual=False)
+            print("[Hydrilla] Startup update check skipped: %s" % message)
+        return
+
+    if kind == "update_staged":
+        staged_dir = str(event.get("staged_dir") or "")
+        remote_version = str(event.get("remote_version") or _version_text())
+        if _JOB["busy"]:
+            addon_updater.cleanup_dir(staged_dir)
+            _UPDATE.update(state=UPDATE_AVAILABLE, message="", manual=True)
+            return
+        try:
+            prefs = _prefs()
+            prefs_snapshot = _snapshot_prefs(prefs)
+            was_bridge_running = bridge_runtime.is_running()
+            target_dir = addon_updater.addon_directory()
+            backup_dir = addon_updater.swap_addon_files(staged_dir, target_dir)
+            addon_updater.schedule_hot_reload(
+                addon_id=ADDON_ID,
+                addon_dir=target_dir,
+                backup_dir=backup_dir,
+                new_version=remote_version,
+                was_bridge_running=was_bridge_running,
+                prefs_snapshot=prefs_snapshot,
+            )
+        except Exception as error:
+            addon_updater.cleanup_dir(staged_dir)
+            message = _error_text(error)
+            _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+            _set_status("Add-on update failed: %s" % message, "ERROR")
+        return
+
+    if kind == "update_install_error":
+        message = str(event.get("message") or "Could not install add-on update.")
+        _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+        if event.get("manual"):
+            _set_status(message, "ERROR")
 
 
 def _refresh_after_job() -> None:
@@ -340,6 +457,7 @@ def _pump():
         _JOB["busy"]
         or _TASKS["fetching"]
         or _ACCOUNT["state"] == ACCOUNT_CHECKING
+        or _UPDATE["state"] in (UPDATE_CHECKING, UPDATE_UPDATING)
         or waiting_on_tasks
     )
     if handled or _JOB["busy"]:
@@ -347,6 +465,134 @@ def _pump():
     if not active and _EVENTS.empty():
         return None
     return 0.2 if _JOB["busy"] else 0.5
+
+
+def _snapshot_prefs(prefs) -> dict:
+    if prefs is None:
+        return {}
+    return {
+        "api_key": prefs.api_key,
+        "auto_start_bridge": bool(prefs.auto_start_bridge),
+        "allow_agent_edits": bool(prefs.allow_agent_edits),
+        "auto_update": bool(prefs.auto_update),
+        "show_developer": bool(prefs.show_developer),
+        "api_server": prefs.api_server,
+        "site_server": prefs.site_server,
+    }
+
+
+def _apply_prefs_snapshot(prefs_snapshot: dict) -> None:
+    prefs = _prefs()
+    if prefs is None or not isinstance(prefs_snapshot, dict):
+        return
+    _GUARD["key"] = True
+    _GUARD["base"] = True
+    _GUARD["site"] = True
+    try:
+        for field, value in prefs_snapshot.items():
+            if hasattr(prefs, field) and getattr(prefs, field) != value:
+                setattr(prefs, field, value)
+    finally:
+        _GUARD["key"] = False
+        _GUARD["base"] = False
+        _GUARD["site"] = False
+
+
+def _restore_after_hot_reload(*, new_version: str, was_bridge_running: bool, prefs_snapshot: dict) -> None:
+    _apply_prefs_snapshot(prefs_snapshot)
+
+    if was_bridge_running and not bridge_runtime.is_running():
+        bridge_runtime.start()
+
+    shown_version = new_version or _version_text()
+    _UPDATE.update(
+        state=UPDATE_UPDATED,
+        remote_version=shown_version,
+        message="",
+        manual=True,
+    )
+    _set_status("Hydrilla add-on updated (v%s)." % shown_version, "DONE")
+    _tag_redraw()
+
+
+def _on_update_failed(message: str, prefs_snapshot=None) -> None:
+    if prefs_snapshot:
+        _apply_prefs_snapshot(prefs_snapshot)
+    _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+    _set_status(message, "ERROR")
+    _tag_redraw()
+
+
+def _start_update_check(context=None, *, manual: bool = False, install_if_found: bool = False) -> bool:
+    """Check whether a newer `hydrilla-blender.zip` build is available."""
+    if _UPDATE["state"] in (UPDATE_CHECKING, UPDATE_UPDATING):
+        return False
+    site = _site_base(context)
+    _UPDATE.update(state=UPDATE_CHECKING, message="", manual=manual)
+
+    def worker():
+        try:
+            result = addon_updater.check_for_update(site_base=site)
+            _emit(
+                "update_checked",
+                result=result,
+                manual=manual,
+                install_if_found=install_if_found,
+            )
+        except Exception as error:
+            _emit("update_check_error", message=_error_text(error), manual=manual)
+
+    threading.Thread(target=worker, name="hydrilla-update-check", daemon=True).start()
+    _ensure_pump()
+    _tag_redraw()
+    return True
+
+
+def _start_addon_install(context=None, *, manual: bool = True) -> bool:
+    """Download, verify, swap, and hot-reload the updated Blender add-on."""
+    if _UPDATE["state"] == UPDATE_UPDATING:
+        return False
+    if _JOB["busy"]:
+        if manual:
+            _UPDATE.update(
+                state=UPDATE_AVAILABLE,
+                message="Wait for the running generation to finish before updating.",
+                manual=True,
+            )
+            _tag_redraw()
+        return False
+
+    site = _site_base(context)
+    cached_manifest = _UPDATE.get("manifest") if isinstance(_UPDATE.get("manifest"), dict) else None
+    _UPDATE.update(state=UPDATE_UPDATING, message="", manual=manual)
+    if manual:
+        _set_status("Updating Hydrilla add-on…", "RUNNING", phase="Updating")
+    else:
+        _tag_redraw()
+
+    def worker():
+        try:
+            manifest = cached_manifest
+            if manifest is None:
+                check = addon_updater.check_for_update(site_base=site)
+                if not check.get("available"):
+                    _emit("update_checked", result=check, manual=manual, install_if_found=False)
+                    return
+                manifest = check["manifest"]
+            staged_dir = addon_updater.download_and_stage(manifest)
+            _emit(
+                "update_staged",
+                staged_dir=staged_dir,
+                remote_version=str(manifest.get("version") or ""),
+                manifest=manifest,
+                manual=manual,
+            )
+        except Exception as error:
+            _emit("update_install_error", message=_error_text(error), manual=manual)
+
+    threading.Thread(target=worker, name="hydrilla-update-install", daemon=True).start()
+    _ensure_pump()
+    return True
 
 
 def _start_verify(context=None) -> bool:
@@ -525,11 +771,49 @@ def _draw_account(layout, prefs, context) -> None:
         layout.label(text="Using the key from your environment", icon="INFO")
 
     row = layout.row(align=True)
-    row.operator("wm.url_open", text="Get API key", icon="URL").url = hydrilla_config.api_keys_url()
+    row.operator("wm.url_open", text="Get API key", icon="URL").url = hydrilla_config.api_keys_url(
+        _site_base(context)
+    )
     if prefs.api_key or env_key:
         row.operator("hydrilla.verify_key", text="Check", icon="FILE_REFRESH")
     if prefs.api_key:
         row.operator("hydrilla.remove_key", text="", icon="TRASH")
+
+
+def _update_ready_label() -> str:
+    remote_version = _UPDATE["remote_version"]
+    if remote_version and remote_version != _version_text():
+        return "Add-on update ready (v%s)" % remote_version
+    return "New add-on build ready"
+
+
+def _draw_updates_prefs(layout, prefs) -> None:
+    state = _UPDATE["state"]
+    layout.label(text="Updates · v%s" % _version_text(), icon="FILE_REFRESH")
+    layout.prop(prefs, "auto_update")
+
+    if state == UPDATE_CHECKING:
+        layout.label(text="Checking for add-on updates…", icon="SORTTIME")
+    elif state == UPDATE_UPDATING:
+        layout.label(text="Downloading and reloading add-on…", icon="SORTTIME")
+    elif state == UPDATE_AVAILABLE:
+        layout.label(text=_update_ready_label(), icon="INFO")
+    elif state == UPDATE_UPDATED:
+        layout.label(text="Updated to v%s" % _version_text(), icon="CHECKMARK")
+    elif state == UPDATE_UP_TO_DATE and _UPDATE["manual"]:
+        layout.label(text="Add-on is up to date", icon="CHECKMARK")
+    elif state == UPDATE_ERROR and _UPDATE["message"]:
+        for line in _wrap(_UPDATE["message"], width=48):
+            layout.label(text=line, icon="ERROR")
+
+    row = layout.row(align=True)
+    check_sub = row.row(align=True)
+    check_sub.enabled = state not in (UPDATE_CHECKING, UPDATE_UPDATING)
+    check_sub.operator("hydrilla.check_updates", text="Check for updates", icon="FILE_REFRESH")
+    if state in (UPDATE_AVAILABLE, UPDATE_ERROR) and isinstance(_UPDATE.get("manifest"), dict):
+        install_sub = row.row(align=True)
+        install_sub.enabled = state != UPDATE_UPDATING and not _JOB["busy"]
+        install_sub.operator("hydrilla.update_addon", text="Update now", icon="IMPORT")
 
 
 class HydrillaPreferences(AddonPreferences):
@@ -545,10 +829,10 @@ class HydrillaPreferences(AddonPreferences):
     auto_start_bridge: BoolProperty(
         name="Start Bridge with Blender",
         description=(
-            "Turn the Bridge on automatically, so Hydrilla Studio and your AI agent "
-            "can always send models to Blender"
+            "Turn the Bridge on automatically whenever Blender starts, so Hydrilla Studio "
+            "and your AI agent can always send models to Blender"
         ),
-        default=False,
+        default=True,
     )
     allow_agent_edits: BoolProperty(
         name="Let AI agent edit this scene",
@@ -559,12 +843,26 @@ class HydrillaPreferences(AddonPreferences):
         ),
         default=False,
     )
+    auto_update: BoolProperty(
+        name="Keep add-on updated automatically",
+        description=(
+            "Check hydrilla.ai when Blender starts and install new Hydrilla add-on "
+            "builds in place without reinstalling the zip"
+        ),
+        default=True,
+    )
     show_developer: BoolProperty(name="Developer", default=False)
     api_server: StringProperty(
         name="API address",
         description="Leave as is unless you run your own Hydrilla backend",
         default=hydrilla_config.DEFAULT_API_BASE,
         update=_on_api_base_changed,
+    )
+    site_server: StringProperty(
+        name="Plugin site",
+        description="Site hosting /plugins/hydrilla-blender.zip (leave as is unless testing locally)",
+        default=hydrilla_config.DEFAULT_SITE_URL,
+        update=_on_site_base_changed,
     )
 
     def draw(self, context):
@@ -580,6 +878,9 @@ class HydrillaPreferences(AddonPreferences):
         box.label(text="Listens on 127.0.0.1:%d for models sent to Blender." % bridge_runtime.port())
 
         box = layout.box()
+        _draw_updates_prefs(box, self)
+
+        box = layout.box()
         row = box.row()
         row.prop(
             self,
@@ -592,6 +893,14 @@ class HydrillaPreferences(AddonPreferences):
             row = box.row(align=True)
             row.operator("hydrilla.use_api_base", text="Use production").target = "PRODUCTION"
             row.operator("hydrilla.use_api_base", text="Use local (:4000)").target = "LOCAL"
+
+            box.prop(self, "site_server")
+            row = box.row(align=True)
+            row.operator("hydrilla.use_site_base", text="Use hydrilla.ai").target = "PRODUCTION"
+            row.operator("hydrilla.use_site_base", text="Use local (:3000)").target = "LOCAL"
+            local_build = addon_updater.installed_info().get("build_id") or ""
+            if local_build:
+                box.label(text="Installed build: %s" % local_build[:12])
 
 
 # --------------------------------------------------------------------------
@@ -621,6 +930,58 @@ class HYDRILLA_OT_use_api_base(Operator):
         self.report({"INFO"}, "Hydrilla API: %s" % prefs.api_server)
         _start_verify(context)
         return {"FINISHED"}
+
+
+class HYDRILLA_OT_use_site_base(Operator):
+    bl_idname = "hydrilla.use_site_base"
+    bl_label = "Set plugin site"
+    bl_description = "Switch between hydrilla.ai and a local frontend server (:3000)"
+
+    target: EnumProperty(
+        items=(
+            ("PRODUCTION", "Production", ""),
+            ("LOCAL", "Local", ""),
+        ),
+        default="PRODUCTION",
+    )
+
+    def execute(self, context):
+        prefs = _prefs(context)
+        if self.target == "LOCAL":
+            prefs.site_server = hydrilla_config.LOCAL_SITE_URL
+        else:
+            prefs.site_server = hydrilla_config.DEFAULT_SITE_URL
+        self.report({"INFO"}, "Hydrilla plugin site: %s" % prefs.site_server)
+        return {"FINISHED"}
+
+
+class HYDRILLA_OT_check_updates(Operator):
+    bl_idname = "hydrilla.check_updates"
+    bl_label = "Check for add-on updates"
+    bl_description = "Check hydrilla.ai for a newer Blender add-on zip and update in place"
+
+    def execute(self, context):
+        prefs = _prefs(context)
+        install_now = bool(prefs is not None and prefs.auto_update and not addon_updater.is_dev_symlink())
+        if _start_update_check(context, manual=True, install_if_found=install_now):
+            return {"FINISHED"}
+        if _UPDATE["state"] in (UPDATE_CHECKING, UPDATE_UPDATING):
+            return {"FINISHED"}
+        return {"CANCELLED"}
+
+
+class HYDRILLA_OT_update_addon(Operator):
+    bl_idname = "hydrilla.update_addon"
+    bl_label = "Update Hydrilla add-on"
+    bl_description = "Download the latest Hydrilla Blender zip and reload the add-on in place"
+
+    def execute(self, context):
+        if _JOB["busy"]:
+            self.report({"ERROR"}, "Wait for the current model generation to finish first")
+            return {"CANCELLED"}
+        if _start_addon_install(context, manual=True) or _UPDATE["state"] == UPDATE_UPDATING:
+            return {"FINISHED"}
+        return {"CANCELLED"}
 
 
 class HYDRILLA_OT_verify_key(Operator):
@@ -807,11 +1168,48 @@ class HYDRILLA_PT_main(_HydrillaPanel, Panel):
     bl_idname = "HYDRILLA_PT_main"
 
     def draw(self, context):
+        layout = self.layout
         prefs = _prefs(context)
         if prefs is None:
-            self.layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
+            layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
             return
-        _draw_account(self.layout.box(), prefs, context)
+
+        update_state = _UPDATE["state"]
+        if update_state == UPDATE_UPDATING:
+            banner = layout.box()
+            banner.label(text="Updating Hydrilla add-on…", icon="SORTTIME")
+        elif update_state == UPDATE_AVAILABLE:
+            banner = layout.box()
+            banner.label(text=_update_ready_label(), icon="INFO")
+            if _UPDATE["message"]:
+                for line in _wrap(_UPDATE["message"]):
+                    banner.label(text=line)
+            action = banner.row()
+            action.scale_y = 1.25
+            action.enabled = not _JOB["busy"]
+            action.operator("hydrilla.update_addon", text="Update add-on", icon="IMPORT")
+
+        _draw_account(layout.box(), prefs, context)
+
+        footer = layout.row(align=True)
+        if update_state == UPDATE_CHECKING:
+            footer.label(text="Checking updates…", icon="SORTTIME")
+        elif update_state == UPDATE_UPDATED:
+            footer.label(text="Updated · v%s" % _version_text(), icon="CHECKMARK")
+        elif update_state == UPDATE_UP_TO_DATE and _UPDATE["manual"]:
+            footer.label(text="Up to date · v%s" % _version_text(), icon="CHECKMARK")
+        elif update_state == UPDATE_ERROR and _UPDATE["manual"]:
+            footer.label(text="Update failed", icon="ERROR")
+        else:
+            footer.label(text="v%s" % _version_text())
+
+        btn = footer.row(align=True)
+        btn.enabled = update_state not in (UPDATE_CHECKING, UPDATE_UPDATING)
+        btn.operator("hydrilla.check_updates", text="Check update", icon="FILE_REFRESH")
+
+        if update_state == UPDATE_ERROR and _UPDATE["manual"] and _UPDATE["message"]:
+            for line in _wrap(_UPDATE["message"]):
+                layout.label(text=line)
 
 
 class HYDRILLA_PT_generate(_HydrillaPanel, Panel):
@@ -951,6 +1349,9 @@ def _agent_edits_allowed() -> bool:
 classes = (
     HydrillaPreferences,
     HYDRILLA_OT_use_api_base,
+    HYDRILLA_OT_use_site_base,
+    HYDRILLA_OT_check_updates,
+    HYDRILLA_OT_update_addon,
     HYDRILLA_OT_verify_key,
     HYDRILLA_OT_remove_key,
     HYDRILLA_OT_text_to_3d,
@@ -985,6 +1386,10 @@ def _startup():
     if fixed_base != prefs.api_server:
         prefs.api_server = fixed_base
 
+    fixed_site = hydrilla_config.normalize_site_url(prefs.site_server)
+    if fixed_site != prefs.site_server:
+        prefs.site_server = fixed_site
+
     stored = hydrilla_config.stored_api_key()
     if not prefs.api_key and stored:
         # Pasted earlier in another Hydrilla plugin on this computer.
@@ -1004,17 +1409,39 @@ def _startup():
         if _background_calls_allowed():
             _start_verify()
 
-    if prefs.auto_start_bridge and not bridge_runtime.is_running():
+    if (
+        prefs.auto_start_bridge
+        and not bridge_runtime.is_running()
+        and not bpy.app.background
+        and _UPDATE["state"] != UPDATE_UPDATED
+    ):
         result = bridge_runtime.start()
         if not result.get("ok"):
             _set_status(str(result.get("error") or "Bridge could not start"), "ERROR")
+
+    if (
+        _background_calls_allowed()
+        and _UPDATE["state"] not in (UPDATE_UPDATED, UPDATE_ERROR)
+        and not addon_updater.is_dev_symlink()
+    ):
+        _start_update_check(
+            manual=False,
+            install_if_found=bool(prefs.auto_update),
+        )
     return None
 
 
 def register():
     # Pick up new files after reinstalling the zip without restarting Blender.
     # Order matters: each module is reloaded after the ones it imports.
-    for module in (hydrilla_config, hydrilla_api, bridge_server, agent_commands, bridge_runtime):
+    for module in (
+        hydrilla_config,
+        hydrilla_api,
+        addon_updater,
+        bridge_server,
+        agent_commands,
+        bridge_runtime,
+    ):
         importlib.reload(module)
 
     bridge_runtime.register_runtime()
