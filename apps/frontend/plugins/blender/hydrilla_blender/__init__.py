@@ -829,10 +829,10 @@ class HydrillaPreferences(AddonPreferences):
     auto_start_bridge: BoolProperty(
         name="Start Bridge with Blender",
         description=(
-            "Turn the Bridge on automatically, so Hydrilla Studio and your AI agent "
-            "can always send models to Blender"
+            "Turn the Bridge on automatically whenever Blender starts, so Hydrilla Studio "
+            "and your AI agent can always send models to Blender"
         ),
-        default=False,
+        default=True,
     )
     allow_agent_edits: BoolProperty(
         name="Let AI agent edit this scene",
@@ -1409,7 +1409,12 @@ def _startup():
         if _background_calls_allowed():
             _start_verify()
 
-    if prefs.auto_start_bridge and not bridge_runtime.is_running():
+    if (
+        prefs.auto_start_bridge
+        and not bridge_runtime.is_running()
+        and not bpy.app.background
+        and _UPDATE["state"] != UPDATE_UPDATED
+    ):
         result = bridge_runtime.start()
         if not result.get("ok"):
             _set_status(str(result.get("error") or "Bridge could not start"), "ERROR")
