@@ -1,11 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import LibraryNavbar from "./LibraryNavbar";
 import Navbar from "./Navbar";
 
 export function ConditionalNavbar() {
   const pathname = usePathname();
+  const [waterSectionNav, setWaterSectionNav] = useState(false);
+
+  // Water Agent page swaps Hydrilla navbar for its Genie-style pill once you scroll into the sections.
+  useEffect(() => {
+    if (pathname !== "/water") {
+      setWaterSectionNav(false);
+      return;
+    }
+
+    const sync = () => setWaterSectionNav(document.body.dataset.waterSectionNav === "true");
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["data-water-section-nav"] });
+    return () => observer.disconnect();
+  }, [pathname]);
 
   // Don't show marketing navbar on app shell / workspace (auth pages keep it so
   // Hydrilla → home and the post-login App button stay available).
@@ -26,6 +42,10 @@ export function ConditionalNavbar() {
   // Library uses a minimal bar — brand + home only
   if (pathname === "/library") {
     return <LibraryNavbar />;
+  }
+
+  if (pathname === "/water" && waterSectionNav) {
+    return null;
   }
 
   // Use default variant (black text) for light pages; hero for dark/immersive heroes
