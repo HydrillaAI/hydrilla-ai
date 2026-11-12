@@ -87,6 +87,32 @@ def _api_base(context=None) -> str:
     return hydrilla_config.resolve_api_base(prefs.api_server if prefs else "")
 
 
+def _has_api_key(prefs=None) -> bool:
+    target = prefs if prefs is not None else _prefs()
+    return bool((target and target.api_key) or hydrilla_config.resolve_api_key(""))
+
+
+def _editing_api_key() -> bool:
+    window_manager = getattr(bpy.context, "window_manager", None)
+    if window_manager is None or not hasattr(window_manager, "hydrilla_edit_api_key"):
+        return False
+    return bool(window_manager.hydrilla_edit_api_key)
+
+
+def _set_editing_api_key(editing: bool) -> None:
+    window_manager = getattr(bpy.context, "window_manager", None)
+    if window_manager is None or not hasattr(window_manager, "hydrilla_edit_api_key"):
+        return
+    window_manager.hydrilla_edit_api_key = editing
+
+
+def _show_api_field(prefs) -> bool:
+    """The key box stays up until a key is saved and accepted."""
+    if not _has_api_key(prefs) or _editing_api_key():
+        return True
+    return _ACCOUNT["state"] == ACCOUNT_BAD
+
+
 def _site_base(context=None) -> str:
     prefs = _prefs(context)
     explicit = ""
@@ -290,12 +316,15 @@ def _ensure_pump() -> None:
 def _handle_event(event: dict) -> None:
     kind = event.get("kind")
     if kind == "account":
+        state = event.get("state", ACCOUNT_ERROR)
         _ACCOUNT.update(
-            state=event.get("state", ACCOUNT_ERROR),
+            state=state,
             credits=event.get("credits"),
             plan=event.get("plan", ""),
             message=event.get("message", ""),
         )
+        if state == ACCOUNT_OK:
+            _set_editing_api_key(False)
         return
 
     if kind == "tasks":
@@ -742,42 +771,97 @@ def _start_job(context, *, create=None, task_id: str = "", mesh_url: str = "", n
 # --------------------------------------------------------------------------
 
 
-def _draw_account(layout, prefs, context) -> None:
-    """API key field and connection state. Shared by the panel and Preferences."""
+def _draw_account(layout, prefs, context, *, compact: bool = False) -> None:
+    """Connection line, and the API key field only while it still needs attention."""
     state = _ACCOUNT["state"]
     env_key = not prefs.api_key and bool(hydrilla_config.resolve_api_key(""))
+    show_field = _show_api_field(prefs)
 
-    if state == ACCOUNT_OK:
-        credits = _ACCOUNT["credits"]
-        text = "Connected" if credits is None else "Connected · %d credits" % credits
-        layout.label(text=text, icon="CHECKMARK")
-    elif state == ACCOUNT_CHECKING:
-        layout.label(text="Checking your key…", icon="SORTTIME")
+    if not show_field:
+        row = layout.row(align=True)
+        if state == ACCOUNT_OK:
+            credits = _ACCOUNT["credits"]
+            text = "Connected" if credits is None else "%d credits" % credits
+            row.label(text=text, icon="CHECKMARK")
+        elif state == ACCOUNT_CHECKING:
+            row.label(text="Checking…", icon="SORTTIME")
+        elif state == ACCOUNT_ERROR:
+            row.label(text="Offline", icon="ERROR")
+        else:
+            row.label(text="Key saved", icon="KEYINGSET")
+        row.operator("hydrilla.edit_api_key", text="", icon="PREFERENCES")
+        if state == ACCOUNT_ERROR and _ACCOUNT["message"] and not compact:
+            for line in _wrap(_ACCOUNT["message"], width=42):
+                layout.label(text=line)
+        return
+
+    column = layout.column(align=True)
+    if not _has_api_key(prefs):
+        column.label(text="Paste your API key", icon="KEYINGSET")
     elif state == ACCOUNT_BAD:
-        layout.label(text="Key not accepted", icon="ERROR")
-    elif state == ACCOUNT_ERROR:
-        layout.label(text="Could not reach Hydrilla", icon="ERROR")
-    elif prefs.api_key or env_key:
-        layout.label(text="Key saved", icon="KEYINGSET")
+        column.label(text="Key not accepted", icon="ERROR")
+    elif state == ACCOUNT_CHECKING:
+        column.label(text="Checking your key…", icon="SORTTIME")
     else:
-        layout.label(text="Add your API key to start", icon="KEYINGSET")
+        column.label(text="API key", icon="KEYINGSET")
 
     if state in (ACCOUNT_BAD, ACCOUNT_ERROR) and _ACCOUNT["message"]:
-        for line in _wrap(_ACCOUNT["message"]):
-            layout.label(text=line)
+        for line in _wrap(_ACCOUNT["message"], width=40):
+            column.label(text=line)
 
-    layout.prop(prefs, "api_key", text="")
+    column.prop(prefs, "api_key", text="")
     if env_key:
-        layout.label(text="Using the key from your environment", icon="INFO")
+        column.label(text="Using the key from this computer", icon="INFO")
 
-    row = layout.row(align=True)
+    row = column.row(align=True)
     row.operator("wm.url_open", text="Get API key", icon="URL").url = hydrilla_config.api_keys_url(
         _site_base(context)
     )
     if prefs.api_key or env_key:
-        row.operator("hydrilla.verify_key", text="Check", icon="FILE_REFRESH")
+        row.operator("hydrilla.verify_key", text="", icon="FILE_REFRESH")
     if prefs.api_key:
-        row.operator("hydrilla.remove_key", text="", icon="TRASH")
+        row.operator("hydrilla.remove_key", text="", icon="X")
+
+
+def _draw_update_banner(layout) -> None:
+    """Sidebar notice only while an update needs the user, or is in progress."""
+    state = _UPDATE["state"]
+    if state == UPDATE_UPDATING:
+        layout.label(text="Updating add-on…", icon="SORTTIME")
+        return
+    if state == UPDATE_CHECKING and _UPDATE["manual"]:
+        layout.label(text="Checking for updates…", icon="SORTTIME")
+        return
+    if state == UPDATE_AVAILABLE:
+        box = layout.box()
+        box.label(text=_update_ready_label(), icon="INFO")
+        if _UPDATE["message"]:
+            for line in _wrap(_UPDATE["message"], width=36):
+                box.label(text=line)
+        action = box.row()
+        action.scale_y = 1.2
+        action.enabled = not _JOB["busy"]
+        action.operator("hydrilla.update_addon", text="Update", icon="IMPORT")
+        return
+    if state == UPDATE_ERROR and _UPDATE["manual"] and _UPDATE["message"]:
+        box = layout.box()
+        for line in _wrap(_UPDATE["message"], width=36):
+            box.label(text=line, icon="ERROR")
+        if isinstance(_UPDATE.get("manifest"), dict):
+            action = box.row()
+            action.enabled = not _JOB["busy"]
+            action.operator("hydrilla.update_addon", text="Try again", icon="FILE_REFRESH")
+
+
+def _draw_bridge_controls(layout, prefs) -> None:
+    column = layout.column(align=True)
+    if bridge_runtime.is_running():
+        column.operator("hydrilla.bridge_stop", text="Bridge on", icon="CHECKMARK", depress=True)
+    else:
+        column.operator("hydrilla.bridge_start", text="Run Bridge", icon="PLAY")
+    column.prop(prefs, "auto_start_bridge", text="Start with Blender")
+    column.separator()
+    column.prop(prefs, "allow_agent_edits", text="Let AI edit this scene")
 
 
 def _update_ready_label() -> str:
@@ -873,9 +957,7 @@ class HydrillaPreferences(AddonPreferences):
 
         box = layout.box()
         box.label(text="Bridge", icon="LINKED")
-        box.prop(self, "auto_start_bridge")
-        box.prop(self, "allow_agent_edits")
-        box.label(text="Listens on 127.0.0.1:%d for models sent to Blender." % bridge_runtime.port())
+        _draw_bridge_controls(box, self)
 
         box = layout.box()
         _draw_updates_prefs(box, self)
@@ -982,6 +1064,17 @@ class HYDRILLA_OT_update_addon(Operator):
         if _start_addon_install(context, manual=True) or _UPDATE["state"] == UPDATE_UPDATING:
             return {"FINISHED"}
         return {"CANCELLED"}
+
+
+class HYDRILLA_OT_edit_api_key(Operator):
+    bl_idname = "hydrilla.edit_api_key"
+    bl_label = "Change API key"
+    bl_description = "Show the API key field to replace the saved key"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        _set_editing_api_key(True)
+        return {"FINISHED"}
 
 
 class HYDRILLA_OT_verify_key(Operator):
@@ -1167,6 +1260,9 @@ class HYDRILLA_PT_main(_HydrillaPanel, Panel):
     bl_label = "Hydrilla"
     bl_idname = "HYDRILLA_PT_main"
 
+    def draw_header(self, context):
+        self.layout.label(text="", icon="MESH_CUBE")
+
     def draw(self, context):
         layout = self.layout
         prefs = _prefs(context)
@@ -1174,42 +1270,8 @@ class HYDRILLA_PT_main(_HydrillaPanel, Panel):
             layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
             return
 
-        update_state = _UPDATE["state"]
-        if update_state == UPDATE_UPDATING:
-            banner = layout.box()
-            banner.label(text="Updating Hydrilla add-on…", icon="SORTTIME")
-        elif update_state == UPDATE_AVAILABLE:
-            banner = layout.box()
-            banner.label(text=_update_ready_label(), icon="INFO")
-            if _UPDATE["message"]:
-                for line in _wrap(_UPDATE["message"]):
-                    banner.label(text=line)
-            action = banner.row()
-            action.scale_y = 1.25
-            action.enabled = not _JOB["busy"]
-            action.operator("hydrilla.update_addon", text="Update add-on", icon="IMPORT")
-
-        _draw_account(layout.box(), prefs, context)
-
-        footer = layout.row(align=True)
-        if update_state == UPDATE_CHECKING:
-            footer.label(text="Checking updates…", icon="SORTTIME")
-        elif update_state == UPDATE_UPDATED:
-            footer.label(text="Updated · v%s" % _version_text(), icon="CHECKMARK")
-        elif update_state == UPDATE_UP_TO_DATE and _UPDATE["manual"]:
-            footer.label(text="Up to date · v%s" % _version_text(), icon="CHECKMARK")
-        elif update_state == UPDATE_ERROR and _UPDATE["manual"]:
-            footer.label(text="Update failed", icon="ERROR")
-        else:
-            footer.label(text="v%s" % _version_text())
-
-        btn = footer.row(align=True)
-        btn.enabled = update_state not in (UPDATE_CHECKING, UPDATE_UPDATING)
-        btn.operator("hydrilla.check_updates", text="Check update", icon="FILE_REFRESH")
-
-        if update_state == UPDATE_ERROR and _UPDATE["manual"] and _UPDATE["message"]:
-            for line in _wrap(_UPDATE["message"]):
-                layout.label(text=line)
+        _draw_update_banner(layout)
+        _draw_account(layout, prefs, context, compact=True)
 
 
 class HYDRILLA_PT_generate(_HydrillaPanel, Panel):
@@ -1217,47 +1279,53 @@ class HYDRILLA_PT_generate(_HydrillaPanel, Panel):
     bl_idname = "HYDRILLA_PT_generate"
     bl_parent_id = "HYDRILLA_PT_main"
 
+    @classmethod
+    def poll(cls, context):
+        return _has_api_key(_prefs(context))
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         busy = bool(_JOB["busy"])
 
         layout.prop(scene, "hydrilla_gen_mode", expand=True)
-        box = layout.box()
         if scene.hydrilla_gen_mode == "TEXT":
-            box.prop(scene, "hydrilla_prompt", text="")
-            row = box.row()
-            row.scale_y = 1.35
+            layout.prop(scene, "hydrilla_prompt", text="", icon="OUTLINER_OB_FONT")
+            row = layout.row()
+            row.scale_y = 1.4
             row.enabled = not busy
-            row.operator("hydrilla.text_to_3d", text="Generate model", icon="MESH_CUBE")
+            row.operator("hydrilla.text_to_3d", text="Generate", icon="MESH_CUBE")
         else:
-            row = box.row()
+            row = layout.row(align=True)
             row.enabled = not busy
-            row.operator("hydrilla.pick_image", text="Choose image…", icon="FILEBROWSER")
+            row.operator("hydrilla.pick_image", text="Choose image", icon="IMAGE_DATA")
             if scene.hydrilla_preview and scene.hydrilla_image_path:
-                box.template_ID_preview(scene, "hydrilla_preview", rows=3, cols=4)
-            box.label(text="Or paste an image link")
-            box.prop(scene, "hydrilla_image_url", text="")
-            row = box.row()
-            row.scale_y = 1.35
+                layout.template_ID_preview(scene, "hydrilla_preview", rows=3, cols=4)
+            layout.prop(scene, "hydrilla_image_url", text="", icon="URL")
+            row = layout.row()
+            row.scale_y = 1.4
             row.enabled = not busy
-            row.operator("hydrilla.image_to_3d", text="Generate model", icon="MESH_CUBE")
+            row.operator("hydrilla.image_to_3d", text="Generate", icon="MESH_CUBE")
 
-        status = layout.box()
+        show_status = busy or _STATUS["kind"] != "INFO" or _STATUS["text"] not in ("", "Ready")
+        if not show_status:
+            return
+
+        status = layout.column(align=True)
+        status.separator()
         kind = _STATUS["kind"]
         icon = "SORTTIME" if busy else ("ERROR" if kind == "ERROR" else ("CHECKMARK" if kind == "DONE" else "INFO"))
-        header = status.row()
         if busy:
+            header = status.row(align=True)
             phase = _STATUS["phase"] or "Working"
             percent = int(_STATUS["progress"] or 0)
             header.label(text="%s · %d%%" % (phase, percent) if percent else phase, icon=icon)
             header.label(text="%ds" % max(0, int(time.time() - float(_JOB["started_at"]))))
-        else:
-            header.label(text="Status", icon=icon)
-        for line in _wrap(_STATUS["text"]):
-            status.label(text=line)
-        if busy:
             status.operator("hydrilla.cancel_generate", text="Cancel", icon="X")
+        else:
+            lines = _wrap(_STATUS["text"], width=36)
+            for index, line in enumerate(lines):
+                status.label(text=line, icon=icon if index == 0 else "NONE")
 
 
 class HYDRILLA_PT_tasks(_HydrillaPanel, Panel):
@@ -1266,79 +1334,71 @@ class HYDRILLA_PT_tasks(_HydrillaPanel, Panel):
     bl_parent_id = "HYDRILLA_PT_main"
     bl_options = {"DEFAULT_CLOSED"}
 
+    @classmethod
+    def poll(cls, context):
+        return _has_api_key(_prefs(context))
+
     def draw(self, context):
         layout = self.layout
-        header = layout.row()
+        header = layout.row(align=True)
         if _TASKS["fetching"]:
             header.label(text="Loading…", icon="SORTTIME")
         elif _TASKS["fetched_at"]:
-            header.label(text="Updated %s" % _TASKS["fetched_at"])
+            header.label(text=_TASKS["fetched_at"])
         else:
-            header.label(text="Recent models on your account")
-        refresh = header.row()
+            header.label(text="Recent")
+        refresh = header.row(align=True)
+        refresh.alignment = "RIGHT"
         refresh.enabled = not _TASKS["fetching"]
         refresh.operator("hydrilla.refresh_tasks", text="", icon="FILE_REFRESH")
 
         if _TASKS["error"]:
-            for line in _wrap(_TASKS["error"]):
+            for line in _wrap(_TASKS["error"], width=36):
                 layout.label(text=line, icon="ERROR")
             return
 
         items = _TASKS["items"]
         if not items:
             if not _TASKS["fetching"]:
-                layout.label(text="Nothing here yet. Press refresh.", icon="INFO")
+                layout.label(text="Nothing here yet.")
             return
 
+        column = layout.column(align=True)
         for task in items[:VISIBLE_TASKS]:
             state = _task_state(task)
-            box = layout.box()
-            box.label(text=_truncate(str(task.get("prompt") or "")))
-            row = box.row(align=True)
+            row = column.row(align=True)
+            row.label(text=_truncate(str(task.get("prompt") or ""), width=22))
             if state == "READY":
-                row.label(text="Ready", icon="CHECKMARK")
-                action = row.row()
+                action = row.row(align=True)
                 action.enabled = not _JOB["busy"]
-                action.operator("hydrilla.import_task", text="Import", icon="IMPORT").task_id = str(
+                action.operator("hydrilla.import_task", text="", icon="IMPORT").task_id = str(
                     task.get("id") or ""
                 )
             elif state == "RUNNING":
-                row.label(text="Generating…", icon="SORTTIME")
-            elif state == "STALLED":
-                row.label(text="Did not finish", icon="ERROR")
+                row.label(text="", icon="SORTTIME")
             elif state == "CANCELLED":
-                row.label(text="Cancelled", icon="X")
+                row.label(text="", icon="X")
             else:
-                row.label(text="Failed", icon="ERROR")
+                row.label(text="", icon="ERROR")
 
 
 class HYDRILLA_PT_bridge(_HydrillaPanel, Panel):
     bl_label = "Bridge"
     bl_idname = "HYDRILLA_PT_bridge"
     bl_parent_id = "HYDRILLA_PT_main"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        """Shown while the API key is still missing, so setup stays in one place."""
+        prefs = _prefs(context)
+        return prefs is not None and not _has_api_key(prefs)
 
     def draw(self, context):
-        layout = self.layout
         prefs = _prefs(context)
-        box = layout.box()
-        if bridge_runtime.is_running():
-            box.operator("hydrilla.bridge_stop", text="Bridge ON", icon="CHECKMARK", depress=True)
-            box.label(text="Ready to receive models")
-        else:
-            box.operator("hydrilla.bridge_start", text="Run Bridge", icon="PLAY")
-            for line in _wrap("Lets Hydrilla Studio and your AI agent send models here."):
-                box.label(text=line)
-        if prefs is not None:
-            box.prop(prefs, "auto_start_bridge")
-
-            box = layout.box()
-            box.prop(prefs, "allow_agent_edits")
-            if prefs.allow_agent_edits:
-                for line in _wrap("Your AI agent can run Python here to build the scene. Save your work first; Ctrl+Z undoes each script."):
-                    box.label(text=line)
-            else:
-                for line in _wrap("Turn on to let your AI agent arrange and change objects. It can always see the scene."):
-                    box.label(text=line)
+        if prefs is None:
+            return
+        _draw_bridge_controls(self.layout, prefs)
 
 
 def _agent_edits_allowed() -> bool:
@@ -1353,6 +1413,7 @@ classes = (
     HYDRILLA_OT_check_updates,
     HYDRILLA_OT_update_addon,
     HYDRILLA_OT_verify_key,
+    HYDRILLA_OT_edit_api_key,
     HYDRILLA_OT_remove_key,
     HYDRILLA_OT_text_to_3d,
     HYDRILLA_OT_pick_image,
@@ -1476,6 +1537,12 @@ def register():
         ),
         default="TEXT",
     )
+    bpy.types.WindowManager.hydrilla_edit_api_key = BoolProperty(
+        name="Edit API key",
+        description="Keep the API key field open until the new key is accepted",
+        default=False,
+        options={"SKIP_SAVE", "HIDDEN"},
+    )
 
     bpy.app.timers.register(_startup, first_interval=0.5)
 
@@ -1489,6 +1556,8 @@ def unregister():
     for name in SCENE_PROPERTIES:
         if hasattr(bpy.types.Scene, name):
             delattr(bpy.types.Scene, name)
+    if hasattr(bpy.types.WindowManager, "hydrilla_edit_api_key"):
+        del bpy.types.WindowManager.hydrilla_edit_api_key
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     bridge_runtime.set_status_hook(None)
