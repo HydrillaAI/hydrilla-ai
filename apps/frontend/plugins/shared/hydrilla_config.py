@@ -14,11 +14,12 @@ import os
 import tempfile
 from typing import Any, Dict, Optional
 
-PLUGIN_VERSION = "2.1.0"
+PLUGIN_VERSION = "2.2.0"
 
 DEFAULT_API_BASE = "https://hydrilla-ai-g1bm.vercel.app"
 LOCAL_API_BASE = "http://localhost:4000"
 DEFAULT_SITE_URL = "https://hydrilla.ai"
+LOCAL_SITE_URL = "http://localhost:3000"
 API_KEYS_PATH = "/app/api-keys"
 
 API_KEY_ENV = "HYDRILLA_API_KEY"
@@ -175,12 +176,21 @@ def resolve_api_base(explicit: Optional[str] = None) -> str:
     return DEFAULT_API_BASE
 
 
-def site_url() -> str:
-    override = (os.environ.get(SITE_URL_ENV) or "").strip().rstrip("/")
-    if override and _is_http_url(override):
-        return override
+def normalize_site_url(value: Optional[str]) -> str:
+    """Return a usable site origin, falling back to the default when it is not one."""
+    text = (value or "").strip().rstrip("/")
+    if not text or not _is_http_url(text):
+        return DEFAULT_SITE_URL
+    return text
+
+
+def site_url(explicit: Optional[str] = None) -> str:
+    for candidate in (explicit, os.environ.get(SITE_URL_ENV), load_config().get("site_url")):
+        text = str(candidate or "").strip().rstrip("/")
+        if text and _is_http_url(text):
+            return text
     return DEFAULT_SITE_URL
 
 
-def api_keys_url() -> str:
-    return site_url() + API_KEYS_PATH
+def api_keys_url(explicit_site: Optional[str] = None) -> str:
+    return site_url(explicit_site) + API_KEYS_PATH
