@@ -823,45 +823,67 @@ def _draw_account(layout, prefs, context, *, compact: bool = False) -> None:
         row.operator("hydrilla.remove_key", text="", icon="X")
 
 
-def _draw_update_banner(layout) -> None:
-    """Sidebar notice only while an update needs the user, or is in progress."""
+def _draw_update_controls(layout, prefs) -> None:
+    """Keep Check for updates visible in the sidebar, with a banner when needed."""
     state = _UPDATE["state"]
     if state == UPDATE_UPDATING:
-        layout.label(text="Updating add-on…", icon="SORTTIME")
-        return
-    if state == UPDATE_CHECKING and _UPDATE["manual"]:
-        layout.label(text="Checking for updates…", icon="SORTTIME")
-        return
-    if state == UPDATE_AVAILABLE:
-        box = layout.box()
-        box.label(text=_update_ready_label(), icon="INFO")
+        banner = layout.box()
+        banner.label(text="Updating add-on…", icon="SORTTIME")
+    elif state == UPDATE_AVAILABLE:
+        banner = layout.box()
+        banner.label(text=_update_ready_label(), icon="INFO")
         if _UPDATE["message"]:
             for line in _wrap(_UPDATE["message"], width=36):
-                box.label(text=line)
-        action = box.row()
-        action.scale_y = 1.2
+                banner.label(text=line)
+        action = banner.row()
+        action.scale_y = 1.25
         action.enabled = not _JOB["busy"]
-        action.operator("hydrilla.update_addon", text="Update", icon="IMPORT")
-        return
-    if state == UPDATE_ERROR and _UPDATE["manual"] and _UPDATE["message"]:
-        box = layout.box()
+        action.operator("hydrilla.update_addon", text="Update now", icon="IMPORT")
+    elif state == UPDATE_ERROR and _UPDATE["manual"] and _UPDATE["message"]:
+        banner = layout.box()
         for line in _wrap(_UPDATE["message"], width=36):
-            box.label(text=line, icon="ERROR")
+            banner.label(text=line, icon="ERROR")
         if isinstance(_UPDATE.get("manifest"), dict):
-            action = box.row()
+            action = banner.row()
             action.enabled = not _JOB["busy"]
             action.operator("hydrilla.update_addon", text="Try again", icon="FILE_REFRESH")
 
+    footer = layout.row(align=True)
+    if state == UPDATE_CHECKING:
+        footer.label(text="Checking…", icon="SORTTIME")
+    elif state == UPDATE_UPDATED:
+        footer.label(text="Updated · v%s" % _version_text(), icon="CHECKMARK")
+    elif state == UPDATE_UP_TO_DATE and _UPDATE["manual"]:
+        footer.label(text="Up to date · v%s" % _version_text(), icon="CHECKMARK")
+    elif state == UPDATE_ERROR and _UPDATE["manual"]:
+        footer.label(text="Update failed", icon="ERROR")
+    else:
+        footer.label(text="v%s" % _version_text())
+
+    controls = footer.row(align=True)
+    controls.alignment = "RIGHT"
+    controls.prop(prefs, "auto_update", text="Auto", toggle=True)
+    check_btn = controls.row(align=True)
+    check_btn.enabled = state not in (UPDATE_CHECKING, UPDATE_UPDATING)
+    check_btn.operator("hydrilla.check_updates", text="Check", icon="FILE_REFRESH")
+
 
 def _draw_bridge_controls(layout, prefs) -> None:
-    column = layout.column(align=True)
+    """Compact Bridge status. The section stays visible after the API key is saved."""
+    box = layout.box()
+    split = box.split(factor=0.55, align=True)
     if bridge_runtime.is_running():
-        column.operator("hydrilla.bridge_stop", text="Bridge on", icon="CHECKMARK", depress=True)
+        split.label(text="Bridge on", icon="CHECKMARK")
+        split.operator("hydrilla.bridge_stop", text="Stop", icon="PAUSE")
     else:
-        column.operator("hydrilla.bridge_start", text="Run Bridge", icon="PLAY")
-    column.prop(prefs, "auto_start_bridge", text="Start with Blender")
-    column.separator()
-    column.prop(prefs, "allow_agent_edits", text="Let AI edit this scene")
+        split.label(text="Bridge off", icon="UNLINKED")
+        split.operator("hydrilla.bridge_start", text="Run", icon="PLAY")
+
+    col = box.column(align=True)
+    col.prop(prefs, "auto_start_bridge", text="Start with Blender")
+    col.prop(prefs, "allow_agent_edits", text="Let AI edit this scene")
+    if prefs.allow_agent_edits:
+        col.label(text="Ctrl+Z undoes AI scripts", icon="INFO")
 
 
 def _update_ready_label() -> str:
@@ -1270,8 +1292,9 @@ class HYDRILLA_PT_main(_HydrillaPanel, Panel):
             layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
             return
 
-        _draw_update_banner(layout)
         _draw_account(layout, prefs, context, compact=True)
+        layout.separator()
+        _draw_update_controls(layout, prefs)
 
 
 class HYDRILLA_PT_generate(_HydrillaPanel, Panel):
@@ -1386,17 +1409,11 @@ class HYDRILLA_PT_bridge(_HydrillaPanel, Panel):
     bl_label = "Bridge"
     bl_idname = "HYDRILLA_PT_bridge"
     bl_parent_id = "HYDRILLA_PT_main"
-    bl_options = {"DEFAULT_CLOSED"}
-
-    @classmethod
-    def poll(cls, context):
-        """Shown while the API key is still missing, so setup stays in one place."""
-        prefs = _prefs(context)
-        return prefs is not None and not _has_api_key(prefs)
 
     def draw(self, context):
         prefs = _prefs(context)
         if prefs is None:
+            self.layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
             return
         _draw_bridge_controls(self.layout, prefs)
 

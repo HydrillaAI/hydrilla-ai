@@ -1,8 +1,8 @@
 {
   "addon": "hydrilla_blender",
-  "build_id": "65429337cd3b8b7f49fa06b191c6f1c7c6f74efda59bbd7e6a95d582e368c7df",
-  "sha256": "e04640ea9ca1fbc2165956a4d44352ac74e47f54f18ff806c8d163b0b2ea5b4c",
-  "size": 40711,
+  "build_id": "8e382be539757380c30a7948c505c7cb12545dfc47f4e4b98a848fc12378a876",
+  "sha256": "f5d1cc88a66ab1f1b3311f39b08a34dd356daebc046cb9623e061f828b30fabe",
+  "size": 40882,
   "version": "2.2.0",
   "zip_path": "/plugins/hydrilla-blender.zip"
 }
