@@ -1,3 +1,4 @@
+import { loadGlbFromBestSource } from "@/lib/api";
 import { bridgeUrlFor } from "@/lib/integrations";
 
 /**
@@ -8,6 +9,7 @@ import { bridgeUrlFor } from "@/lib/integrations";
 
 const BRIDGE_SERVICE = "hydrilla-bridge";
 const HEALTH_TIMEOUT_MS = 1500;
+const GLB_MAGIC = "glTF";
 
 export type BridgeHealth = {
   ok: boolean;
@@ -45,9 +47,18 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(parts.join(""));
 }
 
+function isGlbBuffer(buffer: ArrayBuffer): boolean {
+  if (buffer.byteLength < 4) {
+    return false;
+  }
+  const header = String.fromCharCode(...new Uint8Array(buffer, 0, 4));
+  return header === GLB_MAGIC;
+}
+
 /**
- * Download the GLB in the browser (Studio mesh links may need the signed-in
- * session) and push the bytes to the plugin listening on `port`.
+ * Download the GLB in the browser (Studio mesh links are job-id handles that
+ * must be exchanged for a signed S3 URL — same path as the viewer) and push
+ * the bytes to the plugin listening on `port`.
  */
 export async function sendGlbBytesToBridge(options: {
   port: number;
@@ -56,19 +67,21 @@ export async function sendGlbBytesToBridge(options: {
   jobId?: string;
   getToken?: () => Promise<string | null>;
 }): Promise<void> {
-  const token = options.getToken ? await options.getToken() : null;
-  const headers: HeadersInit = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  const response = await fetch(options.meshUrl, {
-    headers,
-    credentials: token ? "include" : "omit",
+  const getToken = options.getToken ?? (async () => null);
+  const buffer = await loadGlbFromBestSource(options.meshUrl, getToken, async (source) => {
+    const response = await fetch(source.url, {
+      headers: source.headers ?? {},
+      credentials: source.withCredentials ? "include" : "omit",
+    });
+    if (!response.ok) {
+      throw new Error(`Could not download mesh for Bridge (${response.status})`);
+    }
+    return response.arrayBuffer();
   });
-  if (!response.ok) {
-    throw new Error(`Could not download mesh for Bridge (${response.status})`);
+  if (!isGlbBuffer(buffer)) {
+    throw new Error("Downloaded file is not a GLB mesh");
   }
-  const fileBase64 = arrayBufferToBase64(await response.arrayBuffer());
+  const fileBase64 = arrayBufferToBase64(buffer);
 
   const importResponse = await fetch(`${bridgeUrlFor(options.port)}/import-file`, {
     method: "POST",
