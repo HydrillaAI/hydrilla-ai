@@ -3,6 +3,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleFlow } from "@/components/layout/PicklePage";
+import { DEMO_URL } from "@/lib/brand";
 
 export default function SecurityPage() {
   return (
@@ -79,11 +80,11 @@ export default function SecurityPage() {
             line={
               <>
                 For a questionnaire or vendor review, use Contact security below, or{" "}
-                <Link href="/enterprise#contact">talk to our team</Link>. Tell us your studio, the review you are running, and when you need answers, and we will reply in writing with what we can confirm.
+                <a href={DEMO_URL}>talk to our team</a>. Tell us your studio, the review you are running, and when you need answers, and we will reply in writing with what we can confirm.
               </>
             }
             primary={{ label: "Contact security", href: "mailto:founders@hydrilla.ai" }}
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>

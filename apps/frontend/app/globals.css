@@ -4384,47 +4384,47 @@ input.range-minimal::-moz-range-track {
   outline-offset: 2px;
 }
 
-.ent-bento-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-radius: 24px;
-  border: 1px solid rgb(0 0 0 / 0.08);
-  background: #f5f5f7;
-  padding: clamp(22px, 2.4vw, 32px);
-  transition:
-    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.25s ease,
-    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
+@layer components {
+  .ent-bento-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-radius: 24px;
+    border: 1px solid rgb(0 0 0 / 0.08);
+    background: #f5f5f7;
+    transition:
+      transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 0.25s ease,
+      box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
 
-.ent-bento-card:hover {
-  transform: translateY(-2px);
-  border-color: rgb(0 0 0 / 0.16);
-  box-shadow: 0 22px 48px -30px rgb(0 0 0 / 0.18);
-}
+  .ent-bento-card:hover {
+    transform: translateY(-2px);
+    border-color: rgb(0 0 0 / 0.16);
+    box-shadow: 0 22px 48px -30px rgb(0 0 0 / 0.18);
+  }
 
-.ent-bento-card-dark {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-radius: 24px;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  background: #0a0a0c;
-  color: #ffffff;
-  padding: clamp(22px, 2.4vw, 32px);
-  transition:
-    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.25s ease,
-    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
+  .ent-bento-card-dark {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-radius: 24px;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    background: #0a0a0c;
+    color: #ffffff;
+    transition:
+      transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 0.25s ease,
+      box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
 
-.ent-bento-card-dark:hover {
-  transform: translateY(-2px);
-  border-color: rgb(255 255 255 / 0.22);
-  box-shadow: 0 24px 52px -28px rgb(0 0 0 / 0.45);
+  .ent-bento-card-dark:hover {
+    transform: translateY(-2px);
+    border-color: rgb(255 255 255 / 0.22);
+    box-shadow: 0 24px 52px -28px rgb(0 0 0 / 0.45);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4446,8 +4446,8 @@ input.range-minimal::-moz-range-track {
 }
 
 .ent-section {
-  margin-top: clamp(88px, 11vw, 160px);
-  scroll-margin-top: 128px;
+  margin-top: clamp(72px, 9vw, 132px);
+  scroll-margin-top: 120px;
 }
 
 .ent-title {

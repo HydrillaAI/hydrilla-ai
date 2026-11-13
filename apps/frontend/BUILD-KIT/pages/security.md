@@ -47,14 +47,14 @@ Sign-in runs through Clerk, and each session belongs to one user. Generated mesh
 
 ## Exports and vendor reviews
 
-Once you download an export, the file lives in your own pipeline. For a questionnaire or vendor review, use Contact security below, or [talk to our team →](/enterprise#contact). See also the [Privacy Policy →](/privacy) and [Terms →](/terms).
+Once you download an export, the file lives in your own pipeline. For a questionnaire or vendor review, use Contact security below, or [talk to our team →](https://cal.com/hydrilla). See also the [Privacy Policy →](/privacy) and [Terms →](/terms).
 <!-- COPY:END -->
 
 ## CTAs
 | Placement | Label | Destination |
 |---|---|---|
 | Section 4, primary | Contact security | `mailto:founders@hydrilla.ai` |
-| Section 4, secondary | Talk to our team | `/enterprise#contact` |
+| Section 4, secondary | Talk to our team | https://cal.com/hydrilla |
 
 ## Internal links on this page
 - `/enterprise#contact`

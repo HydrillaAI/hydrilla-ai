@@ -4,7 +4,7 @@ import { createPageMetadata } from "@/lib/seo";
 export const metadata = createPageMetadata({
   title: "Enterprise AI 3D Workspace, Agent & Plugins | Hydrilla AI",
   description:
-    "Hydrilla Enterprise gives studios BlueFox, Water Agent, native 3D plugins for Blender, Unity, Unreal, and Godot, MCP server, and REST API concurrency. Book a demo.",
+    "Hydrilla Enterprise gives studios BlueFox, Water Agent, native 3D plugins for Blender, Maya, 3ds Max, Unity, Unreal, and Godot, MCP server, and REST API concurrency.",
   ogTitle: "Hydrilla for Enterprise: AI 3D Workspace, Agent & Plugins for Studios",
   path: "/enterprise",
   absoluteTitle: true,
@@ -15,6 +15,8 @@ export const metadata = createPageMetadata({
     "Water Agent AI 3D",
     "BlueFox 3D model",
     "Blender AI 3D plugin",
+    "Maya AI 3D plugin",
+    "3ds Max AI 3D plugin",
     "Unity AI 3D plugin",
     "Unreal Engine AI 3D plugin",
     "Godot 4 AI 3D plugin",

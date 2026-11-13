@@ -1,4 +1,4 @@
-Kit QA: 26/28 checks pass
+Kit QA: 25/28 checks pass
 [PASS] No [VERIFY] markers or plan jargon (OQ/S/D numbers, Headline options)
 [PASS] Banned marketing words
 [PASS] No "AI for 3D"
@@ -24,10 +24,11 @@ Kit QA: 26/28 checks pass
 [PASS] First prose mention of BlueFox reads "BlueFox, Hydrilla's 3D model"
 [PASS] "BlueFox 1" only in spec/model-card/docs/changelog/compare-table spots
 [PASS] /water: definition verbatim, "no credits" once, plugin line present
-[PASS] Every page at or under 600 words
+[FAIL] Every page at or under 600 words
+        {'enterprise': 630}
 [PASS] Redirects: 36 rules, single hop, no chains or loops
 [PASS] Redirect targets are all final indexable routes
 [PASS] /bluefox is a target only, and the live /bluefox -> /bluefox3d removal is noted
 [PASS] Internal links point at final routes (no redirect hops)
 
-Word counts (page copy): enterprise 543, water 394, compare-how-to-choose 388, compare-trellis 348, pricing 320, compare-sloyd 313, bluefox 309, docs 306, compare-meshy 303, compare-tripo 301, compare-hyper3d 261, integrations 253, text-to-3d 239, blog-import-ai-meshes 236, blog-reference-images 221, integrations-blender 216, faq 215, compare 212, features 209, solutions-film 177, security 165, api 154, integrations-unreal 154, research 153, solutions-games 153, integrations-mcp 142, solutions-xr 136, integrations-unity 134, solutions-architecture 133, integrations-godot 131, solutions 131, about 127, image-to-3d 118, solutions-product 118, blog 115, careers 93, team 88, brand 87, changelog 87, contact 80, cookies 11, privacy 11, terms 11
+Word counts (page copy): enterprise 630, water 394, compare-how-to-choose 388, compare-trellis 348, pricing 320, compare-sloyd 313, bluefox 309, docs 306, compare-meshy 303, compare-tripo 301, compare-hyper3d 261, integrations 253, text-to-3d 239, blog-import-ai-meshes 236, blog-reference-images 221, integrations-blender 216, faq 215, compare 212, features 209, solutions-film 177, security 165, api 154, integrations-unreal 154, research 153, solutions-games 153, integrations-mcp 142, solutions-xr 136, integrations-unity 134, solutions-architecture 133, integrations-godot 131, solutions 131, about 127, image-to-3d 118, solutions-product 118, blog 115, careers 93, team 88, brand 87, changelog 87, contact 80, cookies 11, privacy 11, terms 11

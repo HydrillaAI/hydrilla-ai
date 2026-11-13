@@ -7,6 +7,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
 import { PickleActions, PickleCards } from "@/components/layout/PicklePage";
+import { DEMO_URL } from "@/lib/brand";
 
 const BACKEND_URL = (
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app"
@@ -112,7 +113,7 @@ export default function ContactPage() {
                 },
               ]}
             />
-            <PickleActions secondary={{ label: "Talk to our team", href: "/enterprise#contact" }} />
+            <PickleActions secondary={{ label: "Talk to our team", href: DEMO_URL }} />
           </section>
           <section className="pickle-head-block">
             <h2 className="pickle-h2">Help us help you</h2>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Footer from "@/components/layout/Footer";
 import { PickleCta } from "@/components/layout/PicklePage";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_URL } from "@/lib/brand";
 
 export const metadata = createPageMetadata({
   title: "How to Choose an AI 3D Model Generator | Hydrilla AI",
@@ -122,7 +123,7 @@ export default function HowToChoosePage() {
           </section>
           <PickleCta
             primary={{ label: "Start generating", href: "/app/studio" }}
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>
