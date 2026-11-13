@@ -485,12 +485,26 @@ The only page with Offer nodes. Plus the FAQPage.
 ```
 
 ## 8. `/enterprise`
-WebPage + ContactPoint (sales) + FAQPage.
+WebPage + SoftwareApplication + ContactPoint (sales) + FAQPage (synced from `lib/enterprise-faq.ts`).
 
 ```json
 {
   "@context": "https://schema.org",
   "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://hydrilla.ai/enterprise#software",
+      "name": "Hydrilla Enterprise",
+      "alternateName": "Hydrilla for Enterprise",
+      "description": "Enterprise AI 3D workspace, Water Agent AI 3D agent, native Blender, Unity, Unreal Engine, and Godot 4 plugins, MCP server, and high-concurrency REST API for studio pipelines.",
+      "url": "https://hydrilla.ai/enterprise",
+      "applicationCategory": "DesignApplication",
+      "applicationSubCategory": "Enterprise AI 3D Workspace, AI Agent & Pipeline API",
+      "operatingSystem": "Web, Windows, macOS, Linux (Blender, Unity, Unreal Engine, Godot 4)",
+      "publisher": { "@id": "https://hydrilla.ai/#organization" },
+      "provider": { "@id": "https://hydrilla.ai/#organization" },
+      "isPartOf": { "@id": "https://hydrilla.ai/features#software" }
+    },
     {
       "@type": "ContactPoint",
       "@id": "https://hydrilla.ai/enterprise#contact",
@@ -504,18 +518,10 @@ WebPage + ContactPoint (sales) + FAQPage.
       "mainEntity": [
         {
           "@type": "Question",
-          "name": "How is our data handled?",
+          "name": "What is Hydrilla Enterprise?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Your data isn't used to train our models, on any plan. Generated assets are kept to your own workspace, and the security page explains both."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Can we send a security questionnaire?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm."
+            "text": "Hydrilla Enterprise gives studios a shared AI 3D workspace, BlueFox, Water Agent, native 3D software plugins, an MCP server, and REST API concurrency under one studio agreement with custom credit pools and pipeline support."
           }
         }
       ]

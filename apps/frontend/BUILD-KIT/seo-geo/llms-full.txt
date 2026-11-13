@@ -2,7 +2,7 @@
 
 Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D models from text or an image with BlueFox, Hydrilla's 3D model, check them in the browser, and work with Water Agent, the AI 3D agent for artists and studios.
 
-Last updated: 2026-10-24
+Last updated: 2026-11-07
 
 ## Names
 - Hydrilla AI is the product and company (serving studios and artists worldwide including the United States, India, Japan, China, and France); Hawan Research Labs is its research lab. https://hydrilla.ai/about
@@ -26,10 +26,12 @@ Last updated: 2026-10-24
 - https://hydrilla.ai/water: Water Agent, the AI 3D agent for artists and studios
 - https://hydrilla.ai/features: what the Hydrilla workspace does, end to end
 - https://hydrilla.ai/bluefox: BlueFox, Hydrilla's 3D model
-- https://hydrilla.ai/integrations: AI 3D plugins, the local Bridge (127.0.0.1:7345), MCP server, and REST API
+- https://hydrilla.ai/integrations: AI 3D plugins (API key, no browser sign-in), the local Bridge in each plugin, MCP server, and REST API
+- https://hydrilla.ai/integrations/maya: Maya AI 3D plugin (Hydrilla window, GLB import into the open scene, plus Bridge)
+- https://hydrilla.ai/integrations/3dsmax: 3ds Max AI 3D plugin (Hydrilla window, GLB import into the open scene, plus Bridge)
 - https://hydrilla.ai/integrations/blender: Blender AI 3D add-on (N-panel sidebar generation, Water Agent, and local Bridge)
-- https://hydrilla.ai/integrations/unity: Unity AI 3D editor plugin (Window > Hydrilla > Generate 3D into Assets/Hydrilla, plus Bridge)
-- https://hydrilla.ai/integrations/unreal: Unreal Engine AI 3D Python editor plugin (toolbar generation into Content/Hydrilla, plus Bridge)
+- https://hydrilla.ai/integrations/unity: Unity AI 3D editor plugin (Window > Hydrilla, GLB into Assets/Hydrilla, plus Bridge)
+- https://hydrilla.ai/integrations/unreal: Unreal Engine AI 3D Python editor plugin (Hydrilla menu and Python API, imports into /Game/Hydrilla, plus Bridge)
 - https://hydrilla.ai/integrations/godot: Godot 4 AI 3D editor dock (import into res://hydrilla/, plus Bridge)
 - https://hydrilla.ai/integrations/mcp: Local stdio MCP server for Cursor, Claude Code, and AI agents
 - https://hydrilla.ai/api: REST API
@@ -274,7 +276,9 @@ Generation jobs from your own code.
 
 | Tool | Generate in the tool | Receive from Studio | Sign-in |
 |---|---|---|---|
-| Blender | Yes | Bridge | Studio account or API key |
+| Blender | Yes | Bridge | API key |
+| Maya | Yes | Bridge | API key |
+| 3ds Max | Yes | Bridge | API key |
 | Unity | Yes | Bridge | API key |
 | Unreal Engine | Yes | Bridge | API key |
 | Godot 4 | Yes | Bridge | API key |
@@ -303,12 +307,12 @@ Available | Hydrilla Team
 
 ### Generate in the Hydrilla tab
 
-Click Run Bridge, then Sign in and finish the login in your browser. Choose Sync, keep the Connect tab open, and generate from a typed prompt or a picture, or use Send to DCC from Studio.
+Paste your API key once, then generate from a typed prompt or a picture. Click Run Bridge to receive models from Send to DCC in Studio or from your AI agent.
 
 ### Troubleshooting
 
-**The add-on says I'm signed out.**
-Leave the Connect browser tab open while you work, then choose Sync again. An API key also works if you prefer keys to browser sign-in.
+**The add-on says my key was not accepted.**
+Create a new key under API keys, paste it into the Hydrilla tab, and choose Check. The add-on uses an API key, so there is no browser sign-in to keep open.
 
 **Nothing arrives when I send from Studio.**
 Check that Run Bridge is active in the Hydrilla panel and Blender is open on a scene, then send again. Formats other than GLB are covered on [exports](https://hydrilla.ai/features#exports).
@@ -327,8 +331,8 @@ Available | Hydrilla Team
 
 1. Download hydrilla-unity.zip from this page and unzip it.
 2. Copy the Hydrilla folder into your project's Assets folder.
-3. In the menu bar, open Window > Hydrilla > Generate 3D.
-4. Paste your hyd_live_ API key, or start the Bridge to receive models.
+3. In the menu bar, open Window > Hydrilla.
+4. Paste your API key, or click Run Bridge to receive models.
 
 ### Generate from the editor
 
@@ -344,7 +348,7 @@ URL: https://hydrilla.ai/integrations/unreal
 
 ## Hydrilla for Unreal Engine
 
-Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from the toolbar, and it receives models you send from Studio over the Bridge.
+Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from inside the editor, and it receives models you send from Studio over the Bridge.
 
 Available | Hydrilla Team
 
@@ -352,12 +356,12 @@ Available | Hydrilla Team
 
 1. Enable the Python Editor Script Plugin in Unreal, then restart the editor.
 2. Unzip the download and place its Hydrilla folder in Content/Python or Plugins.
-3. Open the Hydrilla actions from the editor toolbar.
-4. Set your API key there, or switch on the Bridge listener.
+3. Open the Hydrilla menu in the editor's main menu bar.
+4. Set your API key once from the Python console, then choose Run Bridge to receive models.
 
 ### Generate from the editor
 
-Run a job from the Hydrilla toolbar with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test.
+Run a job from the editor's Python console with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test.
 
 ### Check the import
 
@@ -377,8 +381,8 @@ Available | Hydrilla Team
 
 1. Download the plugin and copy addons/hydrilla into your Godot project.
 2. Open Project Settings > Plugins and enable the Hydrilla plugin.
-3. Open the Hydrilla dock and add your hyd_live_ key.
-4. Generate from the dock, or listen on the Bridge for Studio sends.
+3. Open the Hydrilla dock and paste your API key.
+4. Generate from the dock, or click Run Bridge to receive models from Studio or your AI agent.
 
 ### Where models land
 
@@ -394,9 +398,9 @@ Let AI agents generate 3D through Hydrilla over MCP. Hydrilla's MCP server calls
 
 ### Install
 
-1. Download the MCP package, hydrilla-mcp.zip, from this page.
-2. Set HYDRILLA_API_KEY to your hyd_live_ key in the server's environment.
-3. Register the server in your MCP client, following the integration guide, then restart the client.
+1. Install Node.js 20 or newer. The server is the npm package hydrilla-mcp, started with npx -y hydrilla-mcp@latest.
+2. Add your API key in a Hydrilla plugin, or set HYDRILLA_API_KEY in the server's MCP config. Never paste it into the chat.
+3. Register the server in your MCP client with the command on this page, then restart the client.
 
 the MCP server works on every plan, and generating a model uses your credits. [Plans](https://hydrilla.ai/pricing) Want an agent inside Hydrilla instead? [See Water Agent](https://hydrilla.ai/water)
 
@@ -637,41 +641,101 @@ Show the product in 3D, and keep the spec sheet as the source of truth.
 
 URL: https://hydrilla.ai/enterprise
 
-## Bring AI 3D to your whole studio
+## AI 3D built for the enterprise
 
-Hydrilla AI for whole studios: BlueFox, Hydrilla's 3D model, and Water Agent across your team, in one shared workspace.
+Hydrilla Enterprise brings BlueFox, Hydrilla's 3D model, and Water Agent to your studio inside one private workspace, across every 3D plugin, MCP, and the REST API.
 
-### What Enterprise adds for your studio
+- 4 3D software plugins: Blender, Unity, Unreal Engine, and Godot 4
+- $0 Water Agent cost: AI 3D agent included with zero credits
+- 1 shared studio workspace: generations, part reviews, and approved assets
+- 0% customer data trained on: prompts, references, and outputs stay private
 
-Enterprise adds seats, API concurrency, custom plans, and pipeline support.
+### Pro control over your 3D pipeline
 
-#### Seats
-Art, lookdev, and pipeline staff work together in one shared workspace.
-#### API concurrency
-Jobs from your own backend, sized to your volume.
-#### Custom plans
-Credit pools and queue priority set around your monthly volume.
-#### Pipeline support
-Help connecting the Bridge and plugins to your pipeline.
+Switch between Water Agent, native 3D plugins, the shared Studio workspace, and API automation.
 
-### How this differs from Pro
+### Built for studios, agents, and 3D software
 
-| | Pro | Enterprise |
+#### Water Agent for multi-asset briefs
+Describe an entire prop set or scene once. Review the plan before generation starts and revise individual pieces inside Studio or your 3D tool.
+
+#### Native plugins across 3D software
+Generate inside Blender, Unity, Unreal Engine, and Godot 4, or send approved meshes from Studio over the local Bridge.
+
+#### Segmented parts, UVs, and PBR maps
+[BlueFox](https://hydrilla.ai/bluefox) returns meshes split into logical parts with unwrapped UVs and PBR maps attached, ready for lookdev and lighting.
+
+#### MCP server and REST API concurrency
+Run batch 3D jobs from your own backend with dedicated concurrency and queue priority, or connect AI coding agents over [MCP](https://hydrilla.ai/integrations/mcp) and the [REST API](https://hydrilla.ai/api).
+
+### Built for every 3D team
+
+Five production pipelines running BlueFox and Water Agent today.
+
+- [Game development](https://hydrilla.ai/solutions/games): level dressing, environment props, and asset sets inside Unity, Unreal Engine, and Godot 4.
+- [Film and animation](https://hydrilla.ai/solutions/film): set pieces and props for previs, layout, and background dressing inside Blender.
+- [Architecture and interiors](https://hydrilla.ai/solutions/architecture): furniture and fixtures that dress rooms for client presentations and design reviews.
+- [AR, VR, and XR](https://hydrilla.ai/solutions/xr): segmented 3D objects with clean UVs and PBR maps checked against frame budgets.
+- [Product visualization](https://hydrilla.ai/solutions/product): product photography turned into editable 3D meshes for web viewers, campaigns, and AR.
+
+### Pro vs Enterprise
+
+Pro fits individuals and small teams buying online. Enterprise tailors seats, credits, concurrency, and support around your studio.
+
+| Capability | Pro | Enterprise |
 |---|---|---|
-| How you buy | Self-serve and monthly, on [pricing](https://hydrilla.ai/pricing) | An agreement shaped around your studio |
-| Plans | Monthly credits on a set plan | Custom plans and credit pools |
+| Agreement | Self-serve monthly plan on [pricing](https://hydrilla.ai/pricing) | Custom agreement shaped around your studio |
+| Workspace | Individuals and small teams | Shared studio seats across art, lookdev, and pipeline |
+| Water Agent | Included at zero credit cost | Included across Studio and plugins at zero credit cost |
+| Plugins & Bridge | Blender, Unity, Unreal, and Godot plugins | Plugins, local Bridge, and pipeline onboarding |
+| MCP & REST API | Standard API and stdio MCP access | Concurrency and queue priority sized to volume |
+| Credits | 3,000 monthly credits | Custom credit pools shared across teams |
+| Model training | Never trains on customer data | Never trains on customer data |
 
-### Answers for procurement
+### Your work stays yours
 
-**How is our data handled?**
-Your data isn't used to train our models, on any plan. Generated assets are kept to your own workspace, and the [security page](https://hydrilla.ai/security) explains both.
+Details live on the [security page](https://hydrilla.ai/security); the [Privacy Policy](https://hydrilla.ai/privacy) and [Terms](https://hydrilla.ai/terms) are the binding documents.
 
-**Can we send a security questionnaire?**
-Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm.
+#### Zero model training
+Prompts, reference images, and generated 3D assets are never used to train our models on any plan.
 
-### How to start
+#### Full output ownership
+As between you and Hydrilla AI, and to the extent the law allows, you own generated outputs for commercial use. [Read ownership terms](https://hydrilla.ai/terms#ownership).
 
-Tell us your studio size, engine, and expected monthly volume, and whether you already generate on Pro.
+#### Scoped to your workspace
+Sessions stay isolated per user, assets stay scoped to your studio, and Bridge transfers stay local on your machine.
+
+Need a vendor review or custom legal agreement? Send your questionnaire to founders@hydrilla.ai with your studio name and timeline.
+
+### Enterprise questions, answered
+
+**What is Hydrilla Enterprise?**
+Hydrilla Enterprise gives studios a shared AI 3D workspace, [BlueFox](https://hydrilla.ai/bluefox), [Water Agent](https://hydrilla.ai/water), native 3D software plugins, an [MCP server](https://hydrilla.ai/integrations/mcp), and [REST API](https://hydrilla.ai/api) concurrency under one studio agreement with custom credit pools and pipeline support.
+
+**What's the difference between Pro and Enterprise?**
+Pro is a self-serve monthly plan for individuals and small teams: $12 a month for 3,000 credits, with REST API access. Enterprise is an agreement shaped around your studio, with seats in a shared workspace, API concurrency sized to your volume, custom credit pools, queue priority, and help connecting your pipeline. [See self-serve plans](https://hydrilla.ai/pricing).
+
+**Which 3D software and AI agent workflows does Enterprise support?**
+[Water Agent](https://hydrilla.ai/water) works inside the Hydrilla Studio workspace and directly inside Blender, Unity, Unreal Engine, and Godot 4 through [Hydrilla plugins](https://hydrilla.ai/integrations) and the local Bridge. Coding agents and internal studio automation connect through the [MCP server](https://hydrilla.ai/integrations/mcp) and the [REST API](https://hydrilla.ai/api).
+
+**How does Water Agent work for studio teams?**
+Water Agent is Hydrilla's AI 3D agent. Artists and leads brief an entire set of props or environment pieces in plain language, review the plan first, and revise individual pieces in conversation inside Studio or their 3D tool. Water Agent uses zero credits on every plan.
+
+**What drives Enterprise pricing and credit pools?**
+Enterprise is quoted around your studio's seats, API concurrency, monthly generation volume, and queue priority. Instead of separate individual caps, your team draws from one shared credit pool sized to your pipeline. On public plans, a default model costs 45 credits from text or 30 from an image.
+
+**Who owns what we generate, and do you train on our data?**
+You keep all rights in what you upload. As between you and Hydrilla AI, and to the extent the law allows, you own the 3D assets generated for you and may use them commercially. The [ownership section of the Terms](https://hydrilla.ai/terms#ownership) has the exact wording. Prompts, reference images, and generated models are never used to train our models, on any plan. [Read security details](https://hydrilla.ai/security).
+
+**Can we sign our own agreement or run a vendor security review?**
+Yes. Enterprise runs on an agreement shaped around your studio. Send your legal requirements or security questionnaire to founders@hydrilla.ai, naming your studio and timeline, and we will respond in writing with what we can confirm.
+
+**Can we evaluate on Pro before moving to Enterprise?**
+Yes. Your team can test [BlueFox](https://hydrilla.ai/bluefox), [Water Agent](https://hydrilla.ai/water), and the [plugins](https://hydrilla.ai/integrations) on any self-serve plan first. When you are ready for shared seats, custom credit pools, or higher API concurrency, contact our team and we will structure Enterprise around your current setup.
+
+### Get Hydrilla Enterprise
+
+Ready to bring BlueFox, Water Agent, and native 3D plugins to your studio?
 
 ---
 
@@ -735,7 +799,7 @@ Only upload images you have the right to use. The [Terms](https://hydrilla.ai/te
 ### Accounts and data
 
 **How do I sign in?**
-You sign in to Studio with your Hydrilla account. How each plugin signs in is listed on [integrations](https://hydrilla.ai/integrations#sign-in). [Sign-in security](https://hydrilla.ai/security)
+You sign in to Studio with your Hydrilla account. Plugins and the MCP server use an API key instead of signing in; see [integrations](https://hydrilla.ai/integrations#sign-in). [Sign-in security](https://hydrilla.ai/security)
 
 **Can I delete my work or my account?**
 To close your account or ask for its data to be deleted, write to founders@hydrilla.ai from your account email.

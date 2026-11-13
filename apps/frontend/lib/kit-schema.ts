@@ -1,3 +1,4 @@
+import { ENTERPRISE_FAQ, faqPlainText } from "@/lib/enterprise-faq";
 import { TEAM_MEMBERS } from "@/lib/team";
 
 const ORG = "https://hydrilla.ai/#organization";
@@ -75,7 +76,7 @@ const NAMES: Record<string, string> = {
   "/solutions/architecture": "AI 3D Furniture and Interiors for Archviz",
   "/solutions/xr": "AI 3D Assets for AR, VR, and Spatial Apps",
   "/solutions/product": "AI 3D Product Models for E-commerce",
-  "/enterprise": "Enterprise: AI 3D for Studio Pipelines",
+  "/enterprise": "Enterprise AI 3D Workspace, Agent & Plugins | Hydrilla AI",
   "/docs": "Docs: Get Started with Hydrilla AI 3D",
   "/faq": "Hydrilla FAQ: Licensing, Accounts, and Support",
   "/blog": "Hydrilla Blog: Guides for AI 3D Workflows",
@@ -290,6 +291,15 @@ export function getKitJsonLd(path: string) {
     url: `https://hydrilla.ai${path}`,
     name,
     isPartOf: { "@id": WEBSITE },
+    ...(path === "/enterprise"
+      ? {
+          description:
+            "Hydrilla Enterprise gives studios BlueFox, Water Agent, native 3D plugins for Blender, Unity, Unreal, and Godot, MCP server, and REST API concurrency.",
+          about: { "@id": "https://hydrilla.ai/enterprise#software" },
+          publisher: { "@id": ORG },
+          inLanguage: "en-US",
+        }
+      : {}),
   };
   const nodes: object[] = [page, website, crumbs(path, name)];
 
@@ -420,17 +430,46 @@ export function getKitJsonLd(path: string) {
   }
   if (path === "/enterprise") {
     nodes.push({
+      "@type": "SoftwareApplication",
+      "@id": "https://hydrilla.ai/enterprise#software",
+      name: "Hydrilla Enterprise",
+      alternateName: "Hydrilla for Enterprise",
+      description:
+        "Enterprise AI 3D workspace, Water Agent AI 3D agent, native Blender, Unity, Unreal Engine, and Godot 4 plugins, MCP server, and high-concurrency REST API for studio pipelines.",
+      url: "https://hydrilla.ai/enterprise",
+      applicationCategory: "DesignApplication",
+      applicationSubCategory: "Enterprise AI 3D Workspace, AI Agent & Pipeline API",
+      operatingSystem: "Web, Windows, macOS, Linux (Blender, Unity, Unreal Engine, Godot 4)",
+      publisher: { "@id": ORG },
+      provider: { "@id": ORG },
+      isPartOf: { "@id": SOFTWARE },
+      featureList: [
+        "Text to 3D and image to 3D with BlueFox, Hydrilla's 3D model",
+        "Segmented 3D meshes with UVs and PBR texture maps",
+        "Water Agent AI 3D agent included at zero credit cost",
+        "Native AI 3D plugins and local Bridge for Blender, Unity, Unreal Engine, and Godot 4",
+        "Model Context Protocol (MCP) server for AI coding agents",
+        "REST API with concurrency sized to studio volume",
+        "Shared studio workspace, team seats, and custom credit pools",
+        "Queue priority and dedicated pipeline onboarding",
+        "Commercial IP ownership and zero model training on customer data",
+      ],
+      areaServed: SERVED_REGIONS,
+    });
+    nodes.push({
       "@type": "ContactPoint",
       "@id": "https://hydrilla.ai/enterprise#contact",
       contactType: "sales",
       email: "founders@hydrilla.ai",
       url: "https://cal.com/hydrilla",
+      areaServed: SERVED_REGIONS,
+      availableLanguage: ["English"],
     });
     nodes.push(
-      faq("https://hydrilla.ai/enterprise#faq", [
-        ["How is our data handled?", "Your data isn't used to train our models, on any plan. Generated assets are kept to your own workspace, and the security page explains both."],
-        ["Can we send a security questionnaire?", "Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm."],
-      ]),
+      faq(
+        "https://hydrilla.ai/enterprise#faq",
+        ENTERPRISE_FAQ.map(({ q, a }): [string, string] => [q, faqPlainText(a)]),
+      ),
     );
   }
   if (path === "/faq") {

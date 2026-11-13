@@ -4370,6 +4370,157 @@ input.range-minimal::-moz-range-track {
   opacity: 0.92;
 }
 
+/* Enterprise page: large type, hairlines, and full-bleed media. Forced light like other marketing pages. */
+.ent-page {
+  overflow-x: clip;
+  background: #ffffff;
+  color: #000000;
+  font-family: "ABC Diatype Unlicensed Trial", "Suisse Intl", var(--font-dm-sans), "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ent-page :is(a, button, summary, input, select, textarea):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.ent-bento-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 24px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  background: #f5f5f7;
+  padding: clamp(22px, 2.4vw, 32px);
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease,
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ent-bento-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(0 0 0 / 0.16);
+  box-shadow: 0 22px 48px -30px rgb(0 0 0 / 0.18);
+}
+
+.ent-bento-card-dark {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 24px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: #0a0a0c;
+  color: #ffffff;
+  padding: clamp(22px, 2.4vw, 32px);
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease,
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ent-bento-card-dark:hover {
+  transform: translateY(-2px);
+  border-color: rgb(255 255 255 / 0.22);
+  box-shadow: 0 24px 52px -28px rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ent-bento-card,
+  .ent-bento-card-dark {
+    transition: none;
+  }
+  .ent-bento-card:hover,
+  .ent-bento-card-dark:hover {
+    transform: none;
+  }
+}
+
+.ent-container {
+  width: 100%;
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 48px);
+}
+
+.ent-section {
+  margin-top: clamp(88px, 11vw, 160px);
+  scroll-margin-top: 128px;
+}
+
+.ent-title {
+  font-size: clamp(2.75rem, 1.4rem + 5.2vw, 5.75rem);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.ent-h2 {
+  font-size: clamp(2rem, 1.35rem + 2.4vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1.04;
+  letter-spacing: -0.038em;
+}
+
+.ent-h3 {
+  font-size: clamp(1.25rem, 1.15rem + 0.45vw, 1.5rem);
+  font-weight: 510;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.ent-lede {
+  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  line-height: 1.45;
+  letter-spacing: -0.015em;
+  color: rgb(0 0 0 / 0.68);
+}
+
+.ent-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.ent-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+
+@keyframes ent-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.12em);
+  }
+}
+
+@keyframes ent-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+
+
+@media (prefers-reduced-motion: no-preference) {
+  .ent-title {
+    animation: ent-title-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* No JS: browsers without scroll timelines simply show everything in place. */
+  @supports (animation-timeline: view()) {
+    .ent-reveal {
+      animation: ent-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
+
 /* MCP setup — same steps as a developer MCP console, in the site type. */
 .pickle-article--setup .pickle-article-header,
 .pickle-article--setup .pickle-article-column {
