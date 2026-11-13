@@ -33,7 +33,7 @@ Last updated: 2026-11-07
 - [Architecture and interiors](https://hydrilla.ai/solutions/architecture.md)
 - [XR](https://hydrilla.ai/solutions/xr.md)
 - [Product visualization](https://hydrilla.ai/solutions/product.md)
-- [Enterprise](https://hydrilla.ai/enterprise.md): enterprise AI 3D workspace and API, with seats, API concurrency, custom plans, pipeline support, and procurement answers
+- [Enterprise](https://hydrilla.ai/enterprise.md): enterprise AI 3D workspace, Water Agent, native 3D software plugins, MCP server, REST API concurrency, and custom studio plans
 
 ## Resources
 - [Docs](https://hydrilla.ai/docs.md): from sign-up to first export

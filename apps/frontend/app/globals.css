@@ -4379,9 +4379,63 @@ input.range-minimal::-moz-range-track {
   -webkit-font-smoothing: antialiased;
 }
 
-.ent-page :is(a, button, summary):focus-visible {
+.ent-page :is(a, button, summary, input, select, textarea):focus-visible {
   outline: 2px solid currentColor;
-  outline-offset: 3px;
+  outline-offset: 2px;
+}
+
+.ent-bento-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 24px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  background: #f5f5f7;
+  padding: clamp(22px, 2.4vw, 32px);
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease,
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ent-bento-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(0 0 0 / 0.16);
+  box-shadow: 0 22px 48px -30px rgb(0 0 0 / 0.18);
+}
+
+.ent-bento-card-dark {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 24px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: #0a0a0c;
+  color: #ffffff;
+  padding: clamp(22px, 2.4vw, 32px);
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease,
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ent-bento-card-dark:hover {
+  transform: translateY(-2px);
+  border-color: rgb(255 255 255 / 0.22);
+  box-shadow: 0 24px 52px -28px rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ent-bento-card,
+  .ent-bento-card-dark {
+    transition: none;
+  }
+  .ent-bento-card:hover,
+  .ent-bento-card-dark:hover {
+    transform: none;
+  }
 }
 
 .ent-container {
@@ -4397,18 +4451,18 @@ input.range-minimal::-moz-range-track {
 }
 
 .ent-title {
-  font-size: clamp(3.5rem, 1.6rem + 8.6vw, 9rem);
+  font-size: clamp(2.75rem, 1.4rem + 5.2vw, 5.75rem);
   font-weight: 500;
-  line-height: 0.94;
-  letter-spacing: -0.05em;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
   text-wrap: balance;
 }
 
 .ent-h2 {
-  font-size: clamp(2.25rem, 1.5rem + 3.2vw, 4.5rem);
+  font-size: clamp(2rem, 1.35rem + 2.4vw, 3.5rem);
   font-weight: 500;
-  line-height: 1.02;
-  letter-spacing: -0.04em;
+  line-height: 1.04;
+  letter-spacing: -0.038em;
 }
 
 .ent-h3 {

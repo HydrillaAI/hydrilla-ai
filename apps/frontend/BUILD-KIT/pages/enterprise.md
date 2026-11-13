@@ -4,198 +4,112 @@
 |---|---|
 | Route | `/enterprise` |
 | Status | Rewrite |
-| Title (absolute, do not append the template suffix) | Enterprise AI 3D Generator for Studios \| Hydrilla AI |
-| Meta description | Hydrilla Enterprise gives studios an AI 3D workspace and API: team seats, API concurrency, custom credit plans, and pipeline support. Book a demo. |
-| OG title | Hydrilla for Enterprise: AI 3D across your whole studio |
-| H1 | Hydrilla for Enterprise |
+| Title (absolute, do not append the template suffix) | Enterprise AI 3D Workspace, Agent & Plugins \| Hydrilla AI |
+| Meta description | Hydrilla Enterprise gives studios BlueFox, Water Agent, native 3D plugins for Blender, Unity, Unreal, and Godot, MCP server, and REST API concurrency. Book a demo. |
+| OG title | Hydrilla for Enterprise: AI 3D Workspace, Agent & Plugins for Studios |
+| H1 | AI 3D built for the enterprise |
 | Canonical | `https://hydrilla.ai/enterprise` (self) |
 | Robots | index, follow |
-| Schema type | WebPage + ContactPoint (sales) + FAQPage (full JSON-LD rules in `seo-geo/schema.md`) |
+| Schema type | WebPage + SoftwareApplication + ContactPoint (sales) + FAQPage (full JSON-LD rules in `seo-geo/schema.md`) |
 
 ## Layout note
-Editorial layout: centred hero over a curved row of showcase stills (`components/ui/tilted-grid-hero.tsx`), large type, hairlines, no second navbar, and a closing light-grey band where the hyd01 flower resolves out of liquid glass above the contact form (id="contact"). The only page with "Book a demo". FAQ answers live in `lib/enterprise-faq.ts`, which also feeds the FAQPage JSON-LD; keep this copy in step with it. Only state claims Hydrilla can back up: no customer logos, usage numbers, or certifications until they are confirmed.
+Editorial layout with a compact hero above a curved showcase strip (`components/ui/tilted-grid-hero.tsx`), a two-column Enterprise Sales band with the Contact Sales form (`#contact-sales`), four studio metrics, an interactive four-tab visual pipeline showcase (`Water Agent`, `3D Plugins`, `Studio Workspace`, `API & MCP`), a clean 2x2 media showcase, five solution cards, Pro vs Enterprise comparison, security & IP cards, FAQ accordion (`lib/enterprise-faq.ts`), and a closing band (`#contact`) where the hyd01 flower resolves out of liquid glass.
 
 ## Page copy (render only what is between the markers; `**[Section …]**` labels are structure, not text)
 
 <!-- COPY:START -->
 **[Section 1: Hero]**
 
-Kicker: Studios
+Kicker: Hydrilla AI / Enterprise
 
-# Hydrilla for Enterprise
+# AI 3D built for the enterprise
 
-Production 3D assets at enterprise scale, across your whole studio.
+Hydrilla Enterprise brings BlueFox, Hydrilla's 3D model, and Water Agent to your studio inside one private workspace, across every 3D plugin, MCP, and the REST API.
 
-Hydrilla Enterprise brings BlueFox, Hydrilla's 3D model, and Water Agent to your team in one shared workspace and through the API, with seats, API concurrency, custom plans, and pipeline support.
+- 4 3D software plugins: Blender, Unity, Unreal Engine, and Godot 4
+- $0 Water Agent cost: AI 3D agent included with zero credits
+- 1 shared studio workspace: generations, part reviews, and approved assets
+- 0% customer data trained on: prompts, references, and outputs stay private
 
-- 4 export formats: GLB, FBX, OBJ, and USDZ
-- 4 engine and DCC plugins: Blender, Unity, Unreal, and Godot
-- 1 shared workspace: generations, reviews, and approved versions
-- 0 customer data used for training, on any plan
+**[Section 2: Enterprise Sales]**
 
-Visual: curved row of Hydrilla showcase stills, streaming across the page
+## Connect with our 3D AI experts
 
-**[Section 2: Workflow]**
+Plan seats, plugin setup, MCP automation, and API concurrency around your studio's monthly output.
 
-## From a prompt or an image to an asset in your pipeline
+Form fields: First name | Last name | Company / Studio | Job title | Work email | Team size | Primary 3D software or pipeline | What are you interested in | Pipeline notes
+Form submit: Continue
 
-Brief it, review it in the browser, and move it into the tools your team already uses.
+**[Section 3: Studio Control & Platform]**
 
-Card 1 title: Brief the asset
-Card 1 line: Type a prompt or upload a reference image. For a whole set, brief Water Agent as you would brief your team: the look, the pieces, the scene.
+## Pro control over your 3D pipeline
 
-Card 2 title: Generate and review
-Card 2 line: BlueFox returns a mesh in parts, UV-unwrapped, with PBR maps attached. Orbit it, select parts, and check materials under light, right in the browser.
+Switch between Water Agent, native 3D plugins, the shared Studio workspace, and API automation.
 
-Card 3 title: Export into your pipeline
-Card 3 line: Download GLB, FBX, OBJ, or USDZ, or send the model over the local Bridge into Blender, Unity, Unreal, or Godot.
+## Built for studios, agents, and 3D software
 
-**[Section 3: Organization]**
+- Water Agent for multi-asset briefs: describe an entire prop set or scene once, review the plan before generation starts, and revise individual pieces inside Studio or your 3D tool.
+- Native plugins across 3D software: [Integrations](/integrations) inside Blender, Unity, Unreal Engine, and Godot 4 over the local Bridge.
+- Segmented parts, UVs, and PBR maps: [BlueFox](/bluefox) returns meshes split into logical parts with unwrapped UVs and PBR maps attached.
+- MCP server and REST API concurrency: run batch 3D jobs from your backend or connect AI coding agents over [MCP](/integrations/mcp) and the [REST API](/api).
 
-## Hydrilla across your organization
+**[Section 4: Teams]**
 
-Each part of Enterprise is shaped around how your studio works rather than a fixed tier.
+## Built for every 3D team
 
-Card 1 title: Seats in a shared workspace
-Card 1 line: Art, lookdev, and pipeline staff work together in one shared workspace, so generations, reviews, and approved versions live in the same place.
+- [Game development](/solutions/games): level dressing, environment props, and asset sets inside Unity, Unreal Engine, and Godot 4.
+- [Film and animation](/solutions/film): set pieces and props for previs, layout, and background dressing inside Blender.
+- [Architecture and interiors](/solutions/architecture): furniture and fixtures for client presentations and design reviews.
+- [AR, VR, and XR](/solutions/xr): segmented 3D objects with clean UVs and PBR maps checked against frame budgets.
+- [Product visualization](/solutions/product): product photography turned into editable 3D meshes for web viewers, campaigns, and AR.
 
-Card 2 title: API concurrency
-Card 2 line: Jobs from your own backend, sized to your volume, for asset libraries, build steps, and internal tools.
+**[Section 5: Pro vs Enterprise]**
 
-Card 3 title: Custom credit pools
-Card 3 line: Custom plans with credit pools set around your monthly volume, instead of individual allowances.
+## Pro vs Enterprise
 
-Card 4 title: Queue priority
-Card 4 line: Priority is part of your plan, set around the monthly volume your pipeline needs.
-
-Card 5 title: Pipeline support
-Card 5 line: Help connecting the Bridge and plugins to your pipeline, so artists get generation inside the tools they already use.
-
-Card 6 title: Water Agent for the team
-Card 6 line: The AI 3D agent works alongside artists from brief to finished assets, in the Hydrilla app and inside their tools. It costs no credits.
-
-**[Section 4: Workspace and API]**
-
-## Two ways to use Hydrilla: the workspace and the API
-
-Use either one, or both. Artists work in Studio and their own tools, while engineers run the same generation from your backend.
-
-### Workspace
-
-For artists and art teams, in the browser and inside their tools.
-
-- Text to 3D and image to 3D with BlueFox
-- Water Agent, at no credit cost
-- Review in the browser: orbit, select parts, check materials
-- Plugins for Blender, Unity, Unreal, and Godot
-
-### API
-
-For pipeline engineers building generation into your own systems.
-
-- REST API with keys you keep server-side
-- Submit a job, then poll its status
-- A mesh in parts, with UVs and texture maps
-- Concurrency sized to your volume on Enterprise
-
-**[Section 5: Teams]**
-
-## How studio teams use Hydrilla
-
-Five ways teams put BlueFox to work, each with its fit, limits, and tools.
-
-- [Game development](/solutions/games): level dressing and prop sets for your game engine.
-- [Film and animation](/solutions/film): set pieces and props for previs, layout, and background dressing.
-- [Architecture and interiors](/solutions/architecture): furniture and fixtures that dress rooms for presentations and reviews.
-- [AR, VR, and XR](/solutions/xr): objects for headsets and spatial apps, checked against a frame budget.
-- [Product visualization](/solutions/product): product photos turned into 3D for web viewers, campaigns, and AR.
-
-**[Section 6: Pro vs Enterprise]**
-
-## How Enterprise differs from Pro
-
-Pro is built for individuals and small teams who buy online. Enterprise is for studios that need an agreement around their volume and their tools.
-
-| | Pro | Enterprise |
+| Capability | Pro | Enterprise |
 |---|---|---|
-| How you buy | Self-serve and monthly, on [pricing](/pricing) | An agreement shaped around your studio |
-| Built for | Individuals and small teams | Whole studios, with seats in a shared workspace |
-| Credits | 3,000 monthly credits on a set plan | Custom plans and credit pools |
-| API | REST API access | API concurrency sized to your volume |
-| Pipeline | Plugins and docs | Help connecting the Bridge and plugins |
-| Water Agent | Included, at no credit cost | Included, at no credit cost |
-| Export formats | GLB, FBX, OBJ, and USDZ | GLB, FBX, OBJ, and USDZ |
-| Training on your data | Never | Never |
+| Agreement | Self-serve monthly plan on [pricing](/pricing) | Custom agreement shaped around your studio |
+| Workspace | Individuals and small teams | Shared studio seats across art, lookdev, and pipeline |
+| Water Agent | Included at zero credit cost | Included across Studio and plugins at zero credit cost |
+| Plugins & Bridge | Blender, Unity, Unreal, and Godot plugins | Plugins, local Bridge, and pipeline onboarding |
+| MCP & REST API | Standard API and stdio MCP access | Concurrency and queue priority sized to volume |
+| Credits | 3,000 monthly credits | Custom credit pools shared across teams |
+| Model training | Never trains on customer data | Never trains on customer data |
 
-**[Section 7: Security]**
+**[Section 6: Security]**
 
-## Security, data, and IP
+## Your work stays yours
 
-Work made in a 3D workspace is often unreleased. The [security page](/security) sets out how it's handled; the [Privacy Policy](/privacy) and [Terms](/terms) are the binding documents.
+Details live on the [security page](/security); the [Privacy Policy](/privacy) and [Terms](/terms) are the binding documents.
 
-Card 1 title: Your data doesn't train our models
-Card 1 line: That holds on every plan, including your prompts, the reference images you upload, and the models you generate.
+- Zero model training: prompts, reference images, and generated 3D assets are never used to train our models on any plan.
+- Full output ownership: as between you and Hydrilla AI, and to the extent the law allows, you own generated outputs for commercial use under the [Terms](/terms#ownership).
+- Scoped to your workspace: sessions stay isolated per user, assets stay scoped to your studio, and Bridge transfers stay local on your machine.
 
-Card 2 title: You own your output
-Card 2 line: As between you and Hydrilla AI, and to the extent the law allows, you own what the service generates for you and may use it commercially. [Read the exact wording](/terms#ownership).
+Need a vendor review or custom legal agreement? Send your questionnaire to founders@hydrilla.ai with your studio name and timeline.
 
-Card 3 title: Your work stays scoped to you
-Card 3 line: Sign-in runs through Clerk, generated meshes stay scoped to your workspace, and files sent over the local Bridge travel on your machine to the tool you have open.
-
-Running a vendor review? Send your questionnaire to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm.
-
-**[Section 8: FAQ]**
+**[Section 7: FAQ]**
 
 ## Enterprise questions, answered
 
-**What's the difference between Pro and Enterprise?**
-Pro is a self-serve monthly plan for individuals and small teams: $12 a month for 3,000 credits, with REST API access. Enterprise is an agreement shaped around your studio, with seats in a shared workspace, API concurrency sized to your volume, custom credit pools, queue priority, and help connecting your pipeline. [See self-serve plans](/pricing).
+See `lib/enterprise-faq.ts` for all eight questions and answers rendered on `/enterprise` and emitted in `FAQPage` JSON-LD.
 
-**What drives Enterprise pricing?**
-Enterprise is quoted, not listed. The price follows your seats, API concurrency, monthly generation volume, and queue priority. Tell us those numbers, and we'll come back with a plan around them.
-
-**How do credits work on Enterprise?**
-Instead of individual allowances, your studio gets a credit pool set around its monthly volume. On public plans, a model at default quality costs 45 credits from text and 30 from an uploaded image, and Water Agent costs no credits. Your agreement sets the terms of your pool.
-
-**What happens to our assets if we don't renew?**
-Files you've already exported stay in your own pipeline. For work still in the workspace, export what you want to keep before your account closes: under the [Terms](/terms), content is deleted as described in the [Privacy Policy](/privacy) when an account closes.
-
-**Can we sign our own agreement?**
-Enterprise runs on an agreement shaped around your studio. Send your legal team's requirements or your own paper with your inquiry, and we'll tell you in writing what we can agree to.
-
-**Who owns what we generate, and do you train on our data?**
-You keep all rights in what you upload. As between you and Hydrilla AI, and to the extent the law allows, you own the output generated for you and may use it commercially. The [ownership section of the Terms](/terms#ownership) has the exact wording. We don't use your prompts, reference images, or generated models to train our models, on any plan. [How we handle data](/security).
-
-**Will Hydrilla fit the pipeline we already run?**
-Hydrilla exports GLB, FBX, OBJ, and USDZ on every plan. [Plugins](/integrations) for Blender, Unity, Unreal, and Godot connect through a local Bridge, the [REST API](/api) runs jobs from your own backend, and an [MCP server](/integrations/mcp) serves AI agents. Enterprise adds help connecting these to your pipeline.
-
-**Can we start on Pro and move up later?**
-Yes. You can evaluate on any self-serve plan first. When you get in touch, tell us what you run today, and we'll plan Enterprise around it.
-
-**Can we send a security questionnaire?**
-Yes. Send it to founders@hydrilla.ai, naming your studio and when you need answers. We answer in writing with what we can confirm.
-
-**[Section 9: Closing, anchor #contact]**
+**[Section 8: Closing, anchor #contact]**
 
 ## Get Hydrilla Enterprise
 
-Tell us your studio size, engine, and expected monthly volume, and whether you already generate on Pro. The more we know about your pipeline, the more useful the first conversation will be.
-
-Form fields: Full name | Work email | Studio | Studio size | Engine | Expected monthly volume | Message
-Form submit: Send message
+Ready to bring BlueFox, Water Agent, and native 3D plugins to your studio?
 <!-- COPY:END -->
 
 ## CTAs
 | Placement | Label | Destination |
 |---|---|---|
-| Hero, organization, and closing, primary | Book a demo | https://cal.com/hydrilla |
-| Hero, secondary | Talk to our team | `#contact` |
-| Form | Send message | form submit |
+| Hero and closing, primary | Book a demo | https://cal.com/hydrilla |
+| Hero and closing, secondary | Contact sales | `#contact-sales` |
+| Form | Continue | form submit |
 
 ## Internal links on this page
-- `/pricing`, `/features`, `/api`, `/integrations`, `/integrations/mcp`
+- `/pricing`, `/features`, `/bluefox`, `/water`, `/api`, `/integrations`, `/integrations/blender`, `/integrations/unity`, `/integrations/unreal`, `/integrations/godot`, `/integrations/mcp`
 - `/solutions/games`, `/solutions/film`, `/solutions/architecture`, `/solutions/xr`, `/solutions/product`
 - `/security`, `/privacy`, `/terms`, `/terms#ownership`
-
-## External links
-- https://cal.com/hydrilla
