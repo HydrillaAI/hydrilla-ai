@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import Footer from "@/components/layout/Footer";
 import { PickleCta } from "@/components/layout/PicklePage";
+import { DEMO_URL } from "@/lib/brand";
 
 const MONTHLY_CARDS = [
   {
@@ -277,7 +278,7 @@ export function PricingPageClient() {
                 </>
               }
               primary={{ label: "Start generating", href: "/app/studio" }}
-              secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+              secondary={{ label: "Talk to our team", href: DEMO_URL }}
             />
           </div>
         </div>

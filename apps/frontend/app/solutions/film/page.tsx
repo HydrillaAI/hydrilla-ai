@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCards, PickleCta, PickleHeroVideo } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_URL } from "@/lib/brand";
 
 const DESCRIPTION =
   "Generate props, set pieces, and lookdev bases with BlueFox for previs and layout, and keep hero assets with your artists.";
@@ -101,7 +102,7 @@ export default function FilmSolutionPage() {
           <PickleCta
             line="Generate what the camera passes by, and save artist hours for what it lingers on."
             primary={{ label: "Start generating", href: "/app/studio" }}
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>

@@ -57,14 +57,14 @@ Once you download an export, the file lives in your own pipeline, under your stu
 
 ## Questionnaires and vendor reviews
 
-For a questionnaire or vendor review, use Contact security below, or [talk to our team →](/enterprise#contact). Tell us your studio, the review you are running, and when you need answers, and we will reply in writing with what we can confirm.
+For a questionnaire or vendor review, use Contact security below, or [talk to our team →](https://cal.com/hydrilla). Tell us your studio, the review you are running, and when you need answers, and we will reply in writing with what we can confirm.
 <!-- COPY:END -->
 
 ## CTAs
 | Placement | Label | Destination |
 |---|---|---|
 | Section 4, primary | Contact security | `mailto:founders@hydrilla.ai` |
-| Section 4, secondary | Talk to our team | `/enterprise#contact` |
+| Section 4, secondary | Talk to our team | https://cal.com/hydrilla |
 
 ## Internal links on this page
 - `/enterprise#contact`

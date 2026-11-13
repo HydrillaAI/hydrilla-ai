@@ -645,7 +645,7 @@ URL: https://hydrilla.ai/enterprise
 
 Hydrilla Enterprise brings BlueFox, Hydrilla's 3D model, and Water Agent to your studio inside one private workspace, across every 3D plugin, MCP, and the REST API.
 
-- 4 3D software plugins: Blender, Unity, Unreal Engine, and Godot 4
+- 6 3D software plugins: Blender, Maya, 3ds Max, Unity, Unreal Engine, and Godot 4
 - $0 Water Agent cost: AI 3D agent included with zero credits
 - 1 shared studio workspace: generations, part reviews, and approved assets
 - 0% customer data trained on: prompts, references, and outputs stay private
@@ -660,7 +660,7 @@ Switch between Water Agent, native 3D plugins, the shared Studio workspace, and 
 Describe an entire prop set or scene once. Review the plan before generation starts and revise individual pieces inside Studio or your 3D tool.
 
 #### Native plugins across 3D software
-Generate inside Blender, Unity, Unreal Engine, and Godot 4, or send approved meshes from Studio over the local Bridge.
+Generate inside Blender, Maya, 3ds Max, Unity, Unreal Engine, and Godot 4, or send approved meshes from Studio over the local Bridge, alongside workflows for Houdini, Cinema 4D, ZBrush, Nuke, DaVinci Resolve, Krita, GIMP, AutoCAD, and Autodesk Fusion.
 
 #### Segmented parts, UVs, and PBR maps
 [BlueFox](https://hydrilla.ai/bluefox) returns meshes split into logical parts with unwrapped UVs and PBR maps attached, ready for lookdev and lighting.
@@ -1275,4 +1275,4 @@ Sign-in runs through Clerk, and each session belongs to one user. Generated mesh
 
 ### Exports and vendor reviews
 
-Once you download an export, the file lives in your own pipeline. For a questionnaire or vendor review, use Contact security below, or [talk to our team](https://hydrilla.ai/enterprise#contact). See also the [Privacy Policy](https://hydrilla.ai/privacy) and [Terms](https://hydrilla.ai/terms).
+Once you download an export, the file lives in your own pipeline. For a questionnaire or vendor review, use Contact security below, or [talk to our team](https://cal.com/hydrilla). See also the [Privacy Policy](https://hydrilla.ai/privacy) and [Terms](https://hydrilla.ai/terms).

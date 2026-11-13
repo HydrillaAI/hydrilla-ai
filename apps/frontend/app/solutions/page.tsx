@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleLinkCards, type PickleLinkItem } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_URL } from "@/lib/brand";
 import { cloudinaryImage } from "@/lib/cloudinary";
 
 const DESCRIPTION =
@@ -109,7 +110,7 @@ export default function SolutionsPage() {
                 Rolling out across a studio? <Link href="/enterprise">See Enterprise</Link>
               </>
             }
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>

@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleHeroVideo } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_URL } from "@/lib/brand";
 
 const DESCRIPTION =
   "Generate 3D assets with BlueFox for AR, VR, and spatial apps, and check each one against your headset's budget before it ships.";
@@ -71,7 +72,7 @@ export default function XrSolutionPage() {
           <PickleCta
             line="Prototype the space with generated objects, then budget each one for the headset."
             primary={{ label: "Start generating", href: "/app/studio" }}
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>

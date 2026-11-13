@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleHeroVideo, PicklePlaceholder } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_URL } from "@/lib/brand";
 
 const DESCRIPTION =
   "Generate props and environment fill with BlueFox, and see what still needs retopology and LODs before it goes into your engine.";
@@ -85,7 +86,7 @@ export default function GamesSolutionPage() {
           <PickleCta
             line="Fill the level now, and polish the pieces players will notice."
             primary={{ label: "Start generating", href: "/app/studio" }}
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>

@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleHeroVideo } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_URL } from "@/lib/brand";
 
 const DESCRIPTION =
   "Turn product photos into 3D models with BlueFox for marketing, web viewers, and AR, with a clear note on where a likeness differs from CAD.";
@@ -65,7 +66,7 @@ export default function ProductSolutionPage() {
           <PickleCta
             line="Show the product in 3D, and keep the spec sheet as the source of truth."
             primary={{ label: "Start generating", href: "/app/studio" }}
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>

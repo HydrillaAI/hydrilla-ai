@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { PickleCta, PickleHeroVideo } from "@/components/layout/PicklePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_URL } from "@/lib/brand";
 
 const DESCRIPTION =
   "Generate furniture, fixtures, and interior props from a photo or prompt with BlueFox for architectural visualization and client reviews.";
@@ -100,7 +101,7 @@ export default function ArchitectureSolutionPage() {
           <PickleCta
             line="Dress the room with generated pieces, and keep the specified products exact."
             primary={{ label: "Start generating", href: "/app/studio" }}
-            secondary={{ label: "Talk to our team", href: "/enterprise#contact" }}
+            secondary={{ label: "Talk to our team", href: DEMO_URL }}
           />
         </div>
       </article>
