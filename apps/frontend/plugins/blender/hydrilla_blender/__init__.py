@@ -1,315 +1,211 @@
 bl_info = {
     "name": "Hydrilla",
     "author": "Hydrilla",
-    "version": (1, 3, 15),
+    "version": (2, 2, 0),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > Hydrilla",
-    "description": "Built-in Bridge, Clerk sign-in, and AI 3D generate/import",
+    "description": "Generate AI 3D models, receive them from Hydrilla Studio, and let your AI agent build the scene",
     "category": "Import-Export",
 }
 
-import base64
 import importlib
-import json
 import os
 import threading
 import time
-import webbrowser
 from queue import Empty, Queue
-from typing import Any, Optional
-from urllib.parse import urlparse
 
 import bpy
-from bpy.props import (
-    BoolProperty,
-    CollectionProperty,
-    EnumProperty,
-    IntProperty,
-    PointerProperty,
-    StringProperty,
-)
-from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup
+from bpy.props import BoolProperty, EnumProperty, PointerProperty, StringProperty
+from bpy.types import AddonPreferences, Operator, Panel
 from bpy_extras.io_utils import ImportHelper
 
-from . import api_client
-from . import bridge_client
+from . import hydrilla_config
+from . import hydrilla_api
+from . import addon_updater
+from . import bridge_server
+from . import agent_commands
 from . import bridge_runtime
 
-BRIDGE_URL = f"http://127.0.0.1:{bridge_runtime.BRIDGE_PORT}"
-DEFAULT_SITE = "https://hydrilla.ai"
-DEFAULT_API_BASE = "https://hydrilla-backend.vercel.app"
-DEFAULT_LOCAL_SITE = "http://localhost:3000"
-DEFAULT_LOCAL_API = "http://localhost:4000"
-ADDON_ID = __name__
+ADDON_ID = __package__ or __name__
+TASK_LIST_LIMIT = 30
+TASK_REFRESH_SECONDS = 10.0
+# A task still "running" after this long is no longer worth polling for.
+STALE_TASK_SECONDS = 30 * 60
+VISIBLE_TASKS = 12
 
-# Clerk JWTs last ~60s; Connect tab must stay open to refresh the Bridge session
-SESSION_REAUTH = (
-    "Session expired. Click Sign in, finish in the browser, "
-    "KEEP the Connect tab open, then Sync and Generate again."
-)
-SESSION_KEEP_TAB = (
-    "Keep the browser Connect tab open and visible — "
-    "it refreshes your login every ~10s."
-)
-MIN_TOKEN_SECONDS = 5
+# Everything below is runtime state. Nothing here is saved into the .blend file.
+_EVENTS = Queue()
+_JOB = {"busy": False, "cancel": False, "started_at": 0.0, "task_id": ""}
+_STATUS = {"text": "Ready", "kind": "INFO", "phase": "", "progress": 0}
+_ACCOUNT = {"state": "NONE", "credits": None, "plan": "", "message": ""}
+_TASKS = {"items": [], "fetching": False, "error": "", "fetched_at": "", "next_refresh": 0.0}
+# Guards the key and server fields' update callbacks against re-entering themselves.
+_GUARD = {"key": False, "base": False, "site": False}
+
+ACCOUNT_NONE = "NONE"
+ACCOUNT_UNVERIFIED = "UNVERIFIED"
+ACCOUNT_CHECKING = "CHECKING"
+ACCOUNT_OK = "OK"
+ACCOUNT_BAD = "BAD"
+ACCOUNT_ERROR = "ERROR"
+
+UPDATE_IDLE = "IDLE"
+UPDATE_CHECKING = "CHECKING"
+UPDATE_AVAILABLE = "AVAILABLE"
+UPDATE_UPDATING = "UPDATING"
+UPDATE_UP_TO_DATE = "UP_TO_DATE"
+UPDATE_UPDATED = "UPDATED"
+UPDATE_ERROR = "ERROR"
+
+_UPDATE = {
+    "state": UPDATE_IDLE,
+    "remote_version": "",
+    "remote_build_id": "",
+    "manifest": None,
+    "message": "",
+    "manual": False,
+}
+
+# --------------------------------------------------------------------------
+# Settings
+# --------------------------------------------------------------------------
 
 
-def _prefs(context):
-    return context.preferences.addons[ADDON_ID].preferences
+def _prefs(context=None):
+    ctx = context or bpy.context
+    addon = ctx.preferences.addons.get(ADDON_ID)
+    return addon.preferences if addon else None
 
 
-def _bridge_running(context) -> bool:
-    props = getattr(context.window_manager, "hydrilla_bridge_props", None)
-    return bool(props and props.bridge_running)
+def _api_key(context=None) -> str:
+    prefs = _prefs(context)
+    return hydrilla_config.resolve_api_key(prefs.api_key if prefs else "")
 
 
-def _is_http_url(value: str) -> bool:
-    text = (value or "").strip().lower()
-    if not (text.startswith("http://") or text.startswith("https://")):
+def _api_base(context=None) -> str:
+    prefs = _prefs(context)
+    return hydrilla_config.resolve_api_base(prefs.api_server if prefs else "")
+
+
+def _has_api_key(prefs=None) -> bool:
+    target = prefs if prefs is not None else _prefs()
+    return bool((target and target.api_key) or hydrilla_config.resolve_api_key(""))
+
+
+def _editing_api_key() -> bool:
+    window_manager = getattr(bpy.context, "window_manager", None)
+    if window_manager is None or not hasattr(window_manager, "hydrilla_edit_api_key"):
         return False
-    # Blender inserts bpy.ops… into focused text fields when clicking operators
-    if "bpy." in text or "()" in text or " " in text.strip():
-        return False
-    return True
+    return bool(window_manager.hydrilla_edit_api_key)
 
 
-def _url_port(value: str) -> str:
+def _set_editing_api_key(editing: bool) -> None:
+    window_manager = getattr(bpy.context, "window_manager", None)
+    if window_manager is None or not hasattr(window_manager, "hydrilla_edit_api_key"):
+        return
+    window_manager.hydrilla_edit_api_key = editing
+
+
+def _show_api_field(prefs) -> bool:
+    """The key box stays up until a key is saved and accepted."""
+    if not _has_api_key(prefs) or _editing_api_key():
+        return True
+    return _ACCOUNT["state"] == ACCOUNT_BAD
+
+
+def _site_base(context=None) -> str:
+    prefs = _prefs(context)
+    explicit = ""
+    if prefs and prefs.site_server and prefs.site_server != hydrilla_config.DEFAULT_SITE_URL:
+        explicit = prefs.site_server
+    return hydrilla_config.site_url(explicit)
+
+
+def _version_text() -> str:
+    return ".".join(str(part) for part in bl_info["version"])
+
+
+def _background_calls_allowed() -> bool:
+    """Whether the add-on may contact Hydrilla without the user pressing anything.
+
+    Blender 4.2+ has an "Allow Online Access" setting. With it off, the add-on
+    only goes online for something the user explicitly asks for.
+    """
+    return bool(getattr(bpy.app, "online_access", True))
+
+
+def _client(context=None):
+    """Build an API client, or raise with a message the user can act on."""
+    key = _api_key(context)
+    if not key:
+        raise hydrilla_api.HydrillaApiError(
+            hydrilla_api.NO_KEY_MESSAGE, kind=hydrilla_api.ERROR_AUTH
+        )
+    return hydrilla_api.HydrillaClient(key, _api_base(context))
+
+
+def _on_api_key_changed(self, context):
+    if _GUARD["key"]:
+        return
+    cleaned = hydrilla_config.clean_api_key(self.api_key)
+    if cleaned != self.api_key:
+        _GUARD["key"] = True
+        try:
+            self.api_key = cleaned
+        finally:
+            _GUARD["key"] = False
     try:
-        parsed = urlparse((value or "").strip())
-        if parsed.port:
-            return str(parsed.port)
-        if parsed.scheme == "https":
-            return "443"
-        if parsed.scheme == "http":
-            return "80"
-    except Exception:
-        pass
-    return ""
+        # Shared with the other Hydrilla plugins and the MCP server.
+        hydrilla_config.save_api_key(cleaned)
+    except OSError as error:
+        print("[Hydrilla] Could not save the API key for other tools: %s" % error)
+
+    _TASKS["items"] = []
+    _TASKS["error"] = ""
+    _ACCOUNT.update(credits=None, plan="", message="")
+    if not cleaned:
+        _ACCOUNT["state"] = ACCOUNT_NONE
+        _set_status("API key removed.", "INFO")
+    elif not hydrilla_config.looks_like_api_key(cleaned):
+        _ACCOUNT["state"] = ACCOUNT_BAD
+        _ACCOUNT["message"] = "That does not look like a Hydrilla key (hyd_live_…)."
+    else:
+        _ACCOUNT["state"] = ACCOUNT_UNVERIFIED
+        _start_verify(context)
+    _tag_redraw()
 
 
-def _is_local_host(value: str) -> bool:
-    host = (urlparse((value or "").strip()).hostname or "").lower()
-    return host in {"localhost", "127.0.0.1", "::1"}
-
-
-def _looks_like_frontend_url(value: str) -> bool:
-    """Site / Next.js URLs must never be used as API Base."""
-    text = (value or "").strip().rstrip("/").lower()
-    if not text:
-        return False
-    port = _url_port(text)
-    if port in {"3000", "3001", "5173", "8080"}:
-        return True
-    # Production marketing site (not the Node API)
-    host = (urlparse(text).hostname or "").lower()
-    if host in {"hydrilla.ai", "www.hydrilla.ai"}:
-        return True
-    return False
-
-
-def _looks_like_gpu_gateway_url(value: str) -> bool:
-    """Old default pointed at the GPU host; DCC clients must use the Node backend."""
-    host = (urlparse((value or "").strip()).hostname or "").lower()
-    return host in {"api.hydrilla.ai", "api.hydrilla.co"}
-
-
-def _default_api_for_site(site_url: str) -> str:
-    # Only Local Site (:3000) implies Local API (:4000)
-    if _is_local_host(site_url):
-        return DEFAULT_LOCAL_API
-    return DEFAULT_API_BASE
-
-
-def _sanitize_http_url(raw: str, fallback: str) -> str:
-    value = (raw or "").strip().rstrip("/")
-    if _is_http_url(value):
-        return value
-    return (fallback or DEFAULT_API_BASE).rstrip("/")
-
-
-def _normalize_api_base(raw: str, site_url: str = "") -> str:
-    """
-    Force a real API origin.
-    Blender often pastes Site URL (:3000) or bpy.ops into the API field.
-    Also remaps legacy GPU gateway hosts (api.hydrilla.ai) to the Node backend.
-    """
-    site = _sanitize_http_url(site_url, DEFAULT_SITE)
-    fallback = _default_api_for_site(site)
-    value = (raw or "").strip().rstrip("/")
-
-    if not _is_http_url(value):
-        return fallback
-    if _looks_like_frontend_url(value):
-        return fallback
-    if _looks_like_gpu_gateway_url(value):
-        return fallback
-    if site and value.lower() == site.lower():
-        return fallback
-    return value
-
-
-def _prefs_site_url(prefs) -> str:
-    raw = getattr(prefs, "site_url", "") or ""
-    fixed = _sanitize_http_url(raw, DEFAULT_SITE)
-    if str(raw).strip().rstrip("/") != fixed:
+def _on_api_base_changed(self, context):
+    if _GUARD["base"]:
+        return
+    fixed = hydrilla_config.normalize_api_base(self.api_server)
+    if fixed != self.api_server:
+        _GUARD["base"] = True
         try:
-            prefs.site_url = fixed
-        except Exception:
-            pass
-    return fixed
+            self.api_server = fixed
+        finally:
+            _GUARD["base"] = False
 
 
-def _prefs_api_base(prefs) -> str:
-    """Read API base; never allow Site URL (:3000) or bpy.ops pollution."""
-    site = getattr(prefs, "site_url", "") or ""
-    # Newest prop first — older names may still hold a pasted :3000 Site URL
-    raw = getattr(prefs, "api_server", None)
-    if raw is None or str(raw).strip() == "":
-        raw = getattr(prefs, "api_base_url", None)
-    if raw is None or str(raw).strip() == "":
-        raw = getattr(prefs, "api_base", "") or ""
-
-    fixed = _normalize_api_base(str(raw), site)
-    if str(raw).strip().rstrip("/") != fixed:
+def _on_site_base_changed(self, context):
+    if _GUARD["site"]:
+        return
+    fixed = hydrilla_config.normalize_site_url(self.site_server)
+    if fixed != self.site_server:
+        _GUARD["site"] = True
         try:
-            prefs.api_server = fixed
-        except Exception:
-            pass
-    return fixed
+            self.site_server = fixed
+        finally:
+            _GUARD["site"] = False
 
 
-def _prefs_bridge_url(prefs) -> str:
-    raw = getattr(prefs, "bridge_url", "") or ""
-    fixed = _sanitize_http_url(raw, BRIDGE_URL)
-    if str(raw).strip().rstrip("/") != fixed:
-        try:
-            prefs.bridge_url = fixed
-        except Exception:
-            pass
-    return fixed
+# --------------------------------------------------------------------------
+# Status
+# --------------------------------------------------------------------------
 
 
-def _bridge_token_provider():
-    """Pull a fresh Clerk JWT from the embedded Bridge (Connect tab refreshes it)."""
-
-    def provider():
-        try:
-            session = bridge_runtime.get_auth_session()
-            if session.get("signed_in") and session.get("token"):
-                return session.get("token")
-        except Exception:
-            pass
-        return None
-
-    return provider
-
-
-def _build_client(*, token: str, mode: str, base_url: str):
-    """Build API client without relying on make_client (older installs may lack it)."""
-    provider = _bridge_token_provider() if mode == "clerk" else None
-    return api_client.HydrillaClient(
-        token,
-        base_url=base_url,
-        mode=mode,
-        token_provider=provider,
-    )
-
-
-# Background generate jobs — keep HTTP off Blender's main thread (no rainbow freeze)
-_JOB: dict = {
-    "busy": False,
-    "cancel": False,
-    "events": Queue(),
-    "started_at": 0.0,
-    "mode": "",
-}
-
-# Account job list (creator history from /api/3d/history)
-_JOBS_UI: dict = {
-    "fetching": False,
-    "events": Queue(),
-    "auto": False,
-}
-
-ACTIVE_JOB_STATUSES = {
-    "WAIT",
-    "RUN",
-    "PENDING",
-    "QUEUED",
-    "IN_PROGRESS",
-    "RUNNING",
-    "PROCESSING",
-}
-DONE_JOB_STATUSES = {"DONE", "SUCCEEDED", "SUCCESS", "COMPLETED"}
-FAILED_JOB_STATUSES = {"FAIL", "FAILED", "ERROR"}
-CANCELLED_JOB_STATUSES = {"CANCELLED", "CANCELED"}
-
-
-def _normalize_job_status(status: str, *, has_mesh: bool = False) -> str:
-    """Canonical status. Mesh URL means Done even if the server still says RUN."""
-    code = (status or "").strip().upper()
-    if has_mesh and code in ACTIVE_JOB_STATUSES | {""}:
-        return "DONE"
-    if code in DONE_JOB_STATUSES:
-        return "DONE"
-    if code in FAILED_JOB_STATUSES:
-        return "FAILED"
-    if code in CANCELLED_JOB_STATUSES:
-        return "CANCELLED"
-    if code in {"WAIT", "PENDING", "QUEUED"}:
-        return "PENDING"
-    if code in {"RUN", "IN_PROGRESS", "RUNNING", "PROCESSING"}:
-        return "RUNNING"
-    return code or "UNKNOWN"
-
-
-def _job_status_label(status: str, *, has_mesh: bool = False) -> str:
-    code = _normalize_job_status(status, has_mesh=has_mesh)
-    if code == "PENDING":
-        return "Pending"
-    if code == "RUNNING":
-        return "Running"
-    if code == "DONE":
-        return "Done"
-    if code == "FAILED":
-        return "Failed"
-    if code == "CANCELLED":
-        return "Cancelled"
-    return code.title() if code else "Unknown"
-
-
-def _job_status_icon(status: str, *, has_mesh: bool = False) -> str:
-    label = _job_status_label(status, has_mesh=has_mesh)
-    if label == "Pending":
-        return "TIME"
-    if label == "Running":
-        return "SORTTIME"
-    if label == "Done":
-        return "CHECKMARK"
-    if label == "Failed":
-        return "ERROR"
-    return "INFO"
-
-
-def _job_sort_key(item: dict) -> tuple:
-    code = _normalize_job_status(
-        str(item.get("status") or ""),
-        has_mesh=bool(item.get("mesh_url")),
-    )
-    order = {"RUNNING": 0, "PENDING": 1, "DONE": 2, "FAILED": 3, "CANCELLED": 4}
-    return (order.get(code, 9), str(item.get("created_at") or ""), str(item.get("id") or ""))
-
-
-def _truncate(text: str, width: int = 28) -> str:
-    value = (text or "").replace("\n", " ").strip()
-    if len(value) <= width:
-        return value or "(no prompt)"
-    return value[: width - 1] + "…"
-
-
-
-def _tag_hydrilla_redraw() -> None:
-    window_manager = bpy.context.window_manager
+def _tag_redraw() -> None:
+    window_manager = getattr(bpy.context, "window_manager", None)
     if not window_manager:
         return
     for window in window_manager.windows:
@@ -317,17 +213,25 @@ def _tag_hydrilla_redraw() -> None:
         if not screen:
             continue
         for area in screen.areas:
-            if area.type in {"VIEW_3D", "PROPERTIES"}:
+            if area.type in {"VIEW_3D", "PREFERENCES"}:
                 area.tag_redraw()
 
 
-def _wrap_status_lines(text: str, width: int = 34) -> list:
-    raw = (text or "Ready").replace("\n", " ").strip() or "Ready"
-    words = raw.split()
-    lines: list = []
+def _set_status(text: str, kind: str = "INFO", phase: str = "", progress: int = -1) -> None:
+    _STATUS["text"] = text
+    _STATUS["kind"] = kind
+    _STATUS["phase"] = phase
+    if progress >= 0:
+        _STATUS["progress"] = max(0, min(100, int(progress)))
+    _tag_redraw()
+
+
+def _wrap(text: str, width: int = 34) -> list:
+    words = (text or "").replace("\n", " ").split()
+    lines = []
     current = ""
     for word in words:
-        candidate = f"{current} {word}".strip() if current else word
+        candidate = ("%s %s" % (current, word)).strip()
         if len(candidate) > width and current:
             lines.append(current)
             current = word
@@ -338,953 +242,925 @@ def _wrap_status_lines(text: str, width: int = 34) -> list:
     return lines or ["Ready"]
 
 
-def _set_scene_status(
-    scene,
-    text: str,
-    *,
-    kind: str = "INFO",
-    phase: str = "",
-    progress: int = -1,
-    busy: Optional[bool] = None,
-    task_id: Optional[str] = None,
-) -> None:
-    """Write durable status onto the scene so reconnect / Sync still shows it."""
-    scene.hydrilla_status = text
-    scene.hydrilla_status_kind = kind
-    if phase:
-        scene.hydrilla_job_phase = phase
-    if progress >= 0:
-        scene.hydrilla_job_progress = max(0, min(100, int(progress)))
-    if busy is not None:
-        scene.hydrilla_busy = bool(busy)
-    if task_id is not None:
-        scene.hydrilla_job_task_id = task_id
+def _truncate(text: str, width: int = 30) -> str:
+    value = (text or "").replace("\n", " ").strip()
+    if not value:
+        return "(no prompt)"
+    if len(value) <= width:
+        return value
+    return value[: width - 1] + "…"
 
 
-def _local_job_busy(scene=None) -> bool:
-    """True only while THIS Blender session is actively generating/importing."""
-    if _JOB["busy"]:
-        return True
-    if scene is not None and bool(getattr(scene, "hydrilla_busy", False)):
-        return True
-    return False
-
-
-def _status_icon(kind: str, busy: bool) -> str:
-    if busy:
-        return "SORTTIME"
-    if kind == "ERROR" or kind == "SESSION":
-        return "ERROR"
-    if kind == "DONE":
-        return "CHECKMARK"
-    return "INFO"
-
-
-def _status_headline(scene) -> str:
-    busy = _local_job_busy(scene)
-    kind = scene.hydrilla_status_kind or "INFO"
-    phase = (scene.hydrilla_job_phase or "").strip()
-    progress = int(getattr(scene, "hydrilla_job_progress", 0) or 0)
-    if busy:
-        if phase and progress > 0:
-            return f"Generating · {phase} · {progress}%"
-        if phase:
-            return f"Generating · {phase}"
-        return "Generating…"
-    if kind == "SESSION":
-        return "Session issue"
-    if kind == "ERROR":
-        return "Failed"
-    if kind == "DONE":
-        return "Done"
-    pending = int(getattr(scene, "hydrilla_jobs_pending", 0) or 0)
-    running = int(getattr(scene, "hydrilla_jobs_running", 0) or 0)
-    if pending or running:
-        return f"Account · {running} running · {pending} pending"
-    return "Ready"
-
-
-def _draw_status_block(layout, scene) -> None:
-    """Always-visible status: local generate vs account job summary."""
-    busy = _local_job_busy(scene)
-    kind = scene.hydrilla_status_kind or "INFO"
-    box = layout.box()
-    header = box.row()
-    header.label(text=_status_headline(scene), icon=_status_icon(kind, busy))
-    if busy and _JOB.get("started_at"):
-        elapsed = max(0, int(time.time() - float(_JOB["started_at"])))
-        header.label(text=f"{elapsed}s")
-
-    for line in _wrap_status_lines(scene.hydrilla_status or "Ready"):
-        box.label(text=line)
-
-    if kind == "SESSION":
-        box.label(text="Fix: Sign in → keep Connect tab open → Sync", icon="URL")
-        row = box.row(align=True)
-        row.operator("hydrilla.sign_in", text="Sign in", icon="URL")
-        row.operator("hydrilla.sync_account", text="Sync", icon="FILE_REFRESH")
-    elif busy:
-        box.operator("hydrilla.cancel_generate", text="Cancel", icon="X")
-    elif (scene.hydrilla_job_task_id or "").strip() and kind == "ERROR":
-        box.operator("hydrilla.resume_job", text="Retry poll task", icon="FILE_REFRESH")
-
-
-def _show_hydrilla_popup(message: str, *, title: str = "Hydrilla", icon: str = "INFO") -> None:
-    """Blender popup after background generate finishes (reports from timers are easy to miss)."""
-    lines = _wrap_status_lines(message, width=48)
+def _popup(message: str, title: str = "Hydrilla", icon: str = "INFO") -> None:
+    lines = _wrap(message, width=48)
 
     def draw_popup(menu, _context):
-        col = menu.layout.column(align=True)
+        column = menu.layout.column(align=True)
         for line in lines:
-            col.label(text=line)
+            column.label(text=line)
 
-    window_manager = bpy.context.window_manager
-    if window_manager:
-        window_manager.popup_menu(draw_popup, title=title, icon=icon)
-
-
-def _job_emit(kind: str, **payload) -> None:
-    _JOB["events"].put({"kind": kind, **payload})
-
-
-def _human_task_status(status: str, progress: Any) -> tuple:
-    """Return (phase, progress_int, status_line)."""
-    code = (status or "").upper()
+    # Popups need a real window: none exists in background mode, and timers
+    # run without an active one.
+    if bpy.app.background:
+        return
+    window_manager = getattr(bpy.context, "window_manager", None)
+    if not window_manager or not len(window_manager.windows):
+        return
+    window = bpy.context.window or window_manager.windows[0]
     try:
-        pct = int(progress) if progress is not None else 0
-    except Exception:
-        pct = 0
-    if code in {"PENDING", "QUEUED", "WAIT"}:
-        return "Queued", pct, f"Queued on server… {pct}%" if pct else "Queued on server…"
-    if code in {"IN_PROGRESS", "RUNNING", "PROCESSING", "RUN"}:
-        return "Generating", pct, f"Generating mesh… {pct}%" if pct else "Generating mesh…"
-    if code == "SUCCEEDED":
-        return "Done", 100, "Generation succeeded"
-    if code in {"FAILED", "ERROR"}:
-        return "Failed", pct, "Generation failed"
-    if code in {"CANCELLED", "CANCELED"}:
-        return "Cancelled", pct, "Generation cancelled"
-    return code or "Working", pct, f"{code or 'Working'}… {pct}%" if pct else (code or "Working…")
+        if hasattr(bpy.context, "temp_override"):
+            with bpy.context.temp_override(window=window):
+                window_manager.popup_menu(draw_popup, title=title, icon=icon)
+        else:
+            window_manager.popup_menu(draw_popup, title=title, icon=icon)
+    except Exception as error:
+        # The status line already carries the message.
+        print("[Hydrilla] %s (%s)" % (message, _error_text(error)))
 
 
-def _job_timer() -> Optional[float]:
-    """Main-thread timer: apply status to the Hydrilla panel and import when done."""
-    scene = getattr(bpy.context, "scene", None)
-    if scene is None:
-        return 0.25 if _JOB["busy"] else None
+def _task_state(task: dict) -> str:
+    """READY, RUNNING, STALLED, CANCELLED or FAILED for a task from the API."""
+    status = str(task.get("status") or "").upper()
+    if status == "SUCCEEDED":
+        return "READY"
+    if status in ("PENDING", "IN_PROGRESS"):
+        try:
+            age = time.time() - float(task.get("created_at") or 0)
+        except (TypeError, ValueError):
+            age = 0.0
+        return "STALLED" if age > STALE_TASK_SECONDS else "RUNNING"
+    if status == "CANCELLED":
+        return "CANCELLED"
+    return "FAILED"
 
-    try:
-        while True:
-            event = _JOB["events"].get_nowait()
-            kind = event.get("kind")
-            if kind == "status":
-                text = str(event.get("text") or "")
-                phase = str(event.get("phase") or scene.hydrilla_job_phase or "Working")
-                progress = event.get("progress")
-                progress_i = int(progress) if progress is not None else -1
-                status_kind = "SESSION" if _is_session_error(text) else "RUNNING"
-                _set_scene_status(
-                    scene,
-                    text,
-                    kind=status_kind,
-                    phase=phase,
-                    progress=progress_i,
-                    busy=True,
-                    task_id=event.get("task_id"),
-                )
-            elif kind == "error":
-                message = str(event.get("text") or "Failed")
-                status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-                _set_scene_status(
-                    scene,
-                    message,
-                    kind=status_kind,
-                    phase="Failed" if status_kind == "ERROR" else "Session",
-                    progress=0,
-                    busy=False,
-                    task_id=scene.hydrilla_job_task_id or "",
-                )
-                _JOB["busy"] = False
-                _JOB["cancel"] = False
-                scene.hydrilla_busy = False
-                _tag_hydrilla_redraw()
-                popup_title = (
-                    "Hydrilla — Session expired"
-                    if status_kind == "SESSION"
-                    else "Hydrilla — Failed"
-                )
-                _show_hydrilla_popup(message, title=popup_title, icon="ERROR")
+
+def _error_text(error: BaseException) -> str:
+    return str(error).strip() or error.__class__.__name__
+
+
+# --------------------------------------------------------------------------
+# Background work. Threads never touch bpy; they post events for the timer.
+# --------------------------------------------------------------------------
+
+
+def _emit(kind: str, **payload) -> None:
+    payload["kind"] = kind
+    _EVENTS.put(payload)
+
+
+def _ensure_pump() -> None:
+    if not bpy.app.timers.is_registered(_pump):
+        bpy.app.timers.register(_pump, first_interval=0.05, persistent=True)
+
+
+def _handle_event(event: dict) -> None:
+    kind = event.get("kind")
+    if kind == "account":
+        state = event.get("state", ACCOUNT_ERROR)
+        _ACCOUNT.update(
+            state=state,
+            credits=event.get("credits"),
+            plan=event.get("plan", ""),
+            message=event.get("message", ""),
+        )
+        if state == ACCOUNT_OK:
+            _set_editing_api_key(False)
+        return
+
+    if kind == "tasks":
+        _TASKS["fetching"] = False
+        _TASKS["error"] = event.get("error", "")
+        if not _TASKS["error"]:
+            _TASKS["items"] = event.get("items") or []
+            _TASKS["fetched_at"] = time.strftime("%H:%M:%S")
+        if event.get("auth_failed"):
+            _ACCOUNT.update(state=ACCOUNT_BAD, message=_TASKS["error"])
+        return
+
+    if kind == "job_status":
+        if event.get("task_id"):
+            _JOB["task_id"] = event["task_id"]
+        _set_status(
+            str(event.get("text") or "Working…"),
+            "RUNNING",
+            phase=str(event.get("phase") or ""),
+            progress=int(event.get("progress", -1)),
+        )
+        return
+
+    if kind == "job_done":
+        _JOB.update(busy=False, cancel=False)
+        path = str(event.get("path") or "")
+        try:
+            bridge_runtime.import_glb(path, str(event.get("name") or ""))
+            _set_status("Imported into the scene. Find it in the Outliner.", "DONE", progress=100)
+            _popup("Model imported into the scene.", title="Hydrilla", icon="CHECKMARK")
+        except Exception as error:
+            message = "Generated, but the import failed: %s" % _error_text(error)
+            _set_status(message, "ERROR")
+            _popup(message, title="Hydrilla", icon="ERROR")
+        finally:
+            if path and os.path.isfile(path):
                 try:
-                    _start_jobs_fetch(bpy.context, quiet=True)
-                except Exception:
+                    os.remove(path)
+                except OSError:
                     pass
-                return 0.5
-            elif kind == "done":
-                path = event.get("path") or ""
-                try:
-                    if path and os.path.isfile(path):
-                        bpy.ops.import_scene.gltf(filepath=path)
-                    _set_scene_status(
-                        scene,
-                        "Imported into the 3D Viewport — check the Outliner.",
-                        kind="DONE",
-                        phase="Imported",
-                        progress=100,
-                        busy=False,
-                        task_id="",
-                    )
-                    _show_hydrilla_popup(
-                        "Mesh imported into the scene.",
-                        title="Hydrilla — Done",
-                        icon="CHECKMARK",
-                    )
-                except Exception as error:
-                    message = _user_error(error)
-                    status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-                    _set_scene_status(
-                        scene,
-                        message,
-                        kind=status_kind,
-                        phase="Import failed",
-                        busy=False,
-                        task_id="",
-                    )
-                    _show_hydrilla_popup(message, title="Hydrilla — Failed", icon="ERROR")
-                _JOB["busy"] = False
-                _JOB["cancel"] = False
-                scene.hydrilla_busy = False
-                _tag_hydrilla_redraw()
-                # Refresh account job list so completed jobs show as Done
-                try:
-                    _start_jobs_fetch(bpy.context, quiet=True)
-                except Exception:
-                    pass
-                return 0.5
-            _tag_hydrilla_redraw()
-    except Empty:
-        pass
+        _refresh_after_job()
+        return
 
-    if not _JOB["busy"]:
-        # Clear sticky busy once the background worker has finished
-        scene.hydrilla_busy = False
-        return None
-    _tag_hydrilla_redraw()
-    return 0.2
+    if kind == "job_error":
+        _JOB.update(busy=False, cancel=False)
+        message = str(event.get("text") or "Generation failed")
+        error_kind = event.get("error_kind")
+        if error_kind == hydrilla_api.ERROR_CANCELLED:
+            _set_status("Cancelled. Unused credits are refunded.", "INFO")
+        else:
+            if error_kind == hydrilla_api.ERROR_AUTH:
+                _ACCOUNT.update(state=ACCOUNT_BAD, message=message)
+            _set_status(message, "ERROR")
+            _popup(message, title="Hydrilla", icon="ERROR")
+        _refresh_after_job()
+        return
+
+    if kind == "update_checked":
+        result = event.get("result") or {}
+        available = bool(result.get("available"))
+        manifest = result.get("manifest")
+        manual = bool(event.get("manual"))
+        install_if_found = bool(event.get("install_if_found"))
+        remote_version = str(result.get("remote_version") or "")
+        remote_build_id = str(result.get("remote_build_id") or "")
+        if available:
+            _UPDATE.update(
+                state=UPDATE_AVAILABLE,
+                remote_version=remote_version,
+                remote_build_id=remote_build_id,
+                manifest=manifest,
+                message="",
+                manual=manual,
+            )
+            if install_if_found and not _JOB["busy"]:
+                _start_addon_install(manual=manual)
+        else:
+            _UPDATE.update(
+                state=UPDATE_UP_TO_DATE,
+                remote_version=remote_version,
+                remote_build_id=remote_build_id,
+                manifest=manifest,
+                message="",
+                manual=manual,
+            )
+        return
+
+    if kind == "update_check_error":
+        manual = bool(event.get("manual"))
+        message = str(event.get("message") or "Could not check for updates.")
+        if manual:
+            _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+        else:
+            _UPDATE.update(state=UPDATE_IDLE, message="", manual=False)
+            print("[Hydrilla] Startup update check skipped: %s" % message)
+        return
+
+    if kind == "update_staged":
+        staged_dir = str(event.get("staged_dir") or "")
+        remote_version = str(event.get("remote_version") or _version_text())
+        if _JOB["busy"]:
+            addon_updater.cleanup_dir(staged_dir)
+            _UPDATE.update(state=UPDATE_AVAILABLE, message="", manual=True)
+            return
+        try:
+            prefs = _prefs()
+            prefs_snapshot = _snapshot_prefs(prefs)
+            was_bridge_running = bridge_runtime.is_running()
+            target_dir = addon_updater.addon_directory()
+            backup_dir = addon_updater.swap_addon_files(staged_dir, target_dir)
+            addon_updater.schedule_hot_reload(
+                addon_id=ADDON_ID,
+                addon_dir=target_dir,
+                backup_dir=backup_dir,
+                new_version=remote_version,
+                was_bridge_running=was_bridge_running,
+                prefs_snapshot=prefs_snapshot,
+            )
+        except Exception as error:
+            addon_updater.cleanup_dir(staged_dir)
+            message = _error_text(error)
+            _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+            _set_status("Add-on update failed: %s" % message, "ERROR")
+        return
+
+    if kind == "update_install_error":
+        message = str(event.get("message") or "Could not install add-on update.")
+        _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+        if event.get("manual"):
+            _set_status(message, "ERROR")
 
 
-def _start_background_job(worker, *, mode: str = "") -> bool:
-    if _JOB["busy"]:
-        return False
-    _JOB["busy"] = True
-    _JOB["cancel"] = False
-    _JOB["started_at"] = time.time()
-    _JOB["mode"] = mode or ""
+def _refresh_after_job() -> None:
+    _start_tasks_fetch()
+    _start_verify()
+
+
+def _pump():
+    """Main-thread timer: apply results from background threads to the UI."""
+    handled = False
     while True:
         try:
-            _JOB["events"].get_nowait()
+            event = _EVENTS.get_nowait()
         except Empty:
             break
+        handled = True
+        try:
+            _handle_event(event)
+        except Exception as error:
+            print("[Hydrilla] Could not apply update: %s" % _error_text(error))
 
-    thread = threading.Thread(target=worker, name="hydrilla-generate", daemon=True)
-    thread.start()
-    if not bpy.app.timers.is_registered(_job_timer):
-        bpy.app.timers.register(_job_timer, first_interval=0.05)
-    return True
+    waiting_on_tasks = _background_calls_allowed() and any(
+        _task_state(item) == "RUNNING" for item in _TASKS["items"]
+    )
+    if waiting_on_tasks and not _TASKS["fetching"] and time.time() >= _TASKS["next_refresh"]:
+        _start_tasks_fetch()
 
-
-def _apply_jobs_to_scene(scene, jobs: list) -> None:
-    normalized: list = []
-    for item in jobs:
-        mesh = str(item.get("mesh_url") or "").strip()
-        raw_status = str(item.get("status") or "")
-        status = _normalize_job_status(raw_status, has_mesh=bool(mesh))
-        normalized.append(
-            {
-                "id": str(item.get("id") or ""),
-                "status": status,
-                "prompt": str(item.get("prompt") or ""),
-                "mesh_url": mesh,
-                "generate_type": str(item.get("generate_type") or ""),
-                "created_at": str(item.get("created_at") or ""),
-            }
-        )
-    normalized.sort(key=_job_sort_key)
-
-    scene.hydrilla_jobs.clear()
-    pending = 0
-    running = 0
-    done = 0
-    failed = 0
-    for item in normalized:
-        entry = scene.hydrilla_jobs.add()
-        entry.job_id = item["id"]
-        entry.status = item["status"]
-        entry.prompt = item["prompt"]
-        entry.mesh_url = item["mesh_url"]
-        entry.generate_type = item["generate_type"]
-        if item["status"] == "PENDING":
-            pending += 1
-        elif item["status"] == "RUNNING":
-            running += 1
-        elif item["status"] == "DONE":
-            done += 1
-        elif item["status"] == "FAILED":
-            failed += 1
-
-    active = pending + running
-    scene.hydrilla_jobs_active = active
-    scene.hydrilla_jobs_pending = pending
-    scene.hydrilla_jobs_running = running
-    scene.hydrilla_jobs_done = done
-    scene.hydrilla_jobs_failed = failed
-    scene.hydrilla_jobs_fetched_at = time.strftime("%H:%M:%S")
+    active = (
+        _JOB["busy"]
+        or _TASKS["fetching"]
+        or _ACCOUNT["state"] == ACCOUNT_CHECKING
+        or _UPDATE["state"] in (UPDATE_CHECKING, UPDATE_UPDATING)
+        or waiting_on_tasks
+    )
+    if handled or _JOB["busy"]:
+        _tag_redraw()
+    if not active and _EVENTS.empty():
+        return None
+    return 0.2 if _JOB["busy"] else 0.5
 
 
-def _jobs_timer() -> Optional[float]:
-    scene = getattr(bpy.context, "scene", None)
+def _snapshot_prefs(prefs) -> dict:
+    if prefs is None:
+        return {}
+    return {
+        "api_key": prefs.api_key,
+        "auto_start_bridge": bool(prefs.auto_start_bridge),
+        "allow_agent_edits": bool(prefs.allow_agent_edits),
+        "auto_update": bool(prefs.auto_update),
+        "show_developer": bool(prefs.show_developer),
+        "api_server": prefs.api_server,
+        "site_server": prefs.site_server,
+    }
+
+
+def _apply_prefs_snapshot(prefs_snapshot: dict) -> None:
+    prefs = _prefs()
+    if prefs is None or not isinstance(prefs_snapshot, dict):
+        return
+    _GUARD["key"] = True
+    _GUARD["base"] = True
+    _GUARD["site"] = True
     try:
-        while True:
-            event = _JOBS_UI["events"].get_nowait()
-            if scene is None:
-                _JOBS_UI["events"].put(event)
-                return 0.25
-            kind = event.get("kind")
-            if kind == "error":
-                _JOBS_UI["fetching"] = False
-                message = str(event.get("text") or "Could not load jobs")
-                status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-                # Never mark local generate busy from a jobs-list error
-                _set_scene_status(
-                    scene,
-                    message,
-                    kind=status_kind,
-                    busy=_JOB["busy"],
-                )
-                scene.hydrilla_jobs_error = message
-                _tag_hydrilla_redraw()
-            elif kind == "ok":
-                _JOBS_UI["fetching"] = False
-                jobs = event.get("jobs") or []
-                scene.hydrilla_jobs_error = ""
-                _apply_jobs_to_scene(scene, jobs)
-                pending = int(getattr(scene, "hydrilla_jobs_pending", 0) or 0)
-                running = int(getattr(scene, "hydrilla_jobs_running", 0) or 0)
-                done = int(getattr(scene, "hydrilla_jobs_done", 0) or 0)
-                failed = int(getattr(scene, "hydrilla_jobs_failed", 0) or 0)
-                total = len(jobs)
-                local_busy = bool(_JOB["busy"])
-                # If nothing local is generating, clear sticky busy from older runs
-                if not local_busy:
-                    scene.hydrilla_busy = False
-                summary = (
-                    f"{running} running · {pending} pending · "
-                    f"{done} done · {failed} failed ({total} total)"
-                )
-                if running or pending:
-                    _set_scene_status(
-                        scene,
-                        summary,
-                        kind="INFO",
-                        phase="Account jobs",
-                        busy=local_busy,
-                    )
-                else:
-                    _set_scene_status(
-                        scene,
-                        summary if total else "No jobs for this account yet",
-                        kind="DONE" if done and not local_busy else "INFO",
-                        phase="Ready" if not local_busy else scene.hydrilla_job_phase,
-                        progress=100 if done and not local_busy else -1,
-                        busy=local_busy,
-                    )
-                _tag_hydrilla_redraw()
-    except Empty:
-        pass
-
-    if _JOBS_UI["fetching"]:
-        return 0.25
-
-    if scene is not None and int(getattr(scene, "hydrilla_jobs_active", 0) or 0) > 0:
-        _JOBS_UI["auto"] = True
-        if not _JOBS_UI["fetching"]:
-            _start_jobs_fetch(bpy.context, quiet=True)
-        return 8.0
-
-    _JOBS_UI["auto"] = False
-    return None
+        for field, value in prefs_snapshot.items():
+            if hasattr(prefs, field) and getattr(prefs, field) != value:
+                setattr(prefs, field, value)
+    finally:
+        _GUARD["key"] = False
+        _GUARD["base"] = False
+        _GUARD["site"] = False
 
 
-def _start_jobs_fetch(context, *, quiet: bool = False) -> bool:
-    if _JOBS_UI["fetching"]:
+def _restore_after_hot_reload(*, new_version: str, was_bridge_running: bool, prefs_snapshot: dict) -> None:
+    _apply_prefs_snapshot(prefs_snapshot)
+
+    if was_bridge_running and not bridge_runtime.is_running():
+        bridge_runtime.start()
+
+    shown_version = new_version or _version_text()
+    _UPDATE.update(
+        state=UPDATE_UPDATED,
+        remote_version=shown_version,
+        message="",
+        manual=True,
+    )
+    _set_status("Hydrilla add-on updated (v%s)." % shown_version, "DONE")
+    _tag_redraw()
+
+
+def _on_update_failed(message: str, prefs_snapshot=None) -> None:
+    if prefs_snapshot:
+        _apply_prefs_snapshot(prefs_snapshot)
+    _UPDATE.update(state=UPDATE_ERROR, message=message, manual=True)
+    _set_status(message, "ERROR")
+    _tag_redraw()
+
+
+def _start_update_check(context=None, *, manual: bool = False, install_if_found: bool = False) -> bool:
+    """Check whether a newer `hydrilla-blender.zip` build is available."""
+    if _UPDATE["state"] in (UPDATE_CHECKING, UPDATE_UPDATING):
         return False
-    scene = getattr(context, "scene", None)
-    if scene is None:
-        return False
-    try:
-        client = _resolve_client(context)
-        if client.mode != "clerk":
-            if not quiet:
-                message = "Your Jobs needs Sign in with Hydrilla (not API key alone)."
-                _set_scene_status(scene, message, kind="SESSION", phase="Session")
-                scene.hydrilla_jobs_error = message
-            return False
-        # Prefer Bridge-refreshed token; only fail hard when truly expired
-        _ensure_fresh_clerk_token(client.token, client.mode)
-    except Exception as error:
-        message = _user_error(error)
-        status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-        scene.hydrilla_jobs_error = message
-        if not quiet:
-            _set_scene_status(scene, message, kind=status_kind)
-        # Still allow timer to clear loading state
-        _JOBS_UI["fetching"] = False
-        return False
-
-    # Capture a fresh token right before the request (Bridge may have newer JWT)
-    token = client.token
-    try:
-        fresh = _bridge_token_provider()()
-        if fresh:
-            token = str(fresh).strip() or token
-    except Exception:
-        pass
-    base_url = client.base_url
-    mode = client.mode
-    _JOBS_UI["fetching"] = True
-    scene.hydrilla_jobs_error = ""
+    site = _site_base(context)
+    _UPDATE.update(state=UPDATE_CHECKING, message="", manual=manual)
 
     def worker():
         try:
-            job_client = api_client.HydrillaClient(
-                token,
-                base_url=base_url,
-                mode=mode,
-                token_provider=_bridge_token_provider() if mode == "clerk" else None,
+            result = addon_updater.check_for_update(site_base=site)
+            _emit(
+                "update_checked",
+                result=result,
+                manual=manual,
+                install_if_found=install_if_found,
             )
-            jobs = job_client.list_user_jobs(limit=40)
-            _JOBS_UI["events"].put({"kind": "ok", "jobs": jobs})
         except Exception as error:
-            _JOBS_UI["events"].put({"kind": "error", "text": _user_error(error)})
+            _emit("update_check_error", message=_error_text(error), manual=manual)
 
-    threading.Thread(target=worker, name="hydrilla-jobs", daemon=True).start()
-    if not bpy.app.timers.is_registered(_jobs_timer):
-        bpy.app.timers.register(_jobs_timer, first_interval=0.05)
+    threading.Thread(target=worker, name="hydrilla-update-check", daemon=True).start()
+    _ensure_pump()
+    _tag_redraw()
     return True
 
 
-def _wait_task_cancellable(client, task_id: str) -> dict:
-    started = time.time()
-    while True:
-        if _JOB["cancel"]:
-            raise api_client.HydrillaApiError("Generation cancelled")
+def _start_addon_install(context=None, *, manual: bool = True) -> bool:
+    """Download, verify, swap, and hot-reload the updated Blender add-on."""
+    if _UPDATE["state"] == UPDATE_UPDATING:
+        return False
+    if _JOB["busy"]:
+        if manual:
+            _UPDATE.update(
+                state=UPDATE_AVAILABLE,
+                message="Wait for the running generation to finish before updating.",
+                manual=True,
+            )
+            _tag_redraw()
+        return False
+
+    site = _site_base(context)
+    cached_manifest = _UPDATE.get("manifest") if isinstance(_UPDATE.get("manifest"), dict) else None
+    _UPDATE.update(state=UPDATE_UPDATING, message="", manual=manual)
+    if manual:
+        _set_status("Updating Hydrilla add-on…", "RUNNING", phase="Updating")
+    else:
+        _tag_redraw()
+
+    def worker():
         try:
-            task = client.get_task(task_id)
+            manifest = cached_manifest
+            if manifest is None:
+                check = addon_updater.check_for_update(site_base=site)
+                if not check.get("available"):
+                    _emit("update_checked", result=check, manual=manual, install_if_found=False)
+                    return
+                manifest = check["manifest"]
+            staged_dir = addon_updater.download_and_stage(manifest)
+            _emit(
+                "update_staged",
+                staged_dir=staged_dir,
+                remote_version=str(manifest.get("version") or ""),
+                manifest=manifest,
+                manual=manual,
+            )
         except Exception as error:
-            message = _user_error(error)
-            if _is_session_error(message):
-                _job_emit(
-                    "status",
-                    text=f"Session expired mid-job. {SESSION_REAUTH}",
-                    phase="Session",
-                    progress=0,
-                    task_id=task_id,
+            _emit("update_install_error", message=_error_text(error), manual=manual)
+
+    threading.Thread(target=worker, name="hydrilla-update-install", daemon=True).start()
+    _ensure_pump()
+    return True
+
+
+def _start_verify(context=None) -> bool:
+    """Check the key and load the credit balance. Free to call."""
+    if _ACCOUNT["state"] == ACCOUNT_CHECKING:
+        return False
+    try:
+        client = _client(context)
+    except hydrilla_api.HydrillaApiError as error:
+        state = ACCOUNT_NONE if error.kind == hydrilla_api.ERROR_AUTH else ACCOUNT_ERROR
+        _ACCOUNT.update(state=state, message=_error_text(error))
+        return False
+    _ACCOUNT.update(state=ACCOUNT_CHECKING, message="")
+
+    def worker():
+        try:
+            profile = client.me()
+            credits = profile.get("credits") if isinstance(profile.get("credits"), dict) else {}
+            remaining = credits.get("remaining")
+            _emit(
+                "account",
+                state=ACCOUNT_OK,
+                credits=int(remaining) if isinstance(remaining, (int, float)) else None,
+                plan=str(profile.get("plan") or ""),
+            )
+        except hydrilla_api.HydrillaApiError as error:
+            state = ACCOUNT_BAD if error.kind == hydrilla_api.ERROR_AUTH else ACCOUNT_ERROR
+            _emit("account", state=state, message=_error_text(error))
+        except Exception as error:
+            _emit("account", state=ACCOUNT_ERROR, message=_error_text(error))
+
+    threading.Thread(target=worker, name="hydrilla-verify", daemon=True).start()
+    _ensure_pump()
+    return True
+
+
+def _start_tasks_fetch(context=None) -> bool:
+    if _TASKS["fetching"]:
+        return False
+    try:
+        client = _client(context)
+    except hydrilla_api.HydrillaApiError as error:
+        _TASKS["error"] = _error_text(error)
+        return False
+    _TASKS["fetching"] = True
+    _TASKS["next_refresh"] = time.time() + TASK_REFRESH_SECONDS
+
+    def worker():
+        try:
+            _emit("tasks", items=client.list_tasks(limit=TASK_LIST_LIMIT))
+        except hydrilla_api.HydrillaApiError as error:
+            _emit(
+                "tasks",
+                error=_error_text(error),
+                auth_failed=error.kind == hydrilla_api.ERROR_AUTH,
+            )
+        except Exception as error:
+            _emit("tasks", error=_error_text(error))
+
+    threading.Thread(target=worker, name="hydrilla-tasks", daemon=True).start()
+    _ensure_pump()
+    return True
+
+
+def _progress_event(task: dict, task_id: str) -> None:
+    status = str(task.get("status") or "").upper()
+    try:
+        percent = int(task.get("progress") or 0)
+    except (TypeError, ValueError):
+        percent = 0
+    detail = str(task.get("status_message") or "").strip()
+    if status == "PENDING":
+        phase, text = "Queued", "Waiting for a GPU…"
+    elif status == "IN_PROGRESS":
+        phase, text = "Generating", detail or "Building the mesh…"
+    else:
+        phase, text = status.title(), detail or status.title()
+    _emit("job_status", text=text, phase=phase, progress=percent, task_id=task_id)
+
+
+def _start_job(context, *, create=None, task_id: str = "", mesh_url: str = "", name: str = "") -> str:
+    """Run create → wait → download on a thread. Returns an error message, or ""."""
+    if _JOB["busy"]:
+        return "A model is already generating. See Status."
+    try:
+        client = _client(context)
+    except hydrilla_api.HydrillaApiError as error:
+        return _error_text(error)
+
+    _JOB.update(busy=True, cancel=False, started_at=time.time(), task_id=task_id)
+
+    def worker():
+        current_id = task_id
+        url = mesh_url
+        try:
+            if create is not None:
+                created = create(client)
+                current_id = str(created.get("id") or created.get("task_id") or "")
+                if not current_id:
+                    raise hydrilla_api.HydrillaApiError("Hydrilla did not return a task id.")
+                _emit(
+                    "job_status",
+                    text="Task created. Waiting for a GPU…",
+                    phase="Queued",
+                    progress=10,
+                    task_id=current_id,
                 )
-            raise
-        status = str(task.get("status") or "").upper()
-        progress = task.get("progress")
-        phase, pct, line = _human_task_status(status, progress)
-        _job_emit(
-            "status",
-            text=line,
-            phase=phase,
-            progress=pct,
-            task_id=task_id,
-        )
-        if status in {"SUCCEEDED", "FAILED", "CANCELLED", "CANCELED"}:
-            return task
-        if time.time() - started >= api_client.MAX_POLL_S:
-            raise api_client.HydrillaApiError(f"Task {task_id} timed out")
-        time.sleep(api_client.POLL_INTERVAL_S)
+            if not url:
+                try:
+                    task = client.wait_for_task(
+                        current_id,
+                        on_progress=lambda task: _progress_event(task, current_id),
+                        should_cancel=lambda: bool(_JOB["cancel"]),
+                    )
+                except hydrilla_api.HydrillaApiError as error:
+                    if error.kind == hydrilla_api.ERROR_CANCELLED:
+                        try:
+                            client.cancel_task(current_id)
+                        except hydrilla_api.HydrillaApiError:
+                            # Already finished on the server; nothing to stop.
+                            pass
+                    raise
+                if str(task.get("status") or "").upper() != "SUCCEEDED":
+                    raise hydrilla_api.HydrillaApiError(str(task.get("error") or "Generation failed"))
+                url = hydrilla_api.mesh_url_of(task)
+                if not url:
+                    raise hydrilla_api.HydrillaApiError("The finished task has no mesh.")
+            if _JOB["cancel"]:
+                raise hydrilla_api.HydrillaApiError(
+                    "Generation cancelled", kind=hydrilla_api.ERROR_CANCELLED
+                )
+            _emit("job_status", text="Downloading the mesh…", phase="Download", progress=95)
+            path = client.download_mesh_to_temp(url, "%s-%d" % (current_id, int(time.time())))
+            _emit("job_done", path=path, name=name or current_id[:12])
+        except hydrilla_api.HydrillaApiError as error:
+            _emit("job_error", text=_error_text(error), error_kind=error.kind)
+        except Exception as error:
+            _emit("job_error", text=_error_text(error), error_kind=hydrilla_api.ERROR_API)
+
+    threading.Thread(target=worker, name="hydrilla-generate", daemon=True).start()
+    _ensure_pump()
+    return ""
 
 
-def _jwt_seconds_left(token: str) -> Optional[float]:
-    """Read Clerk JWT exp without verifying signature (local expiry check only)."""
-    try:
-        parts = (token or "").split(".")
-        if len(parts) < 2:
-            return None
-        payload = parts[1] + ("=" * (-len(parts[1]) % 4))
-        data = json.loads(base64.urlsafe_b64decode(payload.encode("utf-8")))
-        exp = data.get("exp")
-        if exp is None:
-            return None
-        return float(exp) - time.time()
-    except Exception:
-        return None
+# --------------------------------------------------------------------------
+# Preferences
+# --------------------------------------------------------------------------
 
 
-def _is_session_error(message: str) -> bool:
-    lower = (message or "").lower()
-    return any(
-        needle in lower
-        for needle in (
-            "session expired",
-            "jwt is expired",
-            "jwt expired",
-            "not signed in",
-            "authentication failed",
-            "unauthorized",
-            "keep the connect tab",
-            "keep the browser connect",
-            "sign in with hydrilla again",
-        )
-    )
+def _draw_account(layout, prefs, context, *, compact: bool = False) -> None:
+    """Connection line, and the API key field only while it still needs attention."""
+    state = _ACCOUNT["state"]
+    env_key = not prefs.api_key and bool(hydrilla_config.resolve_api_key(""))
+    show_field = _show_api_field(prefs)
 
-
-def _user_error(error: BaseException) -> str:
-    message = str(error).strip() or error.__class__.__name__
-    lower = message.lower()
-    if "make_client" in message:
-        return (
-            "Addon files are out of date. Remove Hydrilla in Preferences → Add-ons, "
-            "then install the zip from frontend/public/plugins/hydrilla-blender.zip."
-        )
-    if "unknown url type" in lower or "bpy.ops" in message:
-        return (
-            "API Base URL was corrupted (Blender pasted an operator into the field). "
-            "Open Add-on Preferences → Use Local (:3000 / :4000)."
-        )
-    if _is_session_error(message) or getattr(error, "status", None) == 401:
-        return SESSION_REAUTH
-    if "gpu is currently offline" in lower or "restarting" in lower or "gpu_offline" in lower:
-        return (
-            "3D GPU is offline or restarting (backend is fine). "
-            "Wait a minute and click Generate again."
-        )
-    return message
-
-
-def _ensure_fresh_clerk_token(token: str, mode: str) -> None:
-    """Fail before long jobs if Clerk JWT is missing/expired (Connect tab likely closed)."""
-    if mode != "clerk":
+    if not show_field:
+        row = layout.row(align=True)
+        if state == ACCOUNT_OK:
+            credits = _ACCOUNT["credits"]
+            text = "Connected" if credits is None else "%d credits" % credits
+            row.label(text=text, icon="CHECKMARK")
+        elif state == ACCOUNT_CHECKING:
+            row.label(text="Checking…", icon="SORTTIME")
+        elif state == ACCOUNT_ERROR:
+            row.label(text="Offline", icon="ERROR")
+        else:
+            row.label(text="Key saved", icon="KEYINGSET")
+        row.operator("hydrilla.edit_api_key", text="", icon="PREFERENCES")
+        if state == ACCOUNT_ERROR and _ACCOUNT["message"] and not compact:
+            for line in _wrap(_ACCOUNT["message"], width=42):
+                layout.label(text=line)
         return
-    # Prefer a freshly refreshed Bridge token if Connect tab is open
-    fresh = None
-    try:
-        fresh = _bridge_token_provider()()
-    except Exception:
-        fresh = None
-    check = (fresh or token or "").strip()
-    if not check:
-        raise api_client.HydrillaApiError(SESSION_REAUTH)
-    left = _jwt_seconds_left(check)
-    if left is not None and left < MIN_TOKEN_SECONDS:
-        # One more Bridge pull — Connect may have just refreshed
-        time.sleep(0.35)
-        try:
-            again = _bridge_token_provider()()
-        except Exception:
-            again = None
-        check2 = (again or "").strip()
-        left2 = _jwt_seconds_left(check2) if check2 else None
-        if not check2 or (left2 is not None and left2 < MIN_TOKEN_SECONDS):
-            raise api_client.HydrillaApiError(SESSION_REAUTH)
 
+    column = layout.column(align=True)
+    if not _has_api_key(prefs):
+        column.label(text="Paste your API key", icon="KEYINGSET")
+    elif state == ACCOUNT_BAD:
+        column.label(text="Key not accepted", icon="ERROR")
+    elif state == ACCOUNT_CHECKING:
+        column.label(text="Checking your key…", icon="SORTTIME")
+    else:
+        column.label(text="API key", icon="KEYINGSET")
 
-def _resolve_client(context):
-    prefs = _prefs(context)
-    clerk_token = None
-    email = None
-    api_base = _prefs_api_base(prefs)
+    if state in (ACCOUNT_BAD, ACCOUNT_ERROR) and _ACCOUNT["message"]:
+        for line in _wrap(_ACCOUNT["message"], width=40):
+            column.label(text=line)
 
-    if _bridge_running(context):
-        try:
-            session = bridge_runtime.get_auth_session()
-            if session.get("signed_in") and session.get("token"):
-                clerk_token = session.get("token")
-                email = session.get("email")
-            else:
-                # Fallback: HTTP self-check (same process may also expose session)
-                session = bridge_client.BridgeClient(_prefs_bridge_url(prefs)).get_auth()
-                if session.get("signed_in") and session.get("token"):
-                    clerk_token = session.get("token")
-                    email = session.get("email")
-        except Exception:
-            clerk_token = None
+    column.prop(prefs, "api_key", text="")
+    if env_key:
+        column.label(text="Using the key from this computer", icon="INFO")
 
-    if clerk_token:
-        context.scene.hydrilla_account = email or "Signed in with Hydrilla"
-        context.scene.hydrilla_auth_mode = "CLERK"
-        return _build_client(token=clerk_token, mode="clerk", base_url=api_base)
-
-    if prefs.api_key:
-        context.scene.hydrilla_account = "API key"
-        context.scene.hydrilla_auth_mode = "API"
-        return _build_client(token=prefs.api_key, mode="api", base_url=api_base)
-
-    context.scene.hydrilla_account = "Not signed in"
-    context.scene.hydrilla_auth_mode = "NONE"
-    if not _bridge_running(context):
-        raise api_client.HydrillaApiError(
-            "Bridge is off. Click Run Bridge, Sign in, Sync — or set an API key."
-        )
-    raise api_client.HydrillaApiError(
-        "Not signed in. Click Sign in, finish in the browser, then Sync — or set an API key."
+    row = column.row(align=True)
+    row.operator("wm.url_open", text="Get API key", icon="URL").url = hydrilla_config.api_keys_url(
+        _site_base(context)
     )
+    if prefs.api_key or env_key:
+        row.operator("hydrilla.verify_key", text="", icon="FILE_REFRESH")
+    if prefs.api_key:
+        row.operator("hydrilla.remove_key", text="", icon="X")
 
 
-class HydrillaJobItem(PropertyGroup):
-    job_id: StringProperty(name="Job ID", default="")
-    status: StringProperty(name="Status", default="")
-    prompt: StringProperty(name="Prompt", default="")
-    mesh_url: StringProperty(name="Mesh URL", default="")
-    generate_type: StringProperty(name="Type", default="")
+def _draw_update_controls(layout, prefs) -> None:
+    """Keep Check for updates visible in the sidebar, with a banner when needed."""
+    state = _UPDATE["state"]
+    if state == UPDATE_UPDATING:
+        banner = layout.box()
+        banner.label(text="Updating add-on…", icon="SORTTIME")
+    elif state == UPDATE_AVAILABLE:
+        banner = layout.box()
+        banner.label(text=_update_ready_label(), icon="INFO")
+        if _UPDATE["message"]:
+            for line in _wrap(_UPDATE["message"], width=36):
+                banner.label(text=line)
+        action = banner.row()
+        action.scale_y = 1.25
+        action.enabled = not _JOB["busy"]
+        action.operator("hydrilla.update_addon", text="Update now", icon="IMPORT")
+    elif state == UPDATE_ERROR and _UPDATE["manual"] and _UPDATE["message"]:
+        banner = layout.box()
+        for line in _wrap(_UPDATE["message"], width=36):
+            banner.label(text=line, icon="ERROR")
+        if isinstance(_UPDATE.get("manifest"), dict):
+            action = banner.row()
+            action.enabled = not _JOB["busy"]
+            action.operator("hydrilla.update_addon", text="Try again", icon="FILE_REFRESH")
+
+    footer = layout.row(align=True)
+    if state == UPDATE_CHECKING:
+        footer.label(text="Checking…", icon="SORTTIME")
+    elif state == UPDATE_UPDATED:
+        footer.label(text="Updated · v%s" % _version_text(), icon="CHECKMARK")
+    elif state == UPDATE_UP_TO_DATE and _UPDATE["manual"]:
+        footer.label(text="Up to date · v%s" % _version_text(), icon="CHECKMARK")
+    elif state == UPDATE_ERROR and _UPDATE["manual"]:
+        footer.label(text="Update failed", icon="ERROR")
+    else:
+        footer.label(text="v%s" % _version_text())
+
+    controls = footer.row(align=True)
+    controls.alignment = "RIGHT"
+    controls.prop(prefs, "auto_update", text="Auto", toggle=True)
+    check_btn = controls.row(align=True)
+    check_btn.enabled = state not in (UPDATE_CHECKING, UPDATE_UPDATING)
+    check_btn.operator("hydrilla.check_updates", text="Check", icon="FILE_REFRESH")
+
+
+def _draw_bridge_controls(layout, prefs) -> None:
+    """Compact Bridge status. The section stays visible after the API key is saved."""
+    box = layout.box()
+    split = box.split(factor=0.55, align=True)
+    if bridge_runtime.is_running():
+        split.label(text="Bridge on", icon="CHECKMARK")
+        split.operator("hydrilla.bridge_stop", text="Stop", icon="PAUSE")
+    else:
+        split.label(text="Bridge off", icon="UNLINKED")
+        split.operator("hydrilla.bridge_start", text="Run", icon="PLAY")
+
+    col = box.column(align=True)
+    col.prop(prefs, "auto_start_bridge", text="Start with Blender")
+    col.prop(prefs, "allow_agent_edits", text="Let AI edit this scene")
+    if prefs.allow_agent_edits:
+        col.label(text="Ctrl+Z undoes AI scripts", icon="INFO")
+
+
+def _update_ready_label() -> str:
+    remote_version = _UPDATE["remote_version"]
+    if remote_version and remote_version != _version_text():
+        return "Add-on update ready (v%s)" % remote_version
+    return "New add-on build ready"
+
+
+def _draw_updates_prefs(layout, prefs) -> None:
+    state = _UPDATE["state"]
+    layout.label(text="Updates · v%s" % _version_text(), icon="FILE_REFRESH")
+    layout.prop(prefs, "auto_update")
+
+    if state == UPDATE_CHECKING:
+        layout.label(text="Checking for add-on updates…", icon="SORTTIME")
+    elif state == UPDATE_UPDATING:
+        layout.label(text="Downloading and reloading add-on…", icon="SORTTIME")
+    elif state == UPDATE_AVAILABLE:
+        layout.label(text=_update_ready_label(), icon="INFO")
+    elif state == UPDATE_UPDATED:
+        layout.label(text="Updated to v%s" % _version_text(), icon="CHECKMARK")
+    elif state == UPDATE_UP_TO_DATE and _UPDATE["manual"]:
+        layout.label(text="Add-on is up to date", icon="CHECKMARK")
+    elif state == UPDATE_ERROR and _UPDATE["message"]:
+        for line in _wrap(_UPDATE["message"], width=48):
+            layout.label(text=line, icon="ERROR")
+
+    row = layout.row(align=True)
+    check_sub = row.row(align=True)
+    check_sub.enabled = state not in (UPDATE_CHECKING, UPDATE_UPDATING)
+    check_sub.operator("hydrilla.check_updates", text="Check for updates", icon="FILE_REFRESH")
+    if state in (UPDATE_AVAILABLE, UPDATE_ERROR) and isinstance(_UPDATE.get("manifest"), dict):
+        install_sub = row.row(align=True)
+        install_sub.enabled = state != UPDATE_UPDATING and not _JOB["busy"]
+        install_sub.operator("hydrilla.update_addon", text="Update now", icon="IMPORT")
 
 
 class HydrillaPreferences(AddonPreferences):
     bl_idname = ADDON_ID
 
     api_key: StringProperty(
-        name="API Key (optional)",
-        description="hyd_live_ key — only needed if you are not signed in with Hydrilla",
+        name="API Key",
+        description="Your Hydrilla API key (hyd_live_…). Create one at hydrilla.ai/app/api-keys",
         subtype="PASSWORD",
         default="",
+        update=_on_api_key_changed,
     )
-    site_url: StringProperty(
-        name="Hydrilla Site URL",
-        description="Frontend for sign-in (live: https://hydrilla.ai). Local: http://localhost:3000",
-        default=DEFAULT_SITE,
+    auto_start_bridge: BoolProperty(
+        name="Start Bridge with Blender",
+        description=(
+            "Turn the Bridge on automatically whenever Blender starts, so Hydrilla Studio "
+            "and your AI agent can always send models to Blender"
+        ),
+        default=True,
     )
-    # Fresh prop name so old api_base / api_base_url values stuck on :3000 are ignored
+    allow_agent_edits: BoolProperty(
+        name="Let AI agent edit this scene",
+        description=(
+            "Allow your AI agent (through the Hydrilla MCP) to run Python in Blender to "
+            "move, build and change objects. Only turn this on while you are using an "
+            "agent you trust, and save your work first. Each script can be undone with Ctrl+Z"
+        ),
+        default=False,
+    )
+    auto_update: BoolProperty(
+        name="Keep add-on updated automatically",
+        description=(
+            "Check hydrilla.ai when Blender starts and install new Hydrilla add-on "
+            "builds in place without reinstalling the zip"
+        ),
+        default=True,
+    )
+    show_developer: BoolProperty(name="Developer", default=False)
     api_server: StringProperty(
-        name="API Base URL",
-        description="Backend API (live by default). Local: http://localhost:4000 — never use :3000 here",
-        default=DEFAULT_API_BASE,
+        name="API address",
+        description="Leave as is unless you run your own Hydrilla backend",
+        default=hydrilla_config.DEFAULT_API_BASE,
+        update=_on_api_base_changed,
     )
-    bridge_url: StringProperty(
-        name="Bridge URL",
-        default=BRIDGE_URL,
+    site_server: StringProperty(
+        name="Plugin site",
+        description="Site hosting /plugins/hydrilla-blender.zip (leave as is unless testing locally)",
+        default=hydrilla_config.DEFAULT_SITE_URL,
+        update=_on_site_base_changed,
     )
 
     def draw(self, context):
-        # Repair Site/API mix-ups and bpy.ops paste whenever prefs are shown
-        site = _prefs_site_url(self)
-        api = _prefs_api_base(self)
-        _prefs_bridge_url(self)
-
         layout = self.layout
-        col = layout.column(align=True)
-        col.label(text="Account", icon="USER")
-        col.prop(self, "api_key")
-        col.separator()
-        col.prop(self, "site_url")
-        col.prop(self, "api_server")
-        col.prop(self, "bridge_url")
-        col.separator()
-        row = col.row(align=True)
-        row.operator("hydrilla.prefs_local", text="Use Local (:3000 / :4000)")
-        row.operator("hydrilla.prefs_production", text="Use Production")
-        col.label(text=f"Active → Site {site} · API {api}", icon="INFO")
-        col.label(text="API must be :4000 locally — :3000 is the website only")
+        box = layout.box()
+        box.label(text="Account", icon="USER")
+        _draw_account(box, self, context)
 
+        box = layout.box()
+        box.label(text="Bridge", icon="LINKED")
+        _draw_bridge_controls(box, self)
 
-class HYDRILLA_OT_prefs_local(Operator):
-    bl_idname = "hydrilla.prefs_local"
-    bl_label = "Use Local URLs"
+        box = layout.box()
+        _draw_updates_prefs(box, self)
 
-    def execute(self, context):
-        prefs = _prefs(context)
-        prefs.site_url = DEFAULT_LOCAL_SITE
-        prefs.api_server = DEFAULT_LOCAL_API
-        self.report({"INFO"}, "Local Site :3000 · API :4000")
-        return {"FINISHED"}
-
-
-class HYDRILLA_OT_prefs_production(Operator):
-    bl_idname = "hydrilla.prefs_production"
-    bl_label = "Use Production URLs"
-
-    def execute(self, context):
-        prefs = _prefs(context)
-        prefs.site_url = DEFAULT_SITE
-        prefs.api_server = DEFAULT_API_BASE
-        self.report({"INFO"}, "Production Site + API")
-        return {"FINISHED"}
-
-
-class HYDRILLA_OT_sign_in(Operator):
-    bl_idname = "hydrilla.sign_in"
-    bl_label = "Sign in with Hydrilla"
-    bl_description = "Start Bridge if needed and open Hydrilla sign-in"
-
-    def execute(self, context):
-        if not _bridge_running(context):
-            self.report({"ERROR"}, "Click Run Bridge first, then Sign in")
-            context.scene.hydrilla_status = "Click Run Bridge first"
-            return {"CANCELLED"}
-
-        prefs = _prefs(context)
-        site = _prefs_site_url(prefs)
-        webbrowser.open(f"{site}/integrations/connect?app=blender")
-        context.scene.hydrilla_status = (
-            "Browser opened — sign in, KEEP the Connect tab open, then Sync"
+        box = layout.box()
+        row = box.row()
+        row.prop(
+            self,
+            "show_developer",
+            icon="TRIA_DOWN" if self.show_developer else "TRIA_RIGHT",
+            emboss=False,
         )
-        self.report({"INFO"}, "Sign in in the browser, keep that tab open, then Sync")
-        return {"FINISHED"}
+        if self.show_developer:
+            box.prop(self, "api_server")
+            row = box.row(align=True)
+            row.operator("hydrilla.use_api_base", text="Use production").target = "PRODUCTION"
+            row.operator("hydrilla.use_api_base", text="Use local (:4000)").target = "LOCAL"
+
+            box.prop(self, "site_server")
+            row = box.row(align=True)
+            row.operator("hydrilla.use_site_base", text="Use hydrilla.ai").target = "PRODUCTION"
+            row.operator("hydrilla.use_site_base", text="Use local (:3000)").target = "LOCAL"
+            local_build = addon_updater.installed_info().get("build_id") or ""
+            if local_build:
+                box.label(text="Installed build: %s" % local_build[:12])
 
 
-class HYDRILLA_OT_sync_account(Operator):
-    bl_idname = "hydrilla.sync_account"
-    bl_label = "Sync account"
+# --------------------------------------------------------------------------
+# Operators
+# --------------------------------------------------------------------------
+
+
+class HYDRILLA_OT_use_api_base(Operator):
+    bl_idname = "hydrilla.use_api_base"
+    bl_label = "Set API address"
+    bl_description = "Switch between the Hydrilla API and a backend on this machine"
+
+    target: EnumProperty(
+        items=(
+            ("PRODUCTION", "Production", ""),
+            ("LOCAL", "Local", ""),
+        ),
+        default="PRODUCTION",
+    )
 
     def execute(self, context):
         prefs = _prefs(context)
-        scene = context.scene
-        job_running = bool(scene.hydrilla_busy) or bool(_JOB["busy"])
-        job_note = ""
-        if job_running:
-            phase = (scene.hydrilla_job_phase or "Working").strip()
-            progress = int(getattr(scene, "hydrilla_job_progress", 0) or 0)
-            job_note = f" Job still running · {phase}"
-            if progress > 0:
-                job_note += f" · {progress}%"
-
-        if not _bridge_running(context):
-            self.report({"ERROR"}, "Run Bridge first")
-            _set_scene_status(
-                scene,
-                "Run Bridge first" + (f" —{job_note}" if job_note else ""),
-                kind="ERROR",
-                busy=job_running,
-            )
-            return {"CANCELLED"}
-        try:
-            session = bridge_runtime.get_auth_session()
-            if not session.get("signed_in"):
-                session = bridge_client.BridgeClient(_prefs_bridge_url(prefs)).get_auth()
-            if not session.get("signed_in"):
-                if prefs.api_key:
-                    context.scene.hydrilla_account = "API key"
-                    context.scene.hydrilla_auth_mode = "API"
-                    _set_scene_status(
-                        scene,
-                        "Using API key." + job_note,
-                        kind="RUNNING" if job_running else "INFO",
-                        busy=job_running,
-                    )
-                    self.report({"INFO"}, "No Clerk session — using API key")
-                    return {"FINISHED"}
-                context.scene.hydrilla_account = "Not signed in"
-                context.scene.hydrilla_auth_mode = "NONE"
-                _set_scene_status(
-                    scene,
-                    SESSION_REAUTH + (f" —{job_note}" if job_note else ""),
-                    kind="SESSION",
-                    phase="Session",
-                    busy=job_running,
-                )
-                self.report({"ERROR"}, "No session yet — Sign in and keep Connect tab open")
-                return {"CANCELLED"}
-
-            token = str(session.get("token") or "")
-            left = _jwt_seconds_left(token)
-            if left is not None and left < MIN_TOKEN_SECONDS:
-                context.scene.hydrilla_account = "Session expired"
-                context.scene.hydrilla_auth_mode = "NONE"
-                _set_scene_status(
-                    scene,
-                    SESSION_REAUTH + (f" —{job_note}" if job_note else ""),
-                    kind="SESSION",
-                    phase="Session",
-                    busy=job_running,
-                )
-                self.report({"ERROR"}, "Session expired — Sign in again, keep Connect tab open")
-                return {"CANCELLED"}
-
-            email = session.get("email") or "Hydrilla account"
-            context.scene.hydrilla_account = email
-            context.scene.hydrilla_auth_mode = "CLERK"
-            if job_running:
-                _set_scene_status(
-                    scene,
-                    f"Reconnected as {email}.{job_note}",
-                    kind="RUNNING",
-                    busy=True,
-                )
-                self.report({"INFO"}, f"Signed in as {email} — job still running")
-            else:
-                _set_scene_status(
-                    scene,
-                    f"Signed in as {email}. {SESSION_KEEP_TAB}",
-                    kind="INFO",
-                    phase="Ready",
-                    busy=False,
-                )
-                self.report({"INFO"}, f"Signed in as {email} — keep Connect tab open")
-            _start_jobs_fetch(context, quiet=True)
-            return {"FINISHED"}
-        except Exception as error:
-            message = _user_error(error)
-            status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-            _set_scene_status(
-                scene,
-                message + (f" —{job_note}" if job_note else ""),
-                kind=status_kind,
-                busy=job_running,
-            )
-            self.report({"ERROR"}, message)
-            return {"CANCELLED"}
+        if self.target == "LOCAL":
+            prefs.api_server = hydrilla_config.LOCAL_API_BASE
+        else:
+            prefs.api_server = hydrilla_config.DEFAULT_API_BASE
+        self.report({"INFO"}, "Hydrilla API: %s" % prefs.api_server)
+        _start_verify(context)
+        return {"FINISHED"}
 
 
-class HYDRILLA_OT_sign_out(Operator):
-    bl_idname = "hydrilla.sign_out"
-    bl_label = "Sign out"
+class HYDRILLA_OT_use_site_base(Operator):
+    bl_idname = "hydrilla.use_site_base"
+    bl_label = "Set plugin site"
+    bl_description = "Switch between hydrilla.ai and a local frontend server (:3000)"
+
+    target: EnumProperty(
+        items=(
+            ("PRODUCTION", "Production", ""),
+            ("LOCAL", "Local", ""),
+        ),
+        default="PRODUCTION",
+    )
 
     def execute(self, context):
-        bridge_runtime.clear_auth()
-        try:
-            bridge_client.BridgeClient(_prefs_bridge_url(_prefs(context))).clear_auth()
-        except Exception:
-            pass
-        context.scene.hydrilla_account = "Not signed in"
-        context.scene.hydrilla_auth_mode = "NONE"
-        context.scene.hydrilla_status = "Signed out"
-        self.report({"INFO"}, "Signed out")
+        prefs = _prefs(context)
+        if self.target == "LOCAL":
+            prefs.site_server = hydrilla_config.LOCAL_SITE_URL
+        else:
+            prefs.site_server = hydrilla_config.DEFAULT_SITE_URL
+        self.report({"INFO"}, "Hydrilla plugin site: %s" % prefs.site_server)
+        return {"FINISHED"}
+
+
+class HYDRILLA_OT_check_updates(Operator):
+    bl_idname = "hydrilla.check_updates"
+    bl_label = "Check for add-on updates"
+    bl_description = "Check hydrilla.ai for a newer Blender add-on zip and update in place"
+
+    def execute(self, context):
+        prefs = _prefs(context)
+        install_now = bool(prefs is not None and prefs.auto_update and not addon_updater.is_dev_symlink())
+        if _start_update_check(context, manual=True, install_if_found=install_now):
+            return {"FINISHED"}
+        if _UPDATE["state"] in (UPDATE_CHECKING, UPDATE_UPDATING):
+            return {"FINISHED"}
+        return {"CANCELLED"}
+
+
+class HYDRILLA_OT_update_addon(Operator):
+    bl_idname = "hydrilla.update_addon"
+    bl_label = "Update Hydrilla add-on"
+    bl_description = "Download the latest Hydrilla Blender zip and reload the add-on in place"
+
+    def execute(self, context):
+        if _JOB["busy"]:
+            self.report({"ERROR"}, "Wait for the current model generation to finish first")
+            return {"CANCELLED"}
+        if _start_addon_install(context, manual=True) or _UPDATE["state"] == UPDATE_UPDATING:
+            return {"FINISHED"}
+        return {"CANCELLED"}
+
+
+class HYDRILLA_OT_edit_api_key(Operator):
+    bl_idname = "hydrilla.edit_api_key"
+    bl_label = "Change API key"
+    bl_description = "Show the API key field to replace the saved key"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        _set_editing_api_key(True)
+        return {"FINISHED"}
+
+
+class HYDRILLA_OT_verify_key(Operator):
+    bl_idname = "hydrilla.verify_key"
+    bl_label = "Check API key"
+    bl_description = "Check the key and refresh your credit balance (free)"
+
+    def execute(self, context):
+        if _start_verify(context):
+            return {"FINISHED"}
+        if _ACCOUNT["state"] == ACCOUNT_CHECKING:
+            return {"FINISHED"}
+        self.report({"ERROR"}, _ACCOUNT["message"] or "Add your API key first")
+        return {"CANCELLED"}
+
+
+class HYDRILLA_OT_remove_key(Operator):
+    bl_idname = "hydrilla.remove_key"
+    bl_label = "Remove API key"
+    bl_description = (
+        "Remove the key from Blender and from the other Hydrilla tools on this computer"
+    )
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+    def execute(self, context):
+        _prefs(context).api_key = ""
+        self.report({"INFO"}, "Hydrilla API key removed")
         return {"FINISHED"}
 
 
 class HYDRILLA_OT_text_to_3d(Operator):
     bl_idname = "hydrilla.text_to_3d"
     bl_label = "Generate"
-    bl_options = {"REGISTER"}
+    bl_description = "Generate a 3D model from the prompt and import it here"
 
     def execute(self, context):
-        scene = context.scene
-        prompt = (scene.hydrilla_prompt or "").strip()
+        prompt = (context.scene.hydrilla_prompt or "").strip()
         if not prompt:
             self.report({"ERROR"}, "Enter a prompt")
             return {"CANCELLED"}
-        if scene.hydrilla_busy or _JOB["busy"]:
-            self.report({"WARNING"}, "Already generating — see Status in Hydrilla panel")
-            return {"CANCELLED"}
 
-        try:
-            client = _resolve_client(context)
-            _ensure_fresh_clerk_token(client.token, client.mode)
-        except Exception as error:
-            message = _user_error(error)
-            status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-            _set_scene_status(scene, message, kind=status_kind, phase="Session")
-            self.report({"ERROR"}, message)
-            _show_hydrilla_popup(
-                message,
-                title="Hydrilla — Session" if status_kind == "SESSION" else "Hydrilla — Sign in",
-                icon="ERROR",
-            )
-            return {"CANCELLED"}
-
-        token = client.token
-        base_url = client.base_url
-        mode = client.mode
-        _set_scene_status(
-            scene,
-            f"Starting text → 3D… {SESSION_KEEP_TAB}",
-            kind="RUNNING",
-            phase="Starting",
-            progress=0,
-            busy=True,
-            task_id="",
+        problem = _start_job(
+            context,
+            create=lambda client: client.text_to_3d(prompt),
+            name=prompt[:24],
         )
-        _tag_hydrilla_redraw()
-
-        def worker():
-            try:
-                if _JOB["cancel"]:
-                    raise api_client.HydrillaApiError("Generation cancelled")
-                _ensure_fresh_clerk_token(token, mode)
-                job_client = api_client.HydrillaClient(
-                    token,
-                    base_url=base_url,
-                    mode=mode,
-                    token_provider=_bridge_token_provider() if mode == "clerk" else None,
-                )
-                if mode == "clerk":
-                    _job_emit(
-                        "status",
-                        text=f"Creating preview image… keep Connect tab open",
-                        phase="Preview",
-                        progress=5,
-                    )
-                    image = job_client.text_to_image(prompt)
-                    image_url = image.get("image_url")
-                    if not image_url:
-                        raise api_client.HydrillaApiError("Text-to-image did not return image_url")
-                    if _JOB["cancel"]:
-                        raise api_client.HydrillaApiError("Generation cancelled")
-                    _ensure_fresh_clerk_token(job_client.token, mode)
-                    _job_emit(
-                        "status",
-                        text="Submitting 3D job…",
-                        phase="Submit",
-                        progress=15,
-                    )
-                    created = job_client.image_to_3d_url(image_url, prompt=prompt)
-                else:
-                    _job_emit(
-                        "status",
-                        text="Submitting text → 3D…",
-                        phase="Submit",
-                        progress=10,
-                    )
-                    created = job_client.text_to_3d(prompt)
-
-                task_id = created.get("id") or created.get("task_id")
-                if not task_id:
-                    raise api_client.HydrillaApiError("No task id returned")
-                _job_emit(
-                    "status",
-                    text=f"Task {task_id[:8]}… waiting for GPU",
-                    phase="Queued",
-                    progress=20,
-                    task_id=str(task_id),
-                )
-
-                task = _wait_task_cancellable(job_client, str(task_id))
-                if str(task.get("status") or "").upper() != "SUCCEEDED":
-                    raise api_client.HydrillaApiError(task.get("error") or "Generation failed")
-                mesh_url = (task.get("result") or {}).get("mesh_url")
-                if not mesh_url:
-                    raise api_client.HydrillaApiError("No mesh_url on success")
-                _job_emit(
-                    "status",
-                    text="Downloading mesh…",
-                    phase="Download",
-                    progress=95,
-                    task_id=str(task_id),
-                )
-                path = api_client.download_to_temp(job_client, mesh_url, task_id)
-                _job_emit("done", path=path)
-            except Exception as error:
-                _job_emit("error", text=_user_error(error))
-
-        if not _start_background_job(worker, mode=mode):
-            scene.hydrilla_busy = False
-            self.report({"WARNING"}, "Already generating")
+        if problem:
+            _set_status(problem, "ERROR")
+            self.report({"ERROR"}, problem)
             return {"CANCELLED"}
-
-        _start_jobs_fetch(context, quiet=True)
-        self.report({"INFO"}, "Generating — watch Status + Your jobs")
+        _set_status("Creating the concept image…", "RUNNING", phase="Starting", progress=2)
         return {"FINISHED"}
 
 
 class HYDRILLA_OT_pick_image(Operator, ImportHelper):
     bl_idname = "hydrilla.pick_image"
-    bl_label = "Browse image"
-    bl_description = "Pick a local PNG/JPG to preview and convert to 3D"
+    bl_label = "Choose image"
+    bl_description = "Pick a PNG, JPG or WebP to turn into a 3D model"
 
     filename_ext = ".png"
     filter_glob: StringProperty(
-        default="*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tif;*.tiff",
+        default="*.png;*.jpg;*.jpeg;*.webp",
         options={"HIDDEN"},
     )
 
@@ -1292,791 +1168,415 @@ class HYDRILLA_OT_pick_image(Operator, ImportHelper):
         scene = context.scene
         path = (self.filepath or "").strip()
         if not path or not os.path.isfile(path):
-            self.report({"ERROR"}, "Choose a valid image file")
+            self.report({"ERROR"}, "Choose an image file")
             return {"CANCELLED"}
         try:
             image = bpy.data.images.load(path, check_existing=True)
         except Exception as error:
-            self.report({"ERROR"}, f"Could not load image: {error}")
+            self.report({"ERROR"}, "Could not open the image: %s" % error)
             return {"CANCELLED"}
 
         scene.hydrilla_image_path = path
         scene.hydrilla_preview = image
         scene.hydrilla_image_url = ""
-        scene.hydrilla_status = f"Image ready · {os.path.basename(path)}"
-        self.report({"INFO"}, f"Loaded {os.path.basename(path)}")
+        _set_status("Image ready: %s" % os.path.basename(path), "INFO")
         return {"FINISHED"}
 
 
 class HYDRILLA_OT_image_to_3d(Operator):
     bl_idname = "hydrilla.image_to_3d"
     bl_label = "Generate from image"
-    bl_options = {"REGISTER"}
+    bl_description = "Generate a 3D model from the image and import it here"
 
     def execute(self, context):
         scene = context.scene
-        image_path = (scene.hydrilla_image_path or "").strip()
+        image_path = bpy.path.abspath((scene.hydrilla_image_path or "").strip())
         image_url = (scene.hydrilla_image_url or "").strip()
 
-        if image_path and os.path.isfile(image_path):
-            source = "file"
-        elif (
-            image_url.startswith("http://")
-            or image_url.startswith("https://")
-            or image_url.startswith("data:")
-        ):
-            source = "url"
+        if image_url.startswith("https://") or image_url.startswith("http://"):
+            create = lambda client: client.image_to_3d_url(image_url)  # noqa: E731
+            label = "image"
+        elif image_path and os.path.isfile(image_path):
+            create = lambda client: client.image_to_3d_file(image_path)  # noqa: E731
+            label = os.path.splitext(os.path.basename(image_path))[0][:24]
         else:
-            message = (
-                "Browse a local image (PNG/JPG), or paste an https:// image URL. "
-                "Text like “hulk” belongs in Text mode."
-            )
-            scene.hydrilla_status = message
+            message = "Choose an image file, or paste an https:// image link."
+            _set_status(message, "ERROR")
             self.report({"ERROR"}, message)
             return {"CANCELLED"}
 
-        if scene.hydrilla_busy or _JOB["busy"]:
-            self.report({"WARNING"}, "Already generating — see Status in Hydrilla panel")
+        problem = _start_job(context, create=create, name=label)
+        if problem:
+            _set_status(problem, "ERROR")
+            self.report({"ERROR"}, problem)
             return {"CANCELLED"}
-
-        try:
-            client = _resolve_client(context)
-            _ensure_fresh_clerk_token(client.token, client.mode)
-        except Exception as error:
-            message = _user_error(error)
-            status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-            _set_scene_status(scene, message, kind=status_kind, phase="Session")
-            self.report({"ERROR"}, message)
-            _show_hydrilla_popup(
-                message,
-                title="Hydrilla — Session" if status_kind == "SESSION" else "Hydrilla — Sign in",
-                icon="ERROR",
-            )
-            return {"CANCELLED"}
-
-        token = client.token
-        base_url = client.base_url
-        mode = client.mode
-        _set_scene_status(
-            scene,
-            f"Starting image → 3D… {SESSION_KEEP_TAB}",
-            kind="RUNNING",
-            phase="Starting",
-            progress=0,
-            busy=True,
-            task_id="",
-        )
-        _tag_hydrilla_redraw()
-
-        def worker():
-            try:
-                if _JOB["cancel"]:
-                    raise api_client.HydrillaApiError("Generation cancelled")
-                _ensure_fresh_clerk_token(token, mode)
-                job_client = api_client.HydrillaClient(
-                    token,
-                    base_url=base_url,
-                    mode=mode,
-                    token_provider=_bridge_token_provider() if mode == "clerk" else None,
-                )
-                if source == "file":
-                    _job_emit(
-                        "status",
-                        text="Uploading image…",
-                        phase="Upload",
-                        progress=10,
-                    )
-                    created = job_client.image_to_3d_file(image_path)
-                else:
-                    _job_emit(
-                        "status",
-                        text="Submitting image → 3D…",
-                        phase="Submit",
-                        progress=10,
-                    )
-                    created = job_client.image_to_3d_url(image_url)
-
-                task_id = created.get("id") or created.get("task_id") or created.get("jobId")
-                if not task_id:
-                    raise api_client.HydrillaApiError("No task id returned")
-                _job_emit(
-                    "status",
-                    text=f"Task {str(task_id)[:8]}… waiting for GPU",
-                    phase="Queued",
-                    progress=20,
-                    task_id=str(task_id),
-                )
-
-                task = _wait_task_cancellable(job_client, str(task_id))
-                if str(task.get("status") or "").upper() != "SUCCEEDED":
-                    raise api_client.HydrillaApiError(task.get("error") or "Generation failed")
-                mesh_url = (task.get("result") or {}).get("mesh_url")
-                if not mesh_url:
-                    raise api_client.HydrillaApiError("No mesh_url on success")
-                _job_emit(
-                    "status",
-                    text="Downloading mesh…",
-                    phase="Download",
-                    progress=95,
-                    task_id=str(task_id),
-                )
-                path = api_client.download_to_temp(job_client, mesh_url, task_id)
-                _job_emit("done", path=path)
-            except Exception as error:
-                _job_emit("error", text=_user_error(error))
-
-        if not _start_background_job(worker, mode=mode):
-            scene.hydrilla_busy = False
-            self.report({"WARNING"}, "Already generating")
-            return {"CANCELLED"}
-
-        _start_jobs_fetch(context, quiet=True)
-        self.report({"INFO"}, "Generating — watch Status + Your jobs")
+        _set_status("Sending the image…", "RUNNING", phase="Starting", progress=2)
         return {"FINISHED"}
 
 
 class HYDRILLA_OT_cancel_generate(Operator):
     bl_idname = "hydrilla.cancel_generate"
-    bl_label = "Cancel generate"
+    bl_label = "Cancel"
+    bl_description = "Stop the running generation. Unused credits are refunded"
 
     def execute(self, context):
-        if not _JOB["busy"] and not context.scene.hydrilla_busy:
-            self.report({"INFO"}, "Nothing to cancel")
+        if not _JOB["busy"]:
             return {"CANCELLED"}
         _JOB["cancel"] = True
-        _set_scene_status(
-            context.scene,
-            "Cancelling…",
-            kind="RUNNING",
-            phase="Cancelling",
-            busy=True,
-        )
-        _tag_hydrilla_redraw()
-        self.report({"INFO"}, "Cancel requested")
+        _set_status("Cancelling…", "RUNNING", phase="Cancelling")
         return {"FINISHED"}
 
 
-class HYDRILLA_OT_resume_job(Operator):
-    bl_idname = "hydrilla.resume_job"
-    bl_label = "Resume / poll task"
-    bl_description = "If a task id was saved and the job stopped, poll again after reconnect"
+class HYDRILLA_OT_refresh_tasks(Operator):
+    bl_idname = "hydrilla.refresh_tasks"
+    bl_label = "Refresh"
+    bl_description = "Reload your recent Hydrilla models"
 
     def execute(self, context):
-        scene = context.scene
-        task_id = (scene.hydrilla_job_task_id or "").strip()
-        if not task_id:
-            self.report({"ERROR"}, "No saved task id to resume")
-            return {"CANCELLED"}
-        if scene.hydrilla_busy or _JOB["busy"]:
-            self.report({"WARNING"}, "A job is already running — see Status")
-            return {"CANCELLED"}
-
-        try:
-            client = _resolve_client(context)
-            _ensure_fresh_clerk_token(client.token, client.mode)
-        except Exception as error:
-            message = _user_error(error)
-            status_kind = "SESSION" if _is_session_error(message) else "ERROR"
-            _set_scene_status(scene, message, kind=status_kind, phase="Session")
-            self.report({"ERROR"}, message)
-            return {"CANCELLED"}
-
-        token = client.token
-        base_url = client.base_url
-        mode = client.mode
-        _set_scene_status(
-            scene,
-            f"Resuming task {task_id[:8]}…",
-            kind="RUNNING",
-            phase="Resume",
-            progress=0,
-            busy=True,
-            task_id=task_id,
-        )
-
-        def worker():
-            try:
-                job_client = api_client.HydrillaClient(
-                    token,
-                    base_url=base_url,
-                    mode=mode,
-                    token_provider=_bridge_token_provider() if mode == "clerk" else None,
-                )
-                task = _wait_task_cancellable(job_client, task_id)
-                if str(task.get("status") or "").upper() != "SUCCEEDED":
-                    raise api_client.HydrillaApiError(task.get("error") or "Generation failed")
-                mesh_url = (task.get("result") or {}).get("mesh_url")
-                if not mesh_url:
-                    raise api_client.HydrillaApiError("No mesh_url on success")
-                _job_emit(
-                    "status",
-                    text="Downloading mesh…",
-                    phase="Download",
-                    progress=95,
-                    task_id=task_id,
-                )
-                path = api_client.download_to_temp(job_client, mesh_url, task_id)
-                _job_emit("done", path=path)
-            except Exception as error:
-                _job_emit("error", text=_user_error(error))
-
-        if not _start_background_job(worker, mode=mode):
-            scene.hydrilla_busy = False
-            self.report({"WARNING"}, "Already generating")
-            return {"CANCELLED"}
-
-        self.report({"INFO"}, "Resumed — watch Status panel")
-        return {"FINISHED"}
-
-
-class HYDRILLA_OT_refresh_jobs(Operator):
-    bl_idname = "hydrilla.refresh_jobs"
-    bl_label = "Refresh jobs"
-    bl_description = "Load pending and running jobs for your Hydrilla account"
-
-    def execute(self, context):
-        if _start_jobs_fetch(context, quiet=False):
-            self.report({"INFO"}, "Loading your jobs…")
+        if _start_tasks_fetch(context) or _TASKS["fetching"]:
             return {"FINISHED"}
-        if _JOBS_UI["fetching"]:
-            self.report({"INFO"}, "Already refreshing jobs")
-            return {"FINISHED"}
-        self.report({"ERROR"}, context.scene.hydrilla_status or "Could not refresh jobs")
+        self.report({"ERROR"}, _TASKS["error"] or "Could not load your models")
         return {"CANCELLED"}
 
 
-class HYDRILLA_OT_import_account_job(Operator):
-    bl_idname = "hydrilla.import_account_job"
-    bl_label = "Import job"
+class HYDRILLA_OT_import_task(Operator):
+    bl_idname = "hydrilla.import_task"
+    bl_label = "Import"
+    bl_description = "Download this model and add it to the scene"
     bl_options = {"REGISTER", "UNDO"}
 
-    index: IntProperty(default=0)
+    task_id: StringProperty(default="", options={"HIDDEN", "SKIP_SAVE"})
 
     def execute(self, context):
-        scene = context.scene
-        jobs = scene.hydrilla_jobs
-        if self.index < 0 or self.index >= len(jobs):
-            self.report({"ERROR"}, "Invalid job")
-            return {"CANCELLED"}
-        item = jobs[self.index]
-        job_id = (item.job_id or "").strip()
-        if not job_id:
-            self.report({"ERROR"}, "Job has no id")
+        task = next((item for item in _TASKS["items"] if item.get("id") == self.task_id), None)
+        if task is None:
+            self.report({"ERROR"}, "That model is no longer in the list. Refresh and try again.")
             return {"CANCELLED"}
 
-        label = _job_status_label(item.status)
-        if label not in {"Done"}:
-            self.report({"WARNING"}, f"Job is {label} — wait until Done to import")
-            return {"CANCELLED"}
-
-        if scene.hydrilla_busy or _JOB["busy"]:
-            self.report({"WARNING"}, "Another generate is running")
-            return {"CANCELLED"}
-
-        try:
-            client = _resolve_client(context)
-            _ensure_fresh_clerk_token(client.token, client.mode)
-        except Exception as error:
-            message = _user_error(error)
-            _set_scene_status(
-                scene,
-                message,
-                kind="SESSION" if _is_session_error(message) else "ERROR",
-            )
-            self.report({"ERROR"}, message)
-            return {"CANCELLED"}
-
-        token = client.token
-        base_url = client.base_url
-        mode = client.mode
-        mesh_url = (item.mesh_url or "").strip()
-        _set_scene_status(
-            scene,
-            f"Importing job {job_id[:8]}…",
-            kind="RUNNING",
-            phase="Import",
-            busy=True,
-            task_id=job_id,
+        problem = _start_job(
+            context,
+            task_id=self.task_id,
+            mesh_url=hydrilla_api.mesh_url_of(task),
+            name=str(task.get("prompt") or self.task_id)[:24],
         )
-
-        def worker():
-            try:
-                job_client = api_client.HydrillaClient(
-                    token,
-                    base_url=base_url,
-                    mode=mode,
-                    token_provider=_bridge_token_provider() if mode == "clerk" else None,
-                )
-                url = mesh_url
-                if not url:
-                    task = job_client.get_task(job_id)
-                    url = ((task.get("result") or {}).get("mesh_url") or "").strip()
-                if not url:
-                    url = f"{base_url}/api/3d/glb/{job_id}"
-                _job_emit(
-                    "status",
-                    text="Downloading mesh…",
-                    phase="Download",
-                    progress=95,
-                    task_id=job_id,
-                )
-                path = api_client.download_to_temp(job_client, url, job_id)
-                _job_emit("done", path=path)
-            except Exception as error:
-                _job_emit("error", text=_user_error(error))
-
-        if not _start_background_job(worker, mode=mode):
-            scene.hydrilla_busy = False
-            self.report({"WARNING"}, "Already generating")
+        if problem:
+            _set_status(problem, "ERROR")
+            self.report({"ERROR"}, problem)
             return {"CANCELLED"}
-
-        self.report({"INFO"}, "Importing — watch Status")
+        _set_status("Getting the model…", "RUNNING", phase="Download", progress=50)
         return {"FINISHED"}
 
 
-class HYDRILLA_OT_poll_bridge(Operator):
-    bl_idname = "hydrilla.poll_bridge"
-    bl_label = "Import from Studio"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        scene = context.scene
-        if not _bridge_running(context):
-            self.report({"ERROR"}, "Run Bridge first")
-            return {"CANCELLED"}
-        try:
-            items = bridge_runtime.pop_pending("blender") or bridge_runtime.pop_pending()
-            if not items:
-                scene.hydrilla_status = "Nothing waiting from Studio"
-                self.report({"INFO"}, "No pending items")
-                return {"CANCELLED"}
-            item = items[0]
-            path = item.get("file_path") or item.get("path")
-            name = item.get("name") or item.get("job_id") or "bridge"
-            if path and os.path.exists(path):
-                bpy.ops.import_scene.gltf(filepath=path)
-                bridge_runtime.ack_pending(str(item.get("id") or ""))
-                try:
-                    os.remove(path)
-                except Exception:
-                    pass
-            else:
-                mesh_url = item.get("mesh_url")
-                if not mesh_url:
-                    raise RuntimeError("Bridge item missing file")
-                client = _resolve_client(context)
-                path = api_client.download_to_temp(client, mesh_url, str(name))
-                bpy.ops.import_scene.gltf(filepath=path)
-                bridge_runtime.ack_pending(str(item.get("id") or ""))
-            scene.hydrilla_status = f"Imported from Studio · {name}"
-            self.report({"INFO"}, "Imported from Studio")
-            return {"FINISHED"}
-        except Exception as error:
-            scene.hydrilla_status = str(error)
-            self.report({"ERROR"}, str(error))
-            return {"CANCELLED"}
+# --------------------------------------------------------------------------
+# Panels
+# --------------------------------------------------------------------------
 
 
-class HYDRILLA_PT_main(Panel):
+class _HydrillaPanel:
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Hydrilla"
+
+
+class HYDRILLA_PT_main(_HydrillaPanel, Panel):
     bl_label = "Hydrilla"
     bl_idname = "HYDRILLA_PT_main"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Hydrilla"
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon="MESH_CUBE")
 
     def draw(self, context):
         layout = self.layout
-        hero = layout.box()
-        title = hero.row()
-        title.label(text="Hydrilla", icon="OUTLINER_OB_MESH")
-        hero.label(text="AI 3D for your scene")
-
-
-class HYDRILLA_PT_bridge(Panel):
-    bl_label = "Bridge"
-    bl_idname = "HYDRILLA_PT_bridge"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Hydrilla"
-    bl_parent_id = "HYDRILLA_PT_main"
-
-    def draw(self, context):
-        layout = self.layout
-        props = context.window_manager.hydrilla_bridge_props
-        box = layout.box()
-        if props.bridge_running:
-            box.operator(
-                "hydrilla.bridge_stop",
-                text="Bridge ON",
-                icon="CHECKMARK",
-                depress=True,
-            )
-            box.label(text=f"127.0.0.1:{bridge_runtime.BRIDGE_PORT}")
-        else:
-            box.operator("hydrilla.bridge_start", text="Run Bridge", icon="PLAY")
-            box.label(text="Required for sign-in & Studio send")
-
-
-class HYDRILLA_PT_account(Panel):
-    bl_label = "Account"
-    bl_idname = "HYDRILLA_PT_account"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Hydrilla"
-    bl_parent_id = "HYDRILLA_PT_main"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        box = layout.box()
-        mode = scene.hydrilla_auth_mode or "NONE"
-        if mode == "CLERK":
-            box.label(text=scene.hydrilla_account or "Signed in", icon="CHECKMARK")
-        elif mode == "API":
-            box.label(text="Using API key", icon="KEYINGSET")
-        else:
-            box.label(text="Not signed in", icon="ERROR")
-
-        row = box.row(align=True)
-        row.scale_y = 1.2
-        row.operator("hydrilla.sign_in", text="Sign in", icon="URL")
-        row.operator("hydrilla.sync_account", text="Sync", icon="FILE_REFRESH")
-        box.operator("hydrilla.sign_out", text="Sign out", icon="QUIT")
-        box.label(text="Or set API key in Add-on Preferences", icon="INFO")
-
-
-class HYDRILLA_PT_status(Panel):
-    bl_label = "Status"
-    bl_idname = "HYDRILLA_PT_status"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Hydrilla"
-    bl_parent_id = "HYDRILLA_PT_main"
-    bl_options = set()
-
-    def draw(self, context):
-        _draw_status_block(self.layout, context.scene)
-
-
-class HYDRILLA_PT_jobs(Panel):
-    bl_label = "Your jobs"
-    bl_idname = "HYDRILLA_PT_jobs"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Hydrilla"
-    bl_parent_id = "HYDRILLA_PT_main"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        box = layout.box()
-
-        pending = int(getattr(scene, "hydrilla_jobs_pending", 0) or 0)
-        running = int(getattr(scene, "hydrilla_jobs_running", 0) or 0)
-        done = int(getattr(scene, "hydrilla_jobs_done", 0) or 0)
-        failed = int(getattr(scene, "hydrilla_jobs_failed", 0) or 0)
-
-        header = box.row()
-        if _JOBS_UI["fetching"]:
-            header.label(text="Loading jobs…", icon="SORTTIME")
-        elif running or pending:
-            header.label(
-                text=f"{running} running · {pending} pending",
-                icon="SORTTIME",
-            )
-        else:
-            header.label(text=f"{done} done · {failed} failed", icon="CHECKMARK")
-        refresh = header.row()
-        refresh.enabled = not _JOBS_UI["fetching"]
-        refresh.operator("hydrilla.refresh_jobs", text="", icon="FILE_REFRESH")
-
-        mode = scene.hydrilla_auth_mode or "NONE"
-        if mode != "CLERK":
-            box.label(text="Sign in + Sync to see your jobs", icon="INFO")
+        prefs = _prefs(context)
+        if prefs is None:
+            layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
             return
 
-        error = (getattr(scene, "hydrilla_jobs_error", "") or "").strip()
-        if error:
-            for line in _wrap_status_lines(error, width=32):
-                box.label(text=line, icon="ERROR")
-            row = box.row(align=True)
-            row.operator("hydrilla.sign_in", text="Sign in", icon="URL")
-            row.operator("hydrilla.sync_account", text="Sync", icon="FILE_REFRESH")
-
-        fetched = getattr(scene, "hydrilla_jobs_fetched_at", "") or ""
-        if fetched:
-            box.label(text=f"Updated {fetched}")
-
-        counts = box.row(align=True)
-        counts.label(text=f"R {running}")
-        counts.label(text=f"P {pending}")
-        counts.label(text=f"D {done}")
-        counts.label(text=f"F {failed}")
-
-        box.prop(scene, "hydrilla_jobs_show_all", text="Show completed / failed")
-
-        jobs = list(scene.hydrilla_jobs)
-        show_all = bool(scene.hydrilla_jobs_show_all)
-        visible = []
-        for index, item in enumerate(jobs):
-            status = _normalize_job_status(
-                item.status or "",
-                has_mesh=bool((item.mesh_url or "").strip()),
-            )
-            if status in {"RUNNING", "PENDING"}:
-                visible.append((index, item, status))
-            elif show_all and status in {"DONE", "FAILED", "CANCELLED"}:
-                visible.append((index, item, status))
-
-        # If nothing active, still show recent completed so the list is useful
-        if not visible and jobs:
-            for index, item in enumerate(jobs[:10]):
-                status = _normalize_job_status(
-                    item.status or "",
-                    has_mesh=bool((item.mesh_url or "").strip()),
-                )
-                visible.append((index, item, status))
-
-        if _JOBS_UI["fetching"] and not visible:
-            box.label(text="Fetching from Hydrilla…", icon="SORTTIME")
-            return
-
-        if not visible and not error:
-            box.label(text="No jobs yet for this account", icon="INFO")
-            box.label(text="Generate once, then Refresh")
-            return
-
-        last_group = ""
-        for index, item, status in visible[:16]:
-            label = _job_status_label(status, has_mesh=bool(item.mesh_url))
-            if label != last_group:
-                box.label(text=label.upper(), icon=_job_status_icon(status, has_mesh=bool(item.mesh_url)))
-                last_group = label
-            col = box.box()
-            top = col.row(align=True)
-            top.label(text=_truncate(item.prompt, 28))
-            top.label(text=str(item.job_id or "")[:8])
-            meta = col.row(align=True)
-            meta.label(text=label)
-            if item.generate_type:
-                meta.label(text=str(item.generate_type)[:14])
-            if label == "Done":
-                op = col.operator(
-                    "hydrilla.import_account_job",
-                    text="Import mesh",
-                    icon="IMPORT",
-                )
-                op.index = index
+        _draw_account(layout, prefs, context, compact=True)
+        layout.separator()
+        _draw_update_controls(layout, prefs)
 
 
-class HYDRILLA_PT_generate(Panel):
+class HYDRILLA_PT_generate(_HydrillaPanel, Panel):
     bl_label = "Generate"
     bl_idname = "HYDRILLA_PT_generate"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Hydrilla"
     bl_parent_id = "HYDRILLA_PT_main"
+
+    @classmethod
+    def poll(cls, context):
+        return _has_api_key(_prefs(context))
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        busy = bool(_JOB["busy"])
 
         layout.prop(scene, "hydrilla_gen_mode", expand=True)
-
-        busy = _local_job_busy(scene)
-        box = layout.box()
         if scene.hydrilla_gen_mode == "TEXT":
-            box.label(text="Text to 3D", icon="FONT_DATA")
-            box.prop(scene, "hydrilla_prompt", text="")
-            op = box.row()
-            op.scale_y = 1.35
-            op.enabled = not busy
-            op.operator("hydrilla.text_to_3d", text="Generate mesh", icon="MESH_CUBE")
+            layout.prop(scene, "hydrilla_prompt", text="", icon="OUTLINER_OB_FONT")
+            row = layout.row()
+            row.scale_y = 1.4
+            row.enabled = not busy
+            row.operator("hydrilla.text_to_3d", text="Generate", icon="MESH_CUBE")
         else:
-            box.label(text="Image to 3D", icon="IMAGE_DATA")
-            browse = box.row()
-            browse.enabled = not busy
-            browse.operator("hydrilla.pick_image", text="Browse image…", icon="FILEBROWSER")
-            if scene.hydrilla_preview:
-                box.template_ID_preview(scene, "hydrilla_preview", rows=3, cols=4)
-                box.label(text=os.path.basename(scene.hydrilla_image_path or "") or "Preview")
-            else:
-                box.label(text="No image selected", icon="INFO")
-            box.separator()
-            box.label(text="Or paste an https image URL")
-            box.prop(scene, "hydrilla_image_url", text="")
-            op = box.row()
-            op.scale_y = 1.35
-            op.enabled = not busy
-            op.operator("hydrilla.image_to_3d", text="Generate mesh", icon="MESH_CUBE")
+            row = layout.row(align=True)
+            row.enabled = not busy
+            row.operator("hydrilla.pick_image", text="Choose image", icon="IMAGE_DATA")
+            if scene.hydrilla_preview and scene.hydrilla_image_path:
+                layout.template_ID_preview(scene, "hydrilla_preview", rows=3, cols=4)
+            layout.prop(scene, "hydrilla_image_url", text="", icon="URL")
+            row = layout.row()
+            row.scale_y = 1.4
+            row.enabled = not busy
+            row.operator("hydrilla.image_to_3d", text="Generate", icon="MESH_CUBE")
 
+        show_status = busy or _STATUS["kind"] != "INFO" or _STATUS["text"] not in ("", "Ready")
+        if not show_status:
+            return
+
+        status = layout.column(align=True)
+        status.separator()
+        kind = _STATUS["kind"]
+        icon = "SORTTIME" if busy else ("ERROR" if kind == "ERROR" else ("CHECKMARK" if kind == "DONE" else "INFO"))
         if busy:
-            box.label(text="Generating — see Status + Your jobs", icon="SORTTIME")
-        elif int(getattr(scene, "hydrilla_jobs_done", 0) or 0) > 0:
-            box.label(text="Finished jobs are under Your jobs → Done", icon="CHECKMARK")
+            header = status.row(align=True)
+            phase = _STATUS["phase"] or "Working"
+            percent = int(_STATUS["progress"] or 0)
+            header.label(text="%s · %d%%" % (phase, percent) if percent else phase, icon=icon)
+            header.label(text="%ds" % max(0, int(time.time() - float(_JOB["started_at"]))))
+            status.operator("hydrilla.cancel_generate", text="Cancel", icon="X")
+        else:
+            lines = _wrap(_STATUS["text"], width=36)
+            for index, line in enumerate(lines):
+                status.label(text=line, icon=icon if index == 0 else "NONE")
 
 
-class HYDRILLA_PT_studio(Panel):
-    bl_label = "From Studio"
-    bl_idname = "HYDRILLA_PT_studio"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Hydrilla"
+class HYDRILLA_PT_tasks(_HydrillaPanel, Panel):
+    bl_label = "Your models"
+    bl_idname = "HYDRILLA_PT_tasks"
     bl_parent_id = "HYDRILLA_PT_main"
     bl_options = {"DEFAULT_CLOSED"}
 
+    @classmethod
+    def poll(cls, context):
+        return _has_api_key(_prefs(context))
+
     def draw(self, context):
         layout = self.layout
-        running = _bridge_running(context)
-        box = layout.box()
-        box.label(text="Receive meshes sent from Studio", icon="IMPORT")
-        if not running:
-            box.label(text="Run Bridge first", icon="ERROR")
-        row = box.row()
-        row.scale_y = 1.25
-        row.enabled = running
-        row.operator("hydrilla.poll_bridge", text="Import from Studio", icon="IMPORT")
+        header = layout.row(align=True)
+        if _TASKS["fetching"]:
+            header.label(text="Loading…", icon="SORTTIME")
+        elif _TASKS["fetched_at"]:
+            header.label(text=_TASKS["fetched_at"])
+        else:
+            header.label(text="Recent")
+        refresh = header.row(align=True)
+        refresh.alignment = "RIGHT"
+        refresh.enabled = not _TASKS["fetching"]
+        refresh.operator("hydrilla.refresh_tasks", text="", icon="FILE_REFRESH")
+
+        if _TASKS["error"]:
+            for line in _wrap(_TASKS["error"], width=36):
+                layout.label(text=line, icon="ERROR")
+            return
+
+        items = _TASKS["items"]
+        if not items:
+            if not _TASKS["fetching"]:
+                layout.label(text="Nothing here yet.")
+            return
+
+        column = layout.column(align=True)
+        for task in items[:VISIBLE_TASKS]:
+            state = _task_state(task)
+            row = column.row(align=True)
+            row.label(text=_truncate(str(task.get("prompt") or ""), width=22))
+            if state == "READY":
+                action = row.row(align=True)
+                action.enabled = not _JOB["busy"]
+                action.operator("hydrilla.import_task", text="", icon="IMPORT").task_id = str(
+                    task.get("id") or ""
+                )
+            elif state == "RUNNING":
+                row.label(text="", icon="SORTTIME")
+            elif state == "CANCELLED":
+                row.label(text="", icon="X")
+            else:
+                row.label(text="", icon="ERROR")
+
+
+class HYDRILLA_PT_bridge(_HydrillaPanel, Panel):
+    bl_label = "Bridge"
+    bl_idname = "HYDRILLA_PT_bridge"
+    bl_parent_id = "HYDRILLA_PT_main"
+
+    def draw(self, context):
+        prefs = _prefs(context)
+        if prefs is None:
+            self.layout.label(text="Enable the Hydrilla add-on", icon="ERROR")
+            return
+        _draw_bridge_controls(self.layout, prefs)
+
+
+def _agent_edits_allowed() -> bool:
+    prefs = _prefs()
+    return bool(prefs is not None and prefs.allow_agent_edits)
 
 
 classes = (
-    HydrillaJobItem,
     HydrillaPreferences,
-    HYDRILLA_OT_prefs_local,
-    HYDRILLA_OT_prefs_production,
-    HYDRILLA_OT_sign_in,
-    HYDRILLA_OT_sync_account,
-    HYDRILLA_OT_sign_out,
+    HYDRILLA_OT_use_api_base,
+    HYDRILLA_OT_use_site_base,
+    HYDRILLA_OT_check_updates,
+    HYDRILLA_OT_update_addon,
+    HYDRILLA_OT_verify_key,
+    HYDRILLA_OT_edit_api_key,
+    HYDRILLA_OT_remove_key,
     HYDRILLA_OT_text_to_3d,
     HYDRILLA_OT_pick_image,
     HYDRILLA_OT_image_to_3d,
     HYDRILLA_OT_cancel_generate,
-    HYDRILLA_OT_resume_job,
-    HYDRILLA_OT_refresh_jobs,
-    HYDRILLA_OT_import_account_job,
-    HYDRILLA_OT_poll_bridge,
+    HYDRILLA_OT_refresh_tasks,
+    HYDRILLA_OT_import_task,
     HYDRILLA_PT_main,
-    HYDRILLA_PT_bridge,
-    HYDRILLA_PT_account,
-    HYDRILLA_PT_status,
-    HYDRILLA_PT_jobs,
     HYDRILLA_PT_generate,
-    HYDRILLA_PT_studio,
+    HYDRILLA_PT_tasks,
+    HYDRILLA_PT_bridge,
+)
+
+SCENE_PROPERTIES = (
+    "hydrilla_prompt",
+    "hydrilla_image_url",
+    "hydrilla_image_path",
+    "hydrilla_preview",
+    "hydrilla_gen_mode",
 )
 
 
+def _startup():
+    """Runs once after Blender has finished loading the add-on."""
+    prefs = _prefs()
+    if prefs is None:
+        return None
+
+    # A key saved by an earlier version may point at an API host that is gone.
+    fixed_base = hydrilla_config.normalize_api_base(prefs.api_server)
+    if fixed_base != prefs.api_server:
+        prefs.api_server = fixed_base
+
+    fixed_site = hydrilla_config.normalize_site_url(prefs.site_server)
+    if fixed_site != prefs.site_server:
+        prefs.site_server = fixed_site
+
+    stored = hydrilla_config.stored_api_key()
+    if not prefs.api_key and stored:
+        # Pasted earlier in another Hydrilla plugin on this computer.
+        _GUARD["key"] = True
+        try:
+            prefs.api_key = stored
+        finally:
+            _GUARD["key"] = False
+    elif prefs.api_key and prefs.api_key != stored:
+        try:
+            hydrilla_config.save_api_key(prefs.api_key)
+        except OSError as error:
+            print("[Hydrilla] Could not save the API key for other tools: %s" % error)
+
+    if _api_key():
+        _ACCOUNT["state"] = ACCOUNT_UNVERIFIED
+        if _background_calls_allowed():
+            _start_verify()
+
+    if (
+        prefs.auto_start_bridge
+        and not bridge_runtime.is_running()
+        and not bpy.app.background
+        and _UPDATE["state"] != UPDATE_UPDATED
+    ):
+        result = bridge_runtime.start()
+        if not result.get("ok"):
+            _set_status(str(result.get("error") or "Bridge could not start"), "ERROR")
+
+    if (
+        _background_calls_allowed()
+        and _UPDATE["state"] not in (UPDATE_UPDATED, UPDATE_ERROR)
+        and not addon_updater.is_dev_symlink()
+    ):
+        _start_update_check(
+            manual=False,
+            install_if_found=bool(prefs.auto_update),
+        )
+    return None
+
+
 def register():
-    # Pick up updated submodule files after zip reinstall without restarting Blender
-    importlib.reload(api_client)
-    importlib.reload(bridge_client)
-    importlib.reload(bridge_runtime)
+    # Pick up new files after reinstalling the zip without restarting Blender.
+    # Order matters: each module is reloaded after the ones it imports.
+    for module in (
+        hydrilla_config,
+        hydrilla_api,
+        addon_updater,
+        bridge_server,
+        agent_commands,
+        bridge_runtime,
+    ):
+        importlib.reload(module)
 
     bridge_runtime.register_runtime()
+    bridge_runtime.set_status_hook(_set_status)
+    bridge_runtime.set_agent_edits_hook(_agent_edits_allowed)
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.hydrilla_prompt = StringProperty(name="Prompt", default="", maxlen=2000)
-    bpy.types.Scene.hydrilla_image_url = StringProperty(
-        name="Image URL",
-        description="Optional https:// image link (or use Browse image)",
+
+    scene = bpy.types.Scene
+    scene.hydrilla_prompt = StringProperty(
+        name="Prompt",
+        description="Describe the model you want",
+        default="",
+        maxlen=2000,
+    )
+    scene.hydrilla_image_url = StringProperty(
+        name="Image link",
+        description="An https:// link to an image",
         default="",
     )
-    bpy.types.Scene.hydrilla_image_path = StringProperty(
-        name="Image Path",
-        description="Local image selected via Browse",
+    scene.hydrilla_image_path = StringProperty(
+        name="Image file",
         default="",
         subtype="FILE_PATH",
     )
-    bpy.types.Scene.hydrilla_preview = PointerProperty(
-        name="Preview",
-        type=bpy.types.Image,
-    )
-    bpy.types.Scene.hydrilla_status = StringProperty(name="Status", default="Ready")
-    bpy.types.Scene.hydrilla_status_kind = EnumProperty(
-        name="Status kind",
-        items=(
-            ("INFO", "Info", ""),
-            ("RUNNING", "Running", ""),
-            ("DONE", "Done", ""),
-            ("ERROR", "Error", ""),
-            ("SESSION", "Session", ""),
-        ),
-        default="INFO",
-    )
-    bpy.types.Scene.hydrilla_busy = BoolProperty(
-        name="Busy",
-        description="True while a background generate job is running",
-        default=False,
-    )
-    bpy.types.Scene.hydrilla_job_phase = StringProperty(name="Job phase", default="")
-    bpy.types.Scene.hydrilla_job_progress = IntProperty(
-        name="Job progress",
-        default=0,
-        min=0,
-        max=100,
-    )
-    bpy.types.Scene.hydrilla_job_task_id = StringProperty(name="Job task id", default="")
-    bpy.types.Scene.hydrilla_account = StringProperty(name="Account", default="Not signed in")
-    bpy.types.Scene.hydrilla_auth_mode = EnumProperty(
-        name="Auth",
-        items=(
-            ("NONE", "None", ""),
-            ("CLERK", "Clerk", ""),
-            ("API", "API key", ""),
-        ),
-        default="NONE",
-    )
-    bpy.types.Scene.hydrilla_gen_mode = EnumProperty(
+    scene.hydrilla_preview = PointerProperty(name="Preview", type=bpy.types.Image)
+    scene.hydrilla_gen_mode = EnumProperty(
         name="Mode",
         items=(
             ("TEXT", "Text", "Generate from a prompt"),
-            ("IMAGE", "Image", "Generate from a local image or URL"),
+            ("IMAGE", "Image", "Generate from an image"),
         ),
         default="TEXT",
     )
-    bpy.types.Scene.hydrilla_jobs = CollectionProperty(type=HydrillaJobItem)
-    bpy.types.Scene.hydrilla_jobs_active = IntProperty(name="Active jobs", default=0)
-    bpy.types.Scene.hydrilla_jobs_pending = IntProperty(name="Pending jobs", default=0)
-    bpy.types.Scene.hydrilla_jobs_running = IntProperty(name="Running jobs", default=0)
-    bpy.types.Scene.hydrilla_jobs_done = IntProperty(name="Done jobs", default=0)
-    bpy.types.Scene.hydrilla_jobs_failed = IntProperty(name="Failed jobs", default=0)
-    bpy.types.Scene.hydrilla_jobs_fetched_at = StringProperty(name="Jobs fetched", default="")
-    bpy.types.Scene.hydrilla_jobs_error = StringProperty(name="Jobs error", default="")
-    bpy.types.Scene.hydrilla_jobs_show_all = BoolProperty(
-        name="Show completed",
-        description="Also list recent Done/Failed jobs for this account",
-        default=True,
+    bpy.types.WindowManager.hydrilla_edit_api_key = BoolProperty(
+        name="Edit API key",
+        description="Keep the API key field open until the new key is accepted",
+        default=False,
+        options={"SKIP_SAVE", "HIDDEN"},
     )
+
+    bpy.app.timers.register(_startup, first_interval=0.5)
 
 
 def unregister():
-    _JOB["cancel"] = True
-    _JOB["busy"] = False
-    _JOBS_UI["fetching"] = False
-    if bpy.app.timers.is_registered(_job_timer):
-        bpy.app.timers.unregister(_job_timer)
-    if bpy.app.timers.is_registered(_jobs_timer):
-        bpy.app.timers.unregister(_jobs_timer)
+    _JOB.update(busy=False, cancel=True)
+    for timer in (_startup, _pump):
+        if bpy.app.timers.is_registered(timer):
+            bpy.app.timers.unregister(timer)
+
+    for name in SCENE_PROPERTIES:
+        if hasattr(bpy.types.Scene, name):
+            delattr(bpy.types.Scene, name)
+    if hasattr(bpy.types.WindowManager, "hydrilla_edit_api_key"):
+        del bpy.types.WindowManager.hydrilla_edit_api_key
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+    bridge_runtime.set_status_hook(None)
+    bridge_runtime.set_agent_edits_hook(None)
     bridge_runtime.unregister_runtime()
-    del bpy.types.Scene.hydrilla_prompt
-    del bpy.types.Scene.hydrilla_image_url
-    del bpy.types.Scene.hydrilla_image_path
-    del bpy.types.Scene.hydrilla_preview
-    del bpy.types.Scene.hydrilla_status
-    del bpy.types.Scene.hydrilla_status_kind
-    del bpy.types.Scene.hydrilla_busy
-    del bpy.types.Scene.hydrilla_job_phase
-    del bpy.types.Scene.hydrilla_job_progress
-    del bpy.types.Scene.hydrilla_job_task_id
-    del bpy.types.Scene.hydrilla_account
-    del bpy.types.Scene.hydrilla_auth_mode
-    del bpy.types.Scene.hydrilla_gen_mode
-    del bpy.types.Scene.hydrilla_jobs
-    del bpy.types.Scene.hydrilla_jobs_active
-    del bpy.types.Scene.hydrilla_jobs_pending
-    del bpy.types.Scene.hydrilla_jobs_running
-    del bpy.types.Scene.hydrilla_jobs_done
-    del bpy.types.Scene.hydrilla_jobs_failed
-    del bpy.types.Scene.hydrilla_jobs_fetched_at
-    del bpy.types.Scene.hydrilla_jobs_error
-    del bpy.types.Scene.hydrilla_jobs_show_all

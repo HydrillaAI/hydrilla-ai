@@ -9,7 +9,9 @@ import {
   unixSeconds,
   type SendResult,
 } from "../lib/customerio.js";
+import { afterResponse } from "../lib/afterResponse.js";
 import { FREE_TIER_CREDITS } from "./credits.js";
+import { deliverAccountCreated } from "./accountWelcome.js";
 
 /**
  * Product moments -> Customer.io. Route code calls these and moves on: every function here
@@ -45,9 +47,13 @@ function formatDate(value: string | number | Date | null | undefined): string | 
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-/** Run in the background; log, never throw. */
+/**
+ * Start work and return. On Vercel, hold the invocation open until it finishes.
+ * A short webhook otherwise freezes after the first Customer.io call and the email never sends.
+ */
 function background(label: string, work: () => Promise<unknown>): void {
-  void work().catch((err: any) => logger.warn({ err: err?.message, label }, "[notifications] failed"));
+  const task = work().catch((err: any) => logger.warn({ err: err?.message, label }, "[notifications] failed"));
+  afterResponse(task);
 }
 
 type Contact = { email: string | null; firstName: string | null; name: string | null };
@@ -85,26 +91,19 @@ export type AccountUser = {
 
 /** New sign-up: profile, the account_created event (starts onboarding), and the welcome signed by Tejesh. */
 export function onAccountCreated(user: AccountUser): void {
-  background("account_created", async () => {
-    await identify(user.id, {
-      email: user.email,
-      first_name: user.firstName,
-      last_name: user.lastName,
-      created_at: unixSeconds(user.createdAt ?? Date.now()),
-      plan: "free",
-      plan_status: "free",
-      credits_remaining: FREE_TIER_CREDITS,
-    });
-    await track(user.id, "account_created");
-    if (user.email) {
-      await sendTransactional({
-        template: "T01_welcome",
-        to: user.email,
-        identifiers: { id: user.id },
-        sender: "hi",
-      });
-    }
-  });
+  background("account_created", () =>
+    deliverAccountCreated(
+      {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        createdAtSeconds: unixSeconds(user.createdAt ?? Date.now()),
+        freeCredits: FREE_TIER_CREDITS,
+      },
+      { identify, track, sendTransactional }
+    )
+  );
 }
 
 export function onAccountUpdated(user: AccountUser): void {

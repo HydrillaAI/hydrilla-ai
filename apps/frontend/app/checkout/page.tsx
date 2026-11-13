@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { track } from "@/lib/analytics";
+import { track, trackCheckoutStarted, trackPaymentFailed } from "@/lib/analytics";
 import {
   checkoutHref,
   parseCheckoutPlanParam,
@@ -18,7 +18,9 @@ const ENV_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 const BACKEND_URL =
   ENV_BACKEND && !ENV_BACKEND.includes("hydrilla.co/checkout") && !ENV_BACKEND.includes("hydrilla.ai/checkout")
     ? ENV_BACKEND.replace(/\/+$/, "")
-    : "https://hydrilla-backend.vercel.app";
+    : "https://hydrilla-ai-g1bm.vercel.app";
+
+const checkoutStartLock: { planId: string | null } = { planId: null };
 
 const PLAN_INFO: Record<
   CheckoutPlanId,
@@ -116,9 +118,15 @@ function CheckoutContent() {
   }, [isLoaded, isSignedIn, userEmail, plan]);
 
   async function startCheckout() {
+    const planId = plan ?? planParam;
+    if (checkoutStartLock.planId === planId) {
+      return;
+    }
+    checkoutStartLock.planId = planId;
     setStatus("loading");
     setError(null);
     track("checkout_initiated", { plan: planParam, billing: "monthly" });
+    trackCheckoutStarted(planId);
 
     const url = `${BACKEND_URL}/api/payments/create-checkout`;
     try {
@@ -161,6 +169,8 @@ function CheckoutContent() {
         billing: "monthly",
         error_type: isNetworkError ? "network" : "server",
       });
+      checkoutStartLock.planId = null;
+      trackPaymentFailed(plan ?? planParam, isNetworkError ? "network" : "server");
       setError(
         isNetworkError
           ? "Could not reach the payment server. Check your connection and try again, or contact support if it persists."

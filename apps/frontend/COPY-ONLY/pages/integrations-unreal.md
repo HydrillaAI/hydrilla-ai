@@ -24,7 +24,7 @@ Kicker: [Integrations →](/integrations)
 
 # Hydrilla for Unreal Engine
 
-Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from the toolbar, and it receives models you send from Studio over the Bridge.
+Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from inside the editor, and it receives models you send from Studio over the Bridge.
 
 For level artists and previs teams working in Unreal, the plugin removes the round trip between a browser and the Content Browser. Generated assets arrive where Unreal expects them, ready to place, light, and test in the level you are building.
 
@@ -37,18 +37,18 @@ Date line: Available | Hydrilla Team
 The plugin runs on Unreal's built-in Python support, so the first step is to switch that on.
 
 1. Enable the Python Editor Script Plugin in Unreal, then restart the editor.
-2. Unzip the download and place its Hydrilla folder in Content/Python or Plugins.
-3. Open the Hydrilla actions from the editor toolbar.
-4. Set your API key there, or switch on the Bridge listener.
+2. Unzip the download and copy the contents of its Python folder into your project's Content/Python folder, then restart.
+3. Open the Hydrilla menu in the editor's main menu bar.
+4. Set your API key once from the Python console, then choose Run Bridge to receive models.
 
 **[Section 3: Generate]**
 
 ## Generate from the editor
 
-Run a job from the Hydrilla toolbar with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test. From there they behave like any other imported asset in your project.
+Run a job from the editor's Python console with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test. From there they behave like any other imported asset in your project.
 
-Visual: screenshot of the Hydrilla toolbar in Unreal
-Alt text: Unreal Editor with the Hydrilla toolbar actions open and an imported model in the Content Browser.
+Visual: screenshot of the Hydrilla menu in Unreal
+Alt text: Unreal Editor with the Hydrilla menu open and an imported model in the Content Browser.
 
 **[Section 4: Check]**
 
@@ -58,7 +58,7 @@ Unreal works in centimeters with Z up, while GLB is defined in meters with Y up,
 
 **[Section 5: Close]**
 
-Close line: Dress the level from the toolbar, and spend review time on the shots that matter.
+Close line: Dress the level from inside the editor, and spend review time on the shots that matter.
 <!-- COPY:END -->
 
 ## CTAs

@@ -47,7 +47,7 @@ export default function ApiPage() {
             panes={[
               {
                 title: "POST /v1/3d/text-to-3d",
-                code: `curl -X POST https://api.hydrilla.co/v1/3d/text-to-3d \\
+                code: `curl -X POST https://hydrilla-ai-g1bm.vercel.app/v1/3d/text-to-3d \\
   -H "Authorization: Bearer hyd_live_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -62,7 +62,7 @@ export default function ApiPage() {
   "status": "queued",
   "resolution": 1536,
   "links": {
-    "poll": "https://api.hydrilla.co/v1/3d/tasks/job_c18ab44d03e192a40"
+    "poll": "https://hydrilla-ai-g1bm.vercel.app/v1/3d/tasks/job_c18ab44d03e192a40"
   }
 }`,
               },

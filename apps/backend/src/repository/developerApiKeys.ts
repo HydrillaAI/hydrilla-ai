@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { supabase } from "../db.js";
 import { logger } from "../logger.js";
+import { decryptApiKey, encryptApiKey } from "../lib/userApiKeysCrypto.js";
 
 export type DeveloperApiKeyStatus = "active" | "revoked";
 
@@ -14,6 +15,8 @@ export type DeveloperApiKeyMeta = {
   createdAt: string;
   totalCreditsUsed: number;
   totalRequests: number;
+  /** True when an encrypted copy exists and the key can be emailed. */
+  canReveal: boolean;
 };
 
 export type VerifiedDeveloperKey = {
@@ -57,6 +60,57 @@ export type RecordDeveloperUsageParams = {
   details?: Record<string, unknown>;
 };
 
+export type RevealDeveloperApiKeyResult =
+  | {
+      ok: true;
+      apiKey: string;
+      keyName: string;
+      keyPrefix: string;
+    }
+  | {
+      ok: false;
+      reason: "not_found" | "revoked" | "unavailable";
+    };
+
+const META_SELECT =
+  "id, name, key_prefix, status, last_used_at, revoked_at, created_at, total_credits_used, total_requests, encrypted_key, iv, auth_tag";
+
+function rowCanReveal(row: {
+  encrypted_key?: string | null;
+  iv?: string | null;
+  auth_tag?: string | null;
+}): boolean {
+  return Boolean(row.encrypted_key && row.iv && row.auth_tag);
+}
+
+function mapMeta(row: {
+  id: string;
+  name: string;
+  key_prefix: string;
+  status: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  total_credits_used?: number | null;
+  total_requests?: number | null;
+  encrypted_key?: string | null;
+  iv?: string | null;
+  auth_tag?: string | null;
+}): DeveloperApiKeyMeta {
+  return {
+    id: row.id,
+    name: row.name,
+    keyPrefix: row.key_prefix,
+    status: row.status as DeveloperApiKeyStatus,
+    lastUsedAt: row.last_used_at,
+    revokedAt: row.revoked_at,
+    createdAt: row.created_at,
+    totalCreditsUsed: Number(row.total_credits_used ?? 0),
+    totalRequests: Number(row.total_requests ?? 0),
+    canReveal: rowCanReveal(row),
+  };
+}
+
 export function hashApiKey(key: string): string {
   return crypto.createHash("sha256").update(key.trim()).digest("hex");
 }
@@ -77,6 +131,7 @@ export async function generateDeveloperApiKey(
   const keyHash = hashApiKey(apiKey);
   const keyPrefix = formatKeyPrefix(apiKey);
   const keyName = name.trim() || "Default API Key";
+  const encrypted = encryptApiKey(apiKey);
 
   const { data, error } = await supabase
     .from("developer_api_keys")
@@ -88,8 +143,11 @@ export async function generateDeveloperApiKey(
       status: "active",
       total_credits_used: 0,
       total_requests: 0,
+      encrypted_key: encrypted.encrypted_key,
+      iv: encrypted.iv,
+      auth_tag: encrypted.auth_tag,
     })
-    .select("id, name, key_prefix, status, last_used_at, revoked_at, created_at, total_credits_used, total_requests")
+    .select(META_SELECT)
     .single();
 
   if (error || !data) {
@@ -97,19 +155,7 @@ export async function generateDeveloperApiKey(
     throw new Error(error?.message || "Failed to create developer API key");
   }
 
-  const meta: DeveloperApiKeyMeta = {
-    id: data.id,
-    name: data.name,
-    keyPrefix: data.key_prefix,
-    status: data.status as DeveloperApiKeyStatus,
-    lastUsedAt: data.last_used_at,
-    revokedAt: data.revoked_at,
-    createdAt: data.created_at,
-    totalCreditsUsed: Number(data.total_credits_used ?? 0),
-    totalRequests: Number(data.total_requests ?? 0),
-  };
-
-  return { apiKey, meta };
+  return { apiKey, meta: mapMeta(data) };
 }
 
 export async function verifyDeveloperApiKey(
@@ -147,7 +193,7 @@ export async function listDeveloperKeysForUser(
 ): Promise<DeveloperApiKeyMeta[]> {
   const { data, error } = await supabase
     .from("developer_api_keys")
-    .select("id, name, key_prefix, status, last_used_at, revoked_at, created_at, total_credits_used, total_requests")
+    .select(META_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
@@ -156,19 +202,7 @@ export async function listDeveloperKeysForUser(
     return [];
   }
 
-  return (data || []).map((row) => {
-    return {
-      id: row.id,
-      name: row.name,
-      keyPrefix: row.key_prefix,
-      status: row.status as DeveloperApiKeyStatus,
-      lastUsedAt: row.last_used_at,
-      revokedAt: row.revoked_at,
-      createdAt: row.created_at,
-      totalCreditsUsed: Number(row.total_credits_used ?? 0),
-      totalRequests: Number(row.total_requests ?? 0),
-    };
-  });
+  return (data || []).map((row) => mapMeta(row));
 }
 
 export async function revokeDeveloperApiKey(
@@ -190,6 +224,49 @@ export async function revokeDeveloperApiKey(
   }
 
   return true;
+}
+
+export async function revealDeveloperApiKey(
+  userId: string,
+  keyId: string
+): Promise<RevealDeveloperApiKeyResult> {
+  const { data, error } = await supabase
+    .from("developer_api_keys")
+    .select("id, name, key_prefix, status, encrypted_key, iv, auth_tag")
+    .eq("id", keyId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    logger.error({ error, userId, keyId }, "Failed to load developer API key for reveal");
+    return { ok: false, reason: "not_found" };
+  }
+  if (!data) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (data.status !== "active") {
+    return { ok: false, reason: "revoked" };
+  }
+  if (!rowCanReveal(data)) {
+    return { ok: false, reason: "unavailable" };
+  }
+
+  const apiKey = decryptApiKey({
+    encrypted_key: data.encrypted_key!,
+    iv: data.iv!,
+    auth_tag: data.auth_tag!,
+  });
+  if (!apiKey || !apiKey.startsWith("hyd_live_") || apiKey.includes("...")) {
+    logger.warn({ userId, keyId }, "Developer API key decrypt failed or returned invalid value");
+    return { ok: false, reason: "unavailable" };
+  }
+
+  return {
+    ok: true,
+    apiKey,
+    keyName: data.name,
+    keyPrefix: data.key_prefix,
+  };
 }
 
 export async function recordDeveloperApiKeyUsage(
@@ -251,7 +328,7 @@ export async function getDeveloperKeyDetails(
 ): Promise<DeveloperApiKeyDetails | null> {
   const { data: keyData, error: keyError } = await supabase
     .from("developer_api_keys")
-    .select("id, name, key_prefix, status, last_used_at, revoked_at, created_at, total_credits_used, total_requests")
+    .select(META_SELECT)
     .eq("id", keyId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -324,17 +401,7 @@ export async function getDeveloperKeyDetails(
   );
 
   return {
-    key: {
-      id: keyData.id,
-      name: keyData.name,
-      keyPrefix: keyData.key_prefix,
-      status: keyData.status as DeveloperApiKeyStatus,
-      lastUsedAt: keyData.last_used_at,
-      revokedAt: keyData.revoked_at,
-      createdAt: keyData.created_at,
-      totalCreditsUsed: Number(keyData.total_credits_used ?? 0),
-      totalRequests: Number(keyData.total_requests ?? 0),
-    },
+    key: mapMeta(keyData),
     summary,
     recentLogs,
   };

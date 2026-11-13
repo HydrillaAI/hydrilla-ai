@@ -28,6 +28,7 @@ import { InspectorPanel } from "../../components/workspace/inspector/InspectorPa
 import { LibraryPanel } from "../../components/workspace/library/LibraryPanel";
 import { LibraryRail } from "../../components/workspace/library/LibraryRail";
 import { LibraryOptionsBar } from "../../components/workspace/library/LibraryOptionsBar";
+import { SnakeCard, SnakeResumePill, SNAKE_PHONE_QUERY } from "../../components/workspace/SnakeGame";
 import { LIBRARY_BAR } from "../../lib/library-bar";
 import { COMPOSER_SIZE } from "../../lib/composer-size";
 import { useSlotStatus } from "../../hooks/useSlotStatus";
@@ -105,7 +106,15 @@ import {
   patchWaterScene,
 } from "../../lib/api";
 import { setCurrentWorkspaceId, getCurrentWorkspaceId, clearCurrentWorkspaceId, cn } from "../../lib/utils";
-import { track, isPaywallError } from "../../lib/analytics";
+import {
+  track,
+  isPaywallError,
+  trackWorkspaceEntry,
+  trackGenerationStarted,
+  trackGenerationOutcome,
+  trackExportDownload,
+  trackCreditsViewed,
+} from "../../lib/analytics";
 import { GEN_MSG, threeDQueueMessage, threeDStageMessage } from "../../lib/generationMessages";
 import {
   consumeWorkspaceBootstrap,
@@ -152,7 +161,7 @@ import {
   notifyGenerationComplete,
 } from "../../lib/browserNotifications";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app";
 const WATER_POLL_INTERVAL_MS = 4_000;
 // The backend expires a Water job 90 s after its last write (60 s function limit plus
 // grace), so a dead run reports FAIL well before this client-side cap.
@@ -163,6 +172,23 @@ const WATER_PROGRESS_PER_POLL = 3;
 const LIBRARY_POLL_INTERVAL_MS = 10_000;
 // GPU 3D jobs take minutes, so a status check every few seconds is plenty.
 const THREE_D_POLL_INTERVAL_MS = 5_000;
+/** Progress shown the moment an image-to-3D request is sent. */
+const THREE_D_SUBMIT_START_PROGRESS = 1;
+/** Ceiling while waiting for the job to be accepted, since real progress is unknown until then. */
+const THREE_D_SUBMIT_MAX_PROGRESS = 11;
+const THREE_D_SUBMIT_EASE_SECONDS = 15;
+
+/** Eases toward the ceiling, so a slow upload keeps moving without ever claiming to be near done. */
+function threeDSubmitProgress(elapsedSeconds: number): number {
+  const range = THREE_D_SUBMIT_MAX_PROGRESS - THREE_D_SUBMIT_START_PROGRESS;
+  return THREE_D_SUBMIT_START_PROGRESS + range * (1 - Math.exp(-elapsedSeconds / THREE_D_SUBMIT_EASE_SECONDS));
+}
+
+/** Keeps the bar from sliding back when the first server status is lower than what is on screen. */
+function forwardProgress(prev: { type: string; progress?: number }, progress: number): number {
+  return prev.type === "generating" ? Math.max(prev.progress ?? 0, progress) : progress;
+}
+
 
 
 const sculptPassLabel = (pass?: string | null): string => waterPassLabel(pass);
@@ -273,7 +299,7 @@ export default function WorkspacePageWrapper() {
 }
 
 function WorkspacePage() {
-  const { isSignedIn, getToken, isLoaded } = useAuth();
+  const { isSignedIn, getToken, isLoaded, userId } = useAuth();
   const slotStatus = useSlotStatus(getToken, !!isSignedIn);
   const router = useRouter();
   const pathname = usePathname();
@@ -588,6 +614,55 @@ function WorkspacePage() {
   /** Bumps on each new Water run so stale polls cannot overwrite a newer job. */
   const waterPollGenRef = useRef(0);
 
+  // Snake waiting game (shown after a short delay while 3D/Water generate)
+  const [snakeVisible, setSnakeVisible] = useState(false);
+  const [snakeCompletion, setSnakeCompletion] = useState(false);
+  const [snakeMinimized, setSnakeMinimized] = useState(false);
+  // Width alone misses landscape phones, which can be wider than a small tablet.
+  const [isSnakePhone, setIsSnakePhone] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(SNAKE_PHONE_QUERY).matches : false
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia(SNAKE_PHONE_QUERY);
+    const sync = () => {
+      setIsSnakePhone(query.matches);
+    };
+    sync();
+    query.addEventListener("change", sync);
+    return () => {
+      query.removeEventListener("change", sync);
+    };
+  }, []);
+
+  const snakeSessionStartRef = useRef<number | null>(null);
+  const snakeGenerationStart =
+    currentGenerating?.status === "generating" ? currentGenerating.startTime ?? null : null;
+
+  useEffect(() => {
+    if (snakeGenerationStart === null) {
+      setSnakeVisible(false);
+      snakeSessionStartRef.current = null;
+      return;
+    }
+
+    // Only reset for a new generation, so a re-run of this effect cannot remount a round in progress.
+    if (snakeSessionStartRef.current !== snakeGenerationStart) {
+      snakeSessionStartRef.current = snakeGenerationStart;
+      setSnakeCompletion(false);
+      setSnakeMinimized(false);
+      setSnakeVisible(false);
+    }
+
+    const timer = setTimeout(() => {
+      setSnakeVisible(true);
+    }, Math.max(0, 2_000 - (Date.now() - snakeGenerationStart)));
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [snakeGenerationStart]);
+
   // Track the last generated preview so we can use it for 3D
   const [lastPreviewImageUrl, setLastPreviewImageUrl] = useState<string | null>(null);
   const [lastPreviewId, setLastPreviewId] = useState<string | null>(null);
@@ -731,9 +806,13 @@ function WorkspacePage() {
       if (res.ok) {
         const data = await res.json();
         const c = data.credits || {};
-        setCreditsUsed(c.used ?? 0);
-        setCreditsTotal(c.total ?? 0);
-        setCreditsBonus(typeof c.bonus === "number" ? c.bonus : 0);
+        const used = c.used ?? 0;
+        const total = c.total ?? 0;
+        const bonus = typeof c.bonus === "number" ? c.bonus : 0;
+        setCreditsUsed(used);
+        setCreditsTotal(total);
+        setCreditsBonus(bonus);
+        trackCreditsViewed(Math.max(0, total - used) + Math.max(0, bonus));
       }
     } catch {
       // ignore
@@ -1200,8 +1279,9 @@ function WorkspacePage() {
   useEffect(() => {
     if (isSignedIn && workspaceId) {
       refreshCredits();
+      trackWorkspaceEntry(userId ?? null, workspaceId);
     }
-  }, [isSignedIn, workspaceId, refreshCredits]);
+  }, [isSignedIn, workspaceId, refreshCredits, userId]);
 
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1525,7 +1605,7 @@ function WorkspacePage() {
               if (!followsCurrentJob) {
                 return prev;
               }
-              return { type: "generating", progress: waitProgress, message: msg };
+              return { type: "generating", progress: forwardProgress(prev, waitProgress), message: msg };
             });
             setCurrentGenerating((prev) =>
               prev ? { ...prev, progress: waitProgress } : null
@@ -1551,7 +1631,7 @@ function WorkspacePage() {
               }
               return {
                 type: "generating",
-                progress,
+                progress: forwardProgress(prev, progress),
                 message: msg,
               };
             });
@@ -1570,7 +1650,7 @@ function WorkspacePage() {
             if (!followsCurrentJob) {
               return prev;
             }
-            return { type: "generating", progress, message: msg };
+            return { type: "generating", progress: forwardProgress(prev, progress), message: msg };
           });
           setCurrentGenerating((prev) =>
             prev ? { ...prev, progress } : null
@@ -1590,7 +1670,7 @@ function WorkspacePage() {
             }
             return {
               type: "generating",
-              progress,
+              progress: forwardProgress(prev, progress),
               message: threeDStageMessage(progress),
             };
           });
@@ -1600,6 +1680,7 @@ function WorkspacePage() {
         }
 
         if (status.status === "completed") {
+          setSnakeCompletion(true);
           // Belt-and-suspenders: Water DONE must never open the GLB viewer (404).
           if (isWaterJobId(currentGenerating.jobId)) {
             return;
@@ -1610,6 +1691,10 @@ function WorkspacePage() {
           }
           track("3d_generation_completed", {
             model: selectedModel,
+          });
+          trackGenerationOutcome("generation_succeeded", currentGenerating.jobId, {
+            model: selectedModel,
+            kind: "3d",
           });
           const glbUrl = getGlbUrl(status);
           setCurrentGenerating(null);
@@ -1651,6 +1736,11 @@ function WorkspacePage() {
             stage: "processing",
             reason: "job_failed",
           });
+          trackGenerationOutcome("generation_failed", currentGenerating.jobId, {
+            stage: "processing",
+            reason: "job_failed",
+            kind: "3d",
+          });
           const rawError = status.error || "Generation failed";
           const userFacing = toUserFacingGpuError(rawError);
           setCurrentGenerating(null);
@@ -1675,6 +1765,10 @@ function WorkspacePage() {
             stage: "processing",
             reason: "cancelled",
           });
+          trackGenerationOutcome("generation_cancelled", currentGenerating.jobId, {
+            stage: "processing",
+            kind: "3d",
+          });
           setCurrentGenerating(null);
           setLoading(false);
           refreshCredits();
@@ -1698,6 +1792,11 @@ function WorkspacePage() {
           track("3d_generation_failed", {
             stage: "polling",
             reason: isGpuUnavailable ? "gpu_unavailable" : "connection_lost",
+          });
+          trackGenerationOutcome("generation_failed", currentGenerating.jobId, {
+            stage: "polling",
+            reason: isGpuUnavailable ? "gpu_unavailable" : "connection_lost",
+            kind: "3d",
           });
           setCurrentGenerating(null);
           setLoading(false);
@@ -1901,6 +2000,11 @@ function WorkspacePage() {
         provider,
         mode: referenceImageUrl ? "image_to_code" : "text_to_code",
       });
+      trackGenerationStarted("water", {
+        model: selectedModel,
+        provider,
+        mode: referenceImageUrl ? "image_to_code" : "text_to_code",
+      });
       // Legacy event name kept for historical PostHog charts
       track("code_sculpt_started", {
         model: selectedModel,
@@ -1999,6 +2103,7 @@ function WorkspacePage() {
               if (pollGen !== waterPollGenRef.current) return;
 
               if (job.status === "DONE" && job.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(job.factoryCode);
                 setCodeSculptPass(job.sculptPass || "done");
                 if (job.scene) setWaterScene(job.scene);
@@ -2038,6 +2143,8 @@ function WorkspacePage() {
                   )
                 );
                 refreshLibrary();
+                refreshCredits();
+                trackGenerationOutcome("generation_succeeded", result.job_id, { kind: "water" });
                 setLoading(false);
                 return;
               }
@@ -2055,6 +2162,10 @@ function WorkspacePage() {
                 setLibrary3DAssets((prev) =>
                   prev.map((j) => (j.id === result.job_id ? { ...j, status: "FAIL" as const } : j))
                 );
+                trackGenerationOutcome("generation_failed", result.job_id, {
+                  kind: "water",
+                  reason: "job_failed",
+                });
                 setLoading(false);
                 return;
               }
@@ -2205,11 +2316,42 @@ function WorkspacePage() {
         has_local_file: !!localFile,
         has_preview_id: !!previewId,
       });
+      trackGenerationStarted("image_to_3d", { model: selectedModel });
       const tokenGetter = async () => await getToken();
       setLeftLibraryTab("3d"); // Switch to 3D tab so result will show in 3D section below search
       markMobileGenerationStart();
       setLoading(true);
-      setCenterView({ type: "generating", progress: 0, message: threeDStageMessage(0) });
+      setCenterView({
+        type: "generating",
+        progress: THREE_D_SUBMIT_START_PROGRESS,
+        message: threeDStageMessage(THREE_D_SUBMIT_START_PROGRESS),
+      });
+
+      // Upload and submit can take a while, so keep the bar moving from the moment Send is clicked.
+      const submitStartedAt = Date.now();
+      const submitProgress = { value: THREE_D_SUBMIT_START_PROGRESS };
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+      progressIntervalRef.current = setInterval(() => {
+        submitProgress.value = threeDSubmitProgress((Date.now() - submitStartedAt) / 1000);
+        setCenterView((prev) => {
+          if (prev.type !== "generating") {
+            return prev;
+          }
+          return {
+            type: "generating",
+            progress: submitProgress.value,
+            message: threeDStageMessage(submitProgress.value),
+          };
+        });
+      }, 200);
+      const stopSubmitProgress = () => {
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
+      };
 
       // Optimistic pending entry so the 3D library shows a loader immediately
       // (before the API returns) and the user sees progress without delay.
@@ -2240,6 +2382,7 @@ function WorkspacePage() {
       });
 
       const queueInfo = await fetchQueueInfo().catch(async (err: unknown) => {
+        stopSubmitProgress();
         const msg = err && typeof err === "object" && "message" in err ? String((err as { message?: string }).message) : "";
         const userFacing = msg?.includes("GPU is currently offline")
           ? toUserFacingGpuError(msg)
@@ -2255,6 +2398,11 @@ function WorkspacePage() {
         track("3d_generation_failed", {
           stage: "queue_info",
           reason: msg?.includes("GPU is currently offline") ? "gpu_offline" : "queue_error",
+        });
+        trackGenerationOutcome("generation_failed", null, {
+          stage: "queue_info",
+          reason: msg?.includes("GPU is currently offline") ? "gpu_offline" : "queue_error",
+          kind: "3d",
         });
         return null;
       });
@@ -2274,13 +2422,14 @@ function WorkspacePage() {
           active3DResolution,
           targetPrompt
         );
+        stopSubmitProgress();
         mobileGenStartedAtRef.current = null;
         setCurrentGenerating({
           jobId: result.job_id,
           status: "generating",
-          progress: 0,
+          progress: submitProgress.value,
           estimatedTotalSeconds: estimatedTotal,
-          startTime: Date.now(),
+          startTime: submitStartedAt,
           queueInfo: queueInfo || undefined,
         });
         loadJobInfo({
@@ -2304,12 +2453,18 @@ function WorkspacePage() {
         refreshLibrary();
       } catch (err: unknown) {
         const msg = err && typeof err === "object" && "message" in err ? String((err as { message?: string }).message) : "Failed to start 3D";
+        stopSubmitProgress();
         if (isPaywallError(msg)) {
           track("paywall_hit", { source: "image_to_3d", action: "generate_3d" });
         }
         track("3d_generation_failed", {
           stage: "submit",
           reason: isPaywallError(msg) ? "insufficient_credits" : "submit_error",
+        });
+        trackGenerationOutcome("generation_failed", null, {
+          stage: "submit",
+          reason: isPaywallError(msg) ? "insufficient_credits" : "submit_error",
+          kind: "3d",
         });
         const userFacing = toUserFacingGpuError(msg);
         await waitMobileGpuOfflineMinimum(msg, userFacing);
@@ -2377,6 +2532,7 @@ function WorkspacePage() {
         quality: imageOptions.quality,
         aspect: imageOptions.aspect,
       });
+      trackGenerationStarted("text_to_image", { provider: imageOptions.provider });
       setGeneratingPreview(true);
       markMobileGenerationStart();
       setCenterView({ type: "generating", progress: 0, message: GEN_MSG.imageFromText });
@@ -2549,6 +2705,7 @@ function WorkspacePage() {
         provider: imageOptions.provider,
         quality: imageOptions.quality,
       });
+      trackGenerationStarted("image_edit", { provider: imageOptions.provider });
 
       const pendingEditId = addPendingJob({
         generateType: "EditImage",
@@ -2706,6 +2863,7 @@ function WorkspacePage() {
         resolution: effectiveResolution,
         provider: imageOptions.provider,
       });
+      trackGenerationStarted("edit_to_3d", { model: selectedModel });
       setGeneratingPreview(true);
       markMobileGenerationStart();
       setCenterView({ type: "generating", progress: 0, message: GEN_MSG.modifying3d });
@@ -2895,6 +3053,9 @@ function WorkspacePage() {
         model: selectedModel,
         resolution: effectiveResolution,
         provider: imageOptions.provider,
+      });
+      trackGenerationStarted(isModelSection ? "text_to_3d" : "edit_text_to_3d", {
+        model: selectedModel,
       });
       setGeneratingPreview(true);
       markMobileGenerationStart();
@@ -3238,6 +3399,7 @@ function WorkspacePage() {
               const cs = await fetchWaterJob(job.id, tokenGetter);
               if (pollGen !== waterPollGenRef.current) return;
               if (cs.status === "DONE" && cs.factoryCode) {
+                setSnakeCompletion(true);
                 setCodeFactoryCode(cs.factoryCode);
                 setCodeSculptPass(cs.sculptPass);
                 setCurrentGenerating(null);
@@ -3580,6 +3742,7 @@ function WorkspacePage() {
     );
   const generatingProgress =
     centerView.type === "generating" ? centerView.progress : (currentGenerating?.progress ?? 0);
+  const generatingMessage = centerView.type === "generating" ? centerView.message : GEN_MSG.fallback3d;
 
   const handleToggleFullView = useCallback(() => {
     setFullView((v) => {
@@ -3594,6 +3757,7 @@ function WorkspacePage() {
   const handleExportViewer = useCallback(() => {
     if (centerView.type === "3d") {
       track("model_downloaded", { format: "glb" });
+      trackExportDownload({ format: "glb", engine: "cloud" });
       void downloadGlbWithAuth(
         centerView.glbUrl,
         `hydrilla-${centerView.jobId || "model"}.glb`,
@@ -3605,7 +3769,10 @@ function WorkspacePage() {
       return;
     }
     void waterViewerRef.current?.exportFormat("glb").then((result) => {
-      if (result?.ok) track("model_downloaded", { format: "glb", engine: "water" });
+      if (result?.ok) {
+        track("model_downloaded", { format: "glb", engine: "water" });
+        trackExportDownload({ format: "glb", engine: "water" });
+      }
     });
   }, [centerView, getToken]);
 
@@ -3617,6 +3784,7 @@ function WorkspacePage() {
     try {
       waterPollGenRef.current += 1;
       await cancelJob(jobId, () => getToken());
+      trackGenerationOutcome("generation_cancelled", jobId, { kind: "user" });
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
@@ -4230,6 +4398,10 @@ function WorkspacePage() {
       clientMounted={clientMounted}
     />
   );
+  // A generation that finishes while the game is minimized needs no "ready" sheet: the model is already on screen.
+  const snakeOpen = snakeVisible || (snakeCompletion && !(isSnakePhone && snakeMinimized));
+  // On phones the open game carries the progress and takes over the loader's and composer's space.
+  const snakeSheetOpen = snakeOpen && isSnakePhone && !snakeMinimized && !fullView;
   const frameLift = fullView ? 0 : COMPOSER_SIZE === "large" ? 0.16 : COMPOSER_SIZE === "medium" ? 0.12 : 0.1;
   const statsClassName = isCompact
     ? "hidden sm:flex top-14"
@@ -4335,6 +4507,38 @@ function WorkspacePage() {
             </div>
           ) : null}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {snakeOpen ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute transition-transform duration-300 ease-out motion-reduce:transition-none",
+                isSnakePhone
+                  ? // Below the z-30 top bars, so the library, tools and account stay usable over it.
+                    "inset-0 z-20 flex justify-center"
+                  : "right-4 top-[calc(50%_-_3.5rem)] z-20 -translate-y-1/2 lg:right-16",
+                inspectorVisible && !isCompact && "lg:-translate-x-[304px]",
+                fullView && "invisible"
+              )}
+              aria-hidden={fullView || undefined}
+            >
+              <SnakeCard
+                className="pointer-events-auto"
+                userKey={userId ?? null}
+                generationComplete={snakeCompletion}
+                fullScreen={isSnakePhone}
+                minimized={snakeMinimized}
+                statusMessage={generatingMessage}
+                progress={generatingProgress}
+                onCancel={currentGenerating?.jobId ? () => void handleCancelGeneration() : null}
+                onMinimize={() => {
+                  setSnakeMinimized(true);
+                }}
+                onViewGeneratedModel={() => {
+                  setSnakeCompletion(false);
+                  setSnakeVisible(false);
+                }}
+              />
+            </div>
+          ) : null}
           {(centerView.type === "3d" || centerView.type === "code") && !accountFloat && (
             <ViewerToolbar
               kind={centerView.type}
@@ -4364,9 +4568,10 @@ function WorkspacePage() {
 
           {centerView.type === "generating" && <div className="flex-1 min-h-0" />}
 
-          {canvasGenerating && (
+          {canvasGenerating && !snakeSheetOpen && (
             <CanvasGeneratingOverlay
-              message={centerView.type === "generating" ? centerView.message : GEN_MSG.fallback3d}
+              message={generatingMessage}
+              className={snakeOpen && !isSnakePhone && isCompact ? "pr-76" : undefined}
               progress={generatingProgress}
               water={showWaterPassRail ? { tier: waterQualityTier, pass: codeSculptPass } : null}
               queueInfo={currentGenerating?.status === "generating" ? currentGenerating.queueInfo ?? null : null}
@@ -4433,7 +4638,10 @@ function WorkspacePage() {
                     if (scene) setWaterScene(scene);
                   }).catch(() => undefined);
                 }}
-                onDownloaded={(format) => track("model_downloaded", { format, engine: "water" })}
+                onDownloaded={(format) => {
+                  track("model_downloaded", { format, engine: "water" });
+                  trackExportDownload({ format, engine: "water" });
+                }}
                 onThumbnail={(dataUrl) => {
                   const jobId = centerView.type === "code" ? centerView.jobId : null;
                   if (!jobId) return;
@@ -4506,9 +4714,17 @@ function WorkspacePage() {
               className={cn(
                 "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-[padding] duration-[320ms] ease-out motion-reduce:transition-none sm:px-6 sm:pb-5",
                 // Centre on the visible canvas: the docked inspector covers the right 304px.
-                inspectorVisible && !isCompact && "sm:pr-[calc(304px+1.5rem)]"
+                inspectorVisible && !isCompact && "sm:pr-[calc(304px+1.5rem)]",
+                snakeSheetOpen && "hidden"
               )}
             >
+              {isSnakePhone && snakeVisible && snakeMinimized ? (
+                <SnakeResumePill
+                  onClick={() => {
+                    setSnakeMinimized(false);
+                  }}
+                />
+              ) : null}
               <Composer
                 mode={composerMode}
                 onModeChange={handleComposerModeChange}

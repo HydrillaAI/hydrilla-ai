@@ -3,7 +3,7 @@
  * Public reads also run on the server (lib/community-server.ts); mutations take Clerk's getToken.
  */
 
-const RAW_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app";
+const RAW_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app";
 export const COMMUNITY_API = `${RAW_BACKEND.replace(/\/+$/, "")}/api/community`;
 
 export type GetToken = () => Promise<string | null>;

@@ -15,6 +15,7 @@ import { createChat, getChatForUser, listChatsForUser, updateChatName, updateCha
 import { createWorkspace, getWorkspace, getWorkspaceForUser, listWorkspacesForUser, listJobsForWorkspace, updateWorkspaceName, updateWorkspaceUpdatedAt, deleteWorkspace } from "../repository/workspaces.js";
 import { optionalAuth, requireAuth, syncUserToDatabase } from "../middleware/auth.js";
 import { normalizeGlbUrl, normalizePreviewUrl, unwrapImageProxyUrl } from "../utils/s3Urls.js";
+import { recoverOrphanMeshIfPresent } from "../services/orphanMeshRecovery.js";
 import { isWaterEngine, isWaterJobId, isWaterJobRow } from "../lib/engines.js";
 import { isCrawlerUserAgent } from "../lib/crawlerUa.js";
 import {
@@ -1523,6 +1524,14 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
         if (denyIfNotJobOwner(job, userId, res)) return;
         
         if ((job.status === "WAIT" || job.status === "RUN") && elapsedMs >= MAX_JOB_AGE_MS) {
+          const recoveredUrl = await recoverOrphanMeshIfPresent(job);
+          if (recoveredUrl) {
+            job.status = "DONE";
+            job.resultGlbUrl = recoveredUrl;
+            job.errorCode = null;
+            job.errorMessage = null;
+            return res.json({ job: compactJobStatus(job), creditsRefunded: false });
+          }
           const refundAmount = Boolean(job.userId) && (job.creditsUsed ?? 0) > 0 ? job.creditsUsed : 0;
           const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
           await updateJobStatus(jobId, {
@@ -1566,6 +1575,14 @@ threeDRouter.get("/status/:jobId", requireAuth, async (req, res) => {
         // If GPU gateway is unreachable and job has reached or exceeded 20 minutes, expire and refund it.
         const ageMs = Date.now() - new Date(job.createdAt).getTime();
         if ((job.status === "WAIT" || job.status === "RUN") && ageMs >= MAX_JOB_AGE_MS) {
+          const recoveredUrl = await recoverOrphanMeshIfPresent(job);
+          if (recoveredUrl) {
+            job.status = "DONE";
+            job.resultGlbUrl = recoveredUrl;
+            job.errorCode = null;
+            job.errorMessage = null;
+            return res.json({ job: compactJobStatus(job), creditsRefunded: false });
+          }
           const refundAmount = Boolean(job.userId) && (job.creditsUsed ?? 0) > 0 ? job.creditsUsed : 0;
           const timeoutMessage = "Generation timed out. Your credits have been automatically refunded.";
           await updateJobStatus(jobId, {

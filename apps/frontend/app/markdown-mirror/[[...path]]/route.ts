@@ -1,4 +1,5 @@
 import { getMarkdownForSlug } from "@/lib/markdown-pages";
+import { AGENT_SKILL_SLUG } from "@/lib/mcp-setup";
 import { SITE_URL } from "@/lib/seo";
 
 type RouteContext = {
@@ -15,7 +16,9 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const slug = parts.join("/");
-  const canonicalPath = slug === "index" ? "/" : `/${slug}`;
+  // The agent skill has no HTML page, so the Markdown file is its own canonical URL.
+  const pagePath = slug === AGENT_SKILL_SLUG ? `/${slug}.md` : `/${slug}`;
+  const canonicalPath = slug === "index" ? "/" : pagePath;
 
   return new Response(markdown, {
     status: 200,

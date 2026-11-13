@@ -67,8 +67,8 @@ export default function GodotIntegrationPage() {
               <ol className="pickle-steps">
                 <li>Download the plugin and copy addons/hydrilla into your Godot project.</li>
                 <li>Open Project Settings &gt; Plugins and enable the Hydrilla plugin.</li>
-                <li>Open the Hydrilla dock and add your hyd_live_ key.</li>
-                <li>Generate from the dock, or listen on the Bridge for Studio sends.</li>
+                <li>Open the Hydrilla dock and paste your API key.</li>
+                <li>Generate from the dock, or click Run Bridge to receive models from Studio or your AI agent.</li>
               </ol>
             </div>
           </section>

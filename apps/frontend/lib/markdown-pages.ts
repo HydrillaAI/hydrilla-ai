@@ -6,6 +6,7 @@ import {
   SITE_URL,
 } from "@/lib/brand";
 import { kitPageMarkdown, legalPageMarkdown } from "@/lib/kit-markdown";
+import { AGENT_SKILL_SLUG, agentGuideMarkdown, agentSkillMarkdown } from "@/lib/mcp-setup";
 import { PRICING, SLOT_PRICING } from "@/lib/pricing";
 
 /** Homepage mirror. Leave this text unchanged. */
@@ -44,7 +45,15 @@ export async function getMarkdownForSlug(slugParts: string[]): Promise<string | 
   const slug = slugParts.join("/") || "index";
   if (slug === "index") return INDEX_MARKDOWN;
 
+  if (slug === AGENT_SKILL_SLUG) {
+    return agentSkillMarkdown();
+  }
+
   const kit = kitPageMarkdown(slug);
+  if (kit && slug === "integrations/mcp") {
+    // Agents read this file to set themselves up, so it carries the same prompts as the page.
+    return `${kit.trimEnd()}\n\n${agentGuideMarkdown()}`;
+  }
   if (kit) return kit;
 
   if (slug === "privacy" || slug === "terms" || slug === "cookies") {

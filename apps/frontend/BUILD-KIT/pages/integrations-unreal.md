@@ -24,7 +24,7 @@ Kicker: [Integrations →](/integrations)
 
 # Hydrilla for Unreal Engine
 
-Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from the toolbar, and it receives models you send from Studio over the Bridge.
+Generate 3D models and bring them into Unreal Editor. A Python editor plugin runs generation from inside the editor, and it receives models you send from Studio over the Bridge.
 
 Date line: Available | Hydrilla Team
 
@@ -33,18 +33,18 @@ Date line: Available | Hydrilla Team
 ## Install
 
 1. Enable the Python Editor Script Plugin in Unreal, then restart the editor.
-2. Unzip the download and place its Hydrilla folder in Content/Python or Plugins.
-3. Open the Hydrilla actions from the editor toolbar.
-4. Set your API key there, or switch on the Bridge listener.
+2. Unzip the download and copy the contents of its Python folder into your project's Content/Python folder, then restart.
+3. Open the Hydrilla menu in the editor's main menu bar.
+4. Set your API key once from the Python console, then choose Run Bridge to receive models.
 
 **[Section 3: Generate]**
 
 ## Generate from the editor
 
-Run a job from the Hydrilla toolbar with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test.
+Run a job from the editor's Python console with your own brief. GLB files land in Content/Hydrilla, where the glTF importer turns them into assets you can place, light, and test.
 
-Visual: screenshot of the Hydrilla toolbar in Unreal
-Alt text: Unreal Editor with the Hydrilla toolbar actions open and an imported model in the Content Browser.
+Visual: screenshot of the Hydrilla menu in Unreal
+Alt text: Unreal Editor with the Hydrilla menu open and an imported model in the Content Browser.
 
 **[Section 4: Check]**
 

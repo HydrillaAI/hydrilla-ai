@@ -16,6 +16,8 @@ type Props = {
 
 const THUMB_BY_SLUG: Record<string, PickleThumbVariant> = {
   blender: "pipeline-arch",
+  maya: "pipeline-arch",
+  "3dsmax": "pipeline-arch",
   unity: "unity-engine",
   unreal: "unreal-engine",
   godot: "godot-engine",
@@ -101,21 +103,9 @@ export default async function IntegrationDetailPage({ params }: Props) {
             <a href={primaryHref} className="pickle-pill-solid">
               {primaryLabel}
             </a>
-            {item.downloadPath ? (
-              <Link
-                href={`/integrations/connect?app=${encodeURIComponent(item.bridgeTarget)}`}
-                className="pickle-pill-ghost"
-              >
-                Sign in for plugins
-              </Link>
-            ) : (
-              <Link
-                href="/app/api-keys"
-                className="pickle-pill-ghost"
-              >
-                API keys
-              </Link>
-            )}
+            <Link href="/app/api-keys" className="pickle-pill-ghost">
+              {item.downloadPath ? "Get API key" : "API keys"}
+            </Link>
           </div>
         </div>
 
@@ -187,15 +177,13 @@ export default async function IntegrationDetailPage({ params }: Props) {
             <div className="pickle-text">
               <ol>
                 <li>
-                  Click <strong>Run Bridge</strong> in the Hydrilla panel.
+                  Paste your <strong>API key</strong> in the Hydrilla panel. Create one
+                  under <Link href="/app/api-keys">API keys</Link>.
                 </li>
+                <li>Generate from text or an image.</li>
                 <li>
-                  Click <strong>Sign in</strong>, finish login in the browser, then{" "}
-                  <strong>Sync</strong>. Keep the Connect tab open while generating.
-                </li>
-                <li>
-                  Generate from text or image — or use <strong>Send to DCC</strong>{" "}
-                  from Studio.
+                  Click <strong>Run Bridge</strong> to receive models from{" "}
+                  <strong>Send to DCC</strong> in Studio or from your AI agent.
                 </li>
               </ol>
             </div>

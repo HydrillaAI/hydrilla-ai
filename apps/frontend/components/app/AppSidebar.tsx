@@ -27,7 +27,7 @@ import { isPaidPlan, planDisplayLabel } from "../../lib/pricing";
 import { useAppLayout } from "../../context/AppLayoutContext";
 import { useSupport } from "@/context/SupportContext";
 
-const RAW_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app";
+const RAW_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app";
 const BACKEND_URL = RAW_BACKEND.replace(/\/+$/, "");
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; hideWhenPaid?: boolean };

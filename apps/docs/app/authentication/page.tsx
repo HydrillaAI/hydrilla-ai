@@ -14,10 +14,10 @@ export const metadata = {
 
 // CONTENT-FLAG: this sample key (hyd_live_d81a9f02b37c4e91823abce) looks like a real key.
 // Recommend replacing it with the placeholder hyd_live_your_api_key_here. Kept unchanged for review.
-const curlAuth = `curl -X GET https://api.hydrilla.co/v1/user/me \\
+const curlAuth = `curl -X GET https://hydrilla-ai-g1bm.vercel.app/v1/user/me \\
   -H "Authorization: Bearer hyd_live_d81a9f02b37c4e91823abce"`;
 
-const curlApiKeyHeader = `curl -X GET https://api.hydrilla.co/v1/user/me \\
+const curlApiKeyHeader = `curl -X GET https://hydrilla-ai-g1bm.vercel.app/v1/user/me \\
   -H "x-api-key: hyd_live_d81a9f02b37c4e91823abce"`;
 
 // CONTENT-FLAG: the error message links to hydrilla.co while the API base is api.hydrilla.co (domain mismatch).

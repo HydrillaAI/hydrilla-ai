@@ -86,7 +86,11 @@ export async function requireDeveloperAuth(
     const remainingCredits =
       Math.max(0, (credits?.credits_total ?? 0) - (credits?.credits_used ?? 0)) +
       Math.max(0, credits?.credits_bonus ?? 0);
-    if (remainingCredits <= 0) {
+    // Only generation (POST) needs credits. Checking, listing and cancelling
+    // tasks stay open at zero balance, so a user whose last credits paid for a
+    // generation can still poll it and download the model. Each paid route
+    // also deducts credits atomically and returns its own 402.
+    if (remainingCredits <= 0 && req.method === "POST") {
       res.status(402).json({
         error: {
           message:

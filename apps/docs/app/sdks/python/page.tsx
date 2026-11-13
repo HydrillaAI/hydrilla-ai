@@ -21,7 +21,7 @@ import time
 from typing import Optional, Dict, Any
 
 class Hydrilla:
-    def __init__(self, api_key: str, base_url: str = "https://api.hydrilla.co"):
+    def __init__(self, api_key: str, base_url: str = "https://hydrilla-ai-g1bm.vercel.app"):
         self.base_url = base_url.rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {api_key}",
@@ -45,8 +45,8 @@ class Hydrilla:
         res.raise_for_status()
         return res.json()["id"]
 
-    def poll_task(self, task_id: str, poll_interval: int = 3, timeout: int = 180) -> Dict[str, Any]:
-        """Poll task until completed or failed."""
+    def poll_task(self, task_id: str, poll_interval: int = 3, timeout: int = 1200) -> Dict[str, Any]:
+        """Poll task until it succeeds, fails or is cancelled."""
         start = time.time()
         while time.time() - start < timeout:
             res = requests.get(f"{self.base_url}/v1/3d/tasks/{task_id}", headers=self.headers)
@@ -54,10 +54,10 @@ class Hydrilla:
             data = res.json()
             status = data.get("status")
             
-            if status == "completed":
+            if status == "SUCCEEDED":
                 return data["result"]
-            elif status == "failed":
-                raise RuntimeError(f"Hydrilla Task Failed: {data.get('error')}")
+            elif status in ("FAILED", "CANCELLED"):
+                raise RuntimeError(f"Hydrilla Task {status}: {data.get('error')}")
                 
             time.sleep(poll_interval)
             

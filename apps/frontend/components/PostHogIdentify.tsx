@@ -3,8 +3,9 @@
 import { useAuth, useUser } from "@clerk/nextjs";
 import posthog from "posthog-js";
 import { useEffect, useRef } from "react";
+import { trackAuthFunnel } from "@/lib/analytics";
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app").replace(/\/+$/, "");
 
 /**
  * Sends the browser's time zone to the backend once per browser session, so Customer.io can
@@ -39,10 +40,13 @@ export function PostHogIdentify() {
 
   useEffect(() => {
     if (isSignedIn && userId) {
+      const createdAt = user?.createdAt ? new Date(user.createdAt) : null;
       posthog.identify(userId, {
         email: user?.primaryEmailAddress?.emailAddress,
         name: user?.fullName ?? undefined,
+        signed_up_at: createdAt ? createdAt.toISOString() : undefined,
       });
+      trackAuthFunnel(userId, createdAt);
       wasSignedIn.current = true;
       void syncEmailTimeZone(getToken);
       return;

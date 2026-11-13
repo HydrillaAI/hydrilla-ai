@@ -171,6 +171,11 @@ const nextConfig = {
         source: "/llms-full.txt",
         headers: [{ key: "Content-Type", value: "text/plain; charset=utf-8" }],
       },
+      {
+        // Plugin zips and update manifests revalidate on every check so in-app updaters see new builds immediately.
+        source: "/plugins/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }],
+      },
     ];
   },
 };

@@ -171,17 +171,17 @@ const INTEGRATION_HOWTO: Record<string, { name: string; steps: string[] }> = {
     steps: [
       "Download hydrilla-unity.zip from this page and unzip it.",
       "Copy the Hydrilla folder into your project's Assets folder.",
-      "In the menu bar, open Window > Hydrilla > Generate 3D.",
-      "Paste your hyd_live_ API key, or start the Bridge to receive models.",
+      "In the menu bar, open Window > Hydrilla.",
+      "Paste your API key, or click Run Bridge to receive models.",
     ],
   },
   "/integrations/unreal": {
     name: "Install",
     steps: [
       "Enable the Python Editor Script Plugin in Unreal, then restart the editor.",
-      "Unzip the download and place its Hydrilla folder in Content/Python or Plugins.",
-      "Open the Hydrilla actions from the editor toolbar.",
-      "Set your API key there, or switch on the Bridge listener.",
+      "Unzip the download and copy the contents of its Python folder into your project's Content/Python folder, then restart.",
+      "Open the Hydrilla menu in the editor's main menu bar.",
+      "Set your API key once from the Python console, then choose Run Bridge to receive models.",
     ],
   },
   "/integrations/godot": {
@@ -189,16 +189,16 @@ const INTEGRATION_HOWTO: Record<string, { name: string; steps: string[] }> = {
     steps: [
       "Download the plugin and copy addons/hydrilla into your Godot project.",
       "Open Project Settings > Plugins and enable the Hydrilla plugin.",
-      "Open the Hydrilla dock and add your hyd_live_ key.",
-      "Generate from the dock, or listen on the Bridge for Studio sends.",
+      "Open the Hydrilla dock and paste your API key.",
+      "Generate from the dock, or click Run Bridge to receive models from Studio or your AI agent.",
     ],
   },
   "/integrations/mcp": {
     name: "Install",
     steps: [
-      "Download the MCP package, hydrilla-mcp.zip, from this page.",
-      "Set HYDRILLA_API_KEY to your hyd_live_ key in the server's environment.",
-      "Register the server in your MCP client, following the integration guide, then restart the client.",
+      "Install Node.js 20 or newer. The server is the npm package hydrilla-mcp, started with npx -y hydrilla-mcp@latest.",
+      "Add your API key in a Hydrilla plugin, or set HYDRILLA_API_KEY in the server's MCP config. Never paste it into the chat.",
+      "Register the server in your MCP client with the command on this page, then restart the client.",
     ],
   },
 };
@@ -567,7 +567,7 @@ export function getKitJsonLd(path: string) {
           "Generate 3D models from text or images in the Blender N-panel sidebar",
           "Direct whole 3D asset sets inside Blender with Water Agent",
           "Receive segmented GLB meshes with UVs and PBR maps from Studio via local Bridge",
-          "Sign in with Studio browser session or API key",
+          "Authenticate once with a Hydrilla API key; no browser sign-in",
         ],
       },
       "/integrations/unity": {
@@ -577,9 +577,9 @@ export function getKitJsonLd(path: string) {
         requirements: "Unity Editor",
         downloadUrl: "https://hydrilla.ai/plugins/hydrilla-unity.zip",
         featureList: [
-          "Generate 3D assets from Window > Hydrilla > Generate 3D in Unity Editor",
+          "Generate 3D assets from Window > Hydrilla in Unity Editor",
           "Import segmented GLB models with PBR maps directly into Assets/Hydrilla",
-          "Receive Studio sends over the local Bridge on port 7345",
+          "Receive models from Studio or your AI agent over the local Bridge",
           "Works with Water Agent for multi-asset scene briefs",
         ],
       },
@@ -590,7 +590,7 @@ export function getKitJsonLd(path: string) {
         requirements: "Unreal Engine with Python Editor Script Plugin",
         downloadUrl: "https://hydrilla.ai/plugins/hydrilla-unreal.zip",
         featureList: [
-          "Run text-to-3D and image-to-3D jobs from the Unreal Editor toolbar",
+          "Run text-to-3D and image-to-3D jobs from the Unreal Editor Python console",
           "Land GLB assets in Content/Hydrilla for Unreal's glTF importer",
           "Receive meshes from Hydrilla Studio over the local Bridge",
           "Works with Water Agent inside Unreal Engine",
@@ -614,11 +614,11 @@ export function getKitJsonLd(path: string) {
           "Hydrilla's local stdio MCP server lets Cursor, Claude Code, and other Model Context Protocol agents generate 3D models with BlueFox through the Hydrilla REST API.",
         subCategory: "Model Context Protocol (MCP) Server",
         requirements: "Node.js and an MCP client (Cursor, Claude Code, etc.)",
-        downloadUrl: "https://hydrilla.ai/plugins/hydrilla-mcp.zip",
+        downloadUrl: "https://www.npmjs.com/package/hydrilla-mcp",
         featureList: [
           "Local stdio Model Context Protocol server for 3D generation",
           "Submit text-to-3D and image-to-3D jobs from AI coding agents",
-          "Poll task completion and return finished 3D mesh files",
+          "Poll task completion and send finished models into Blender, Unity, Unreal or Godot",
         ],
       },
     };
@@ -656,8 +656,8 @@ export function getKitJsonLd(path: string) {
       nodes.push(
         faq("https://hydrilla.ai/integrations/blender#faq", [
           [
-            "The add-on says I'm signed out.",
-            "Leave the Connect browser tab open while you work, then choose Sync again. An API key also works if you prefer keys to browser sign-in.",
+            "The add-on says my key was not accepted.",
+            "Create a new key under API keys, paste it into the Hydrilla tab, and choose Check. The add-on uses an API key, so there is no browser sign-in to keep open.",
           ],
           [
             "Nothing arrives when I send from Studio.",
@@ -718,7 +718,7 @@ export function getKitJsonLd(path: string) {
     });
     nodes.push(
       howTo("https://hydrilla.ai/integrations#howto", "From Studio to your open scene with the local Bridge", [
-        "Start the local Bridge (127.0.0.1:7345) from the Hydrilla plugin inside Blender, Unity, Unreal Engine, or Godot 4.",
+        "Click Run Bridge in the Hydrilla plugin inside Blender, Unity, Unreal Engine, or Godot 4.",
         "Generate or select a 3D model in Hydrilla Studio in your browser.",
         "Use Send to DCC in Studio so the mesh arrives directly in your open scene.",
       ]),

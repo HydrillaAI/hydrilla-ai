@@ -2,7 +2,7 @@
 
 > Hydrilla AI is an AI 3D workspace for studio and artist pipelines. Generate 3D models from text or an image with BlueFox, Hydrilla's 3D model, check them in the browser, and work with Water Agent, the AI 3D agent for artists and studios.
 
-Last updated: 2026-11-07
+Last updated: 2026-11-11
 
 ## Names (use them exactly)
 - Hydrilla AI: the company and the AI 3D product (Studio, workspaces, credits, preview, export, integrations, API), available worldwide including the United States, India, Japan, China, and France. "Hydrilla" for short. Not the aquatic plant.
@@ -17,12 +17,15 @@ Last updated: 2026-11-07
 - [Water Agent](https://hydrilla.ai/water.md): the AI 3D agent for artists and studios; what it does, how it works, where it works, FAQ
 - [Text to 3D](https://hydrilla.ai/text-to-3d.md): prompt, then reference image, then 3D model
 - [Image to 3D](https://hydrilla.ai/image-to-3d.md): from an uploaded image to a 3D model
-- [Integrations](https://hydrilla.ai/integrations.md): AI 3D plugins for Blender, Unity, Unreal Engine, and Godot 4, the local Bridge (127.0.0.1:7345), MCP server, and REST API
+- [Integrations](https://hydrilla.ai/integrations.md): AI 3D plugins for Blender, Maya, 3ds Max, Unity, Unreal Engine, and Godot 4, each with a local Bridge that receives models from Studio or an AI agent, plus the MCP server and REST API. Every plugin authenticates with an API key; there is no browser sign-in
 - [Blender](https://hydrilla.ai/integrations/blender.md): Blender AI 3D add-on (N-panel sidebar generation, Water Agent, and local Bridge)
-- [Unity](https://hydrilla.ai/integrations/unity.md): Unity AI 3D editor plugin (Window > Hydrilla > Generate 3D into Assets/Hydrilla, plus Bridge)
-- [Unreal Engine](https://hydrilla.ai/integrations/unreal.md): Unreal Engine AI 3D Python editor plugin (toolbar generation into Content/Hydrilla, plus Bridge)
+- [Maya](https://hydrilla.ai/integrations/maya): Maya AI 3D plugin (Hydrilla window, GLB import into the open scene, plus Bridge)
+- [3ds Max](https://hydrilla.ai/integrations/3dsmax): 3ds Max AI 3D plugin (Hydrilla window, GLB import into the open scene, plus Bridge)
+- [Unity](https://hydrilla.ai/integrations/unity.md): Unity AI 3D editor plugin (Window > Hydrilla, GLB into Assets/Hydrilla, plus Bridge)
+- [Unreal Engine](https://hydrilla.ai/integrations/unreal.md): Unreal Engine AI 3D Python editor plugin (Hydrilla menu and Python API, imports into /Game/Hydrilla, plus Bridge)
 - [Godot 4](https://hydrilla.ai/integrations/godot.md): Godot 4 AI 3D editor dock (native glTF import into res://hydrilla/, plus Bridge)
-- [MCP server](https://hydrilla.ai/integrations/mcp.md): local stdio Model Context Protocol server for Cursor, Claude Code, and AI coding agents (Water Agent is the agent inside Hydrilla)
+- [Agent setup skill](https://hydrilla.ai/agent-onboarding/SKILL.md): instructions an AI agent follows to connect the Hydrilla MCP server and use its tools; paste "Read and follow https://hydrilla.ai/agent-onboarding/SKILL.md" into any agent
+- [MCP server](https://hydrilla.ai/integrations/mcp.md): npm package hydrilla-mcp (run with npx -y hydrilla-mcp@latest), a local stdio Model Context Protocol server for Claude Code, Cursor, Codex and other agents; it generates models and sends them into the open Blender, Maya, 3ds Max, Unity, Unreal or Godot scene (Water Agent is the agent inside Hydrilla)
 - [REST API](https://hydrilla.ai/api.md): submit a job, poll its status, download the mesh and maps
 - [Pricing](https://hydrilla.ai/pricing.md): Free, Starter, Pro, Hourly, and Hourly Pro; credits per model; 14-day trial; Water Agent with no credits on every plan
 

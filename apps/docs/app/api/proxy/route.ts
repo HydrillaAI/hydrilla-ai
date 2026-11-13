@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const API_BASE = process.env.HYDRILA_API_BASE || "https://api.hydrilla.co";
+const API_BASE = process.env.HYDRILA_API_BASE || "https://hydrilla-ai-g1bm.vercel.app";
 
 export async function POST(req: NextRequest) {
   let payload: {

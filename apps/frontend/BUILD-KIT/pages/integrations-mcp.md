@@ -33,13 +33,13 @@ Alt text: Code block showing an MCP client configuration entry for the Hydrilla 
 
 ## Install
 
-1. Download the MCP package, hydrilla-mcp.zip, from this page.
-2. Set HYDRILLA_API_KEY to your hyd_live_ key in the server's environment.
-3. Register the server in your MCP client, following the integration guide, then restart the client.
+1. Install Node.js 20 or newer. The server is the npm package hydrilla-mcp, started with npx -y hydrilla-mcp@latest.
+2. Add your API key in a Hydrilla plugin, or set HYDRILLA_API_KEY in the server's MCP config. Never paste it into the chat.
+3. Register the server in your MCP client with the command on this page, then restart the client.
 
 **[Section 3: Access]**
 
-Note: the MCP server needs REST API access, included with Pro. [Plans →](/pricing) Want an agent inside Hydrilla instead? [See Water Agent →](/water)
+Note: the MCP server works on every plan, and generating a model uses your credits. [Plans →](/pricing) Want an agent inside Hydrilla instead? [See Water Agent →](/water)
 <!-- COPY:END -->
 
 ## CTAs

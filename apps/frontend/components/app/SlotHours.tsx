@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SLOT_PRICING, type SlotPlanId } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-backend.vercel.app").replace(/\/+$/, "");
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://hydrilla-ai-g1bm.vercel.app").replace(/\/+$/, "");
 
 type HourRow = {
   hour: number;

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "hydrilla": {
+      "command": "node",
+      "args": [
+        "apps/frontend/plugins/mcp/dist/index.js"
+      ]
+    }
+  }
+}
