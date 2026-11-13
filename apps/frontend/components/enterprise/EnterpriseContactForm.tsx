@@ -21,7 +21,7 @@ const FIELDS: {
 ];
 
 const INPUT_CLASS =
-  "w-full rounded-xl border border-white/15 bg-white/[0.06] px-4 text-[16px] text-white outline-none transition-colors hover:border-white/30 focus:border-white/70";
+  "w-full rounded-xl border border-black/12 bg-white px-4 text-[16px] text-black outline-none transition-colors hover:border-black/25 focus:border-black/70";
 
 export function EnterpriseContactForm() {
   const [form, setForm] = useState({
@@ -74,7 +74,7 @@ export function EnterpriseContactForm() {
 
   if (submitted) {
     return (
-      <p role="status" className="rounded-2xl border border-white/15 p-8 text-center text-[20px] text-white">
+      <p role="status" className="rounded-2xl border border-black/10 bg-white p-8 text-center text-[20px] text-black">
         Message sent. We&apos;ll reply to {form.work_email}.
       </p>
     );
@@ -83,7 +83,7 @@ export function EnterpriseContactForm() {
   return (
     <form onSubmit={handleSubmit} className="grid gap-5 text-left sm:grid-cols-2">
       {FIELDS.map((field) => (
-        <label key={field.name} className="grid gap-2 text-[15px] text-white/70">
+        <label key={field.name} className="grid gap-2 text-[15px] text-black/65">
           {field.label}
           <input
             name={field.name}
@@ -96,7 +96,7 @@ export function EnterpriseContactForm() {
           />
         </label>
       ))}
-      <label className="grid gap-2 text-[15px] text-white/70 sm:col-span-2">
+      <label className="grid gap-2 text-[15px] text-black/65 sm:col-span-2">
         Message
         <textarea
           name="message"
@@ -108,12 +108,12 @@ export function EnterpriseContactForm() {
         />
       </label>
       {error ? (
-        <p role="alert" className="text-[15px] text-[#ffb4a8] sm:col-span-2">
+        <p role="alert" className="text-[15px] text-[#b42318] sm:col-span-2">
           {error}
         </p>
       ) : null}
       <div className="sm:col-span-2">
-        <button type="submit" disabled={submitting} className="ent-pill-light w-full sm:w-auto">
+        <button type="submit" disabled={submitting} className="pickle-pill-solid w-full sm:w-auto">
           {submitting ? "Sending…" : "Send message"}
         </button>
       </div>

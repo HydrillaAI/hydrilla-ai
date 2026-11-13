@@ -5,26 +5,27 @@ import { Plus } from "lucide-react";
 
 import { EnterpriseContactForm } from "@/components/enterprise/EnterpriseContactForm";
 import { EnterpriseGlassMark } from "@/components/enterprise/EnterpriseGlassMark";
-import { EnterpriseSectionNav } from "@/components/enterprise/EnterpriseSectionNav";
 import { EnterpriseVideo } from "@/components/enterprise/EnterpriseVideo";
+import { TiltedGridHero } from "@/components/ui/tilted-grid-hero";
 import Footer from "@/components/layout/Footer";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { cloudinaryImage, WHY_HYDRILLA_MEDIA } from "@/lib/cloudinary";
+import { cloudinaryImage, whyHydrillaVideoPoster, WHY_HYDRILLA_MEDIA } from "@/lib/cloudinary";
 import { ENTERPRISE_FAQ } from "@/lib/enterprise-faq";
 import { getKitJsonLd } from "@/lib/kit-schema";
 
 const DEMO_URL = "https://cal.com/hydrilla";
 
-const SECTIONS = [
-  { id: "workflow", label: "Workflow" },
-  { id: "organization", label: "Organization" },
-  { id: "platform", label: "Workspace and API" },
-  { id: "teams", label: "Teams" },
-  { id: "compare", label: "Pro vs Enterprise" },
-  { id: "security", label: "Security" },
-  { id: "faq", label: "FAQ" },
-  { id: "contact", label: "Contact" },
-] as const;
+// Stills from Hydrilla's own showcase, cropped to the row's 16:9 tiles. The 3d-assets clip is left
+// out on purpose: it shows third-party brand logos.
+const ROW_TILE = "f_webp,q_auto,c_fill,g_auto,w_960,h_540";
+const HERO_ROW = [
+  ...["bluefox-why", "model-why", "blender-why", "texture-why-model", "rockey-why", "multi-why", "mesh-why"].map((id) => ({
+    src: whyHydrillaVideoPoster(id, `so_1,${ROW_TILE}`),
+  })),
+  ...["dino", "films-a", "architecture"].map((id) => ({
+    src: cloudinaryImage(`hydrilla-landing/industrypower/${id}`, ROW_TILE),
+  })),
+].flatMap((img, i, all) => (i < 7 ? [img, all[7 + (i % 3)]] : []));
 
 const FACTS = [
   { value: "4", label: "Export formats", detail: "GLB, FBX, OBJ, and USDZ" },
@@ -185,39 +186,36 @@ export default function EnterprisePage() {
     <>
       <JsonLd data={getKitJsonLd("/enterprise")} />
       <article className="ent-page">
-        <header className="ent-container pt-[clamp(116px,17vh,184px)]">
+        <header className="ent-container flex flex-col items-center pt-[clamp(120px,17vh,184px)] text-center">
           <p className="text-[15px] font-[510] tracking-[-0.01em] text-black/60">Studios</p>
-          <h1 className="ent-title mt-5">Hydrilla for Enterprise</h1>
-          <div className="mt-10 grid gap-8 md:mt-14 md:grid-cols-12 md:gap-10">
-            <p className="text-[clamp(1.625rem,1.2rem+1.7vw,2.5rem)] leading-[1.12] font-[500] tracking-[-0.03em] text-balance md:col-span-7">
-              Production 3D assets at enterprise scale, across your whole studio.
-            </p>
-            <div className="md:col-span-5">
-              <p className="ent-lede">
-                Hydrilla Enterprise brings BlueFox, Hydrilla&apos;s 3D model, and Water Agent to your team in one shared
-                workspace and through the API, with seats, API concurrency, custom plans, and pipeline support.
-              </p>
-              <div className="mt-7 flex flex-wrap gap-3">
-                <a href={DEMO_URL} className="pickle-pill-solid">
-                  Book a demo
-                </a>
-                <a href="#contact" className="pickle-pill-ghost">
-                  Talk to our team
-                </a>
-              </div>
-            </div>
+          <h1 className="ent-title mt-5 max-w-[12ch]">Hydrilla for Enterprise</h1>
+          <p className="mt-8 max-w-[26ch] text-[clamp(1.5rem,1.15rem+1.4vw,2.25rem)] leading-[1.12] font-[500] tracking-[-0.03em] text-balance">
+            Production 3D assets at enterprise scale, across your whole studio.
+          </p>
+          <p className="ent-lede mt-6 max-w-[56ch]">
+            Hydrilla Enterprise brings BlueFox, Hydrilla&apos;s 3D model, and Water Agent to your team in one shared
+            workspace and through the API, with seats, API concurrency, custom plans, and pipeline support.
+          </p>
+          <div className="mt-9 flex flex-wrap justify-center gap-3">
+            <a href={DEMO_URL} className="pickle-pill-solid">
+              Book a demo
+            </a>
+            <a href="#contact" className="pickle-pill-ghost">
+              Talk to our team
+            </a>
           </div>
         </header>
 
-        <EnterpriseSectionNav items={SECTIONS} />
-
-        <div className="ent-hero-media relative mt-6 aspect-[4/3] w-full overflow-hidden bg-black md:mt-10 md:aspect-[21/10]">
-          <EnterpriseVideo
-            src={WHY_HYDRILLA_MEDIA.bluefox.video}
-            poster={WHY_HYDRILLA_MEDIA.bluefox.poster}
-            label="A blue fox asleep under a willow tree at night"
-          />
-        </div>
+        <TiltedGridHero
+          images={HERO_ROW}
+          tileHeight={58}
+          axis={50}
+          curve={74}
+          gap={7}
+          fade={10}
+          speed={4.5}
+          className="mt-[clamp(40px,6vw,72px)] h-[clamp(260px,44vh,520px)] w-full"
+        />
 
         <dl className="ent-container grid grid-cols-2 gap-x-6 gap-y-10 py-14 md:grid-cols-4 md:py-20">
           {FACTS.map((fact) => (
@@ -441,19 +439,19 @@ export default function EnterprisePage() {
           </div>
         </section>
 
-        <section id="contact" className="scroll-mt-[120px] bg-black pb-[clamp(88px,11vw,160px)] text-white">
+        <section id="contact" className="scroll-mt-[120px] bg-[#f5f5f7] pb-[clamp(88px,11vw,160px)]">
           <EnterpriseGlassMark />
           <div className="ent-container text-center">
             <h2 className="ent-h2 text-balance">Get Hydrilla Enterprise</h2>
-            <p className="mx-auto mt-6 max-w-[60ch] text-[clamp(1.0625rem,1rem+0.3vw,1.25rem)] leading-[1.45] tracking-[-0.015em] text-white/70">
+            <p className="mx-auto mt-6 max-w-[60ch] text-[clamp(1.0625rem,1rem+0.3vw,1.25rem)] leading-[1.45] tracking-[-0.015em] text-black/65">
               Tell us your studio size, engine, and expected monthly volume, and whether you already generate on Pro. The more we know about your pipeline, the more useful the first conversation will be.
             </p>
             <div className="mt-8 flex justify-center">
-              <a href={DEMO_URL} className="ent-pill-light">
+              <a href={DEMO_URL} className="pickle-pill-solid">
                 Book a demo
               </a>
             </div>
-            <div className="mx-auto mt-16 max-w-[760px] border-t border-white/15 pt-12">
+            <div className="mx-auto mt-16 max-w-[760px] border-t border-black/10 pt-12">
               <EnterpriseContactForm />
             </div>
           </div>

@@ -9,7 +9,8 @@ const GlassIconReveal = dynamic(
 );
 
 /**
- * The Hydrilla mark resolving out of liquid glass, once, on the closing band.
+ * The hyd01 flower resolving out of liquid glass, once, on the closing band. The glass is light and
+ * the flower keeps its own glossy colours, so the canvas must paint the band's exact grey.
  * Mounts only as the band approaches: the shader and the logo's distance field
  * are too heavy to spend on visitors who never scroll this far.
  */
@@ -34,15 +35,17 @@ export function EnterpriseGlassMark() {
   }, []);
 
   return (
-    <div ref={slotRef} className="h-[clamp(340px,56vh,620px)] w-full bg-black">
+    <div ref={slotRef} className="h-[clamp(340px,56vh,620px)] w-full bg-[#f5f5f7]">
       {isNear ? (
         <GlassIconReveal
-          logo="/logo-hydrilla/hydrilla-mark.png"
+          logo="/hyd01.png"
           label="Hydrilla AI logo"
-          look="dark"
-          background="#000000"
-          logoColor="#ffffff"
+          look="light"
+          background="#f5f5f7"
+          originalColors
           tileSize={340}
+          logoScale={0.68}
+          finalScale={0.9}
           loop={false}
           className="h-full w-full cursor-default"
         />

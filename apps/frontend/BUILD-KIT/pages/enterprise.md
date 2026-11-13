@@ -13,7 +13,7 @@
 | Schema type | WebPage + ContactPoint (sales) + FAQPage (full JSON-LD rules in `seo-geo/schema.md`) |
 
 ## Layout note
-Editorial layout: large type, hairlines, full-bleed media, sticky in-page anchors, and a closing black band with the liquid-glass Hydrilla mark above the contact form (id="contact"). The only page with "Book a demo". FAQ answers live in `lib/enterprise-faq.ts`, which also feeds the FAQPage JSON-LD; keep this copy in step with it. Only state claims Hydrilla can back up: no customer logos, usage numbers, or certifications until they are confirmed.
+Editorial layout: centred hero over a curved row of showcase stills (`components/ui/tilted-grid-hero.tsx`), large type, hairlines, no second navbar, and a closing light-grey band where the hyd01 flower resolves out of liquid glass above the contact form (id="contact"). The only page with "Book a demo". FAQ answers live in `lib/enterprise-faq.ts`, which also feeds the FAQPage JSON-LD; keep this copy in step with it. Only state claims Hydrilla can back up: no customer logos, usage numbers, or certifications until they are confirmed.
 
 ## Page copy (render only what is between the markers; `**[Section …]**` labels are structure, not text)
 
@@ -33,7 +33,7 @@ Hydrilla Enterprise brings BlueFox, Hydrilla's 3D model, and Water Agent to your
 - 1 shared workspace: generations, reviews, and approved versions
 - 0 customer data used for training, on any plan
 
-Visual: BlueFox video, full width
+Visual: curved row of Hydrilla showcase stills, streaming across the page
 
 **[Section 2: Workflow]**
 

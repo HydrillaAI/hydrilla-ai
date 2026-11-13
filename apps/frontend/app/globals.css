@@ -4436,31 +4436,6 @@ input.range-minimal::-moz-range-track {
   text-decoration-thickness: 2px;
 }
 
-.ent-pill-light {
-  display: inline-flex;
-  height: 48px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 24px;
-  border-radius: 90px;
-  background: #ffffff;
-  color: #000000;
-  font-size: 17px;
-  font-weight: 510;
-  letter-spacing: -0.34px;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.ent-pill-light:hover {
-  background: #e5e5e7;
-}
-
-.ent-pill-light:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 @keyframes ent-title-in {
   from {
@@ -4476,13 +4451,6 @@ input.range-minimal::-moz-range-track {
   }
 }
 
-/* Media starts inset with rounded corners and opens to the full viewport width on scroll. */
-@keyframes ent-bleed {
-  from {
-    transform: scale(0.94);
-    border-radius: 32px;
-  }
-}
 
 @media (prefers-reduced-motion: no-preference) {
   .ent-title {
@@ -4495,12 +4463,6 @@ input.range-minimal::-moz-range-track {
       animation: ent-rise linear both;
       animation-timeline: view();
       animation-range: entry 0% entry 55%;
-    }
-
-    .ent-hero-media {
-      animation: ent-bleed linear both;
-      animation-timeline: view();
-      animation-range: entry 35% cover 42%;
     }
   }
 }
